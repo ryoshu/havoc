@@ -250,3 +250,6 @@ class DecisionRecord(BaseModel):
     phase_before: str = ""
     phase_after: str = ""
     timestamp: str = ""
+    # LLM reasoning trace — populated when an LLM drives decisions
+    llm_narration: str = ""  # the LLM's prose output (its "why")
+    llm_turn_context: str = ""  # what the LLM saw (game state + affordances sent to it)

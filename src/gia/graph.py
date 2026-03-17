@@ -290,6 +290,11 @@ class GameGraph:
             self._add(did, _iri("phaseAfter"), _lit(d.phase_after))
             self._add(did, _iri("timestamp"), _lit(d.timestamp))
 
+            if d.llm_narration:
+                self._add(did, _iri("llmNarration"), _lit(d.llm_narration))
+            if d.llm_turn_context:
+                self._add(did, _iri("llmTurnContext"), _lit(d.llm_turn_context))
+
             for i, alt in enumerate(d.affordances_not_taken):
                 self._add(did, _iri("actionNotTaken"), _lit(alt))
 

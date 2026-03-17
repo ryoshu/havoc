@@ -85,7 +85,9 @@ CREATE TABLE IF NOT EXISTS decision_records (
     events_json TEXT NOT NULL DEFAULT '[]',
     phase_before TEXT NOT NULL DEFAULT '',
     phase_after TEXT NOT NULL DEFAULT '',
-    timestamp TEXT NOT NULL
+    timestamp TEXT NOT NULL,
+    llm_narration TEXT NOT NULL DEFAULT '',
+    llm_turn_context TEXT NOT NULL DEFAULT ''
 );
 """
 
@@ -333,8 +335,9 @@ class GameDB:
             """INSERT INTO decision_records
                (id, session_id, actor_id, actor_name, action, params_json,
                 affordances_snapshot_json, affordances_not_taken_json,
-                result_summary, events_json, phase_before, phase_after, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                result_summary, events_json, phase_before, phase_after, timestamp,
+                llm_narration, llm_turn_context)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 decision.id, decision.session_id, decision.actor_id,
                 decision.actor_name, decision.action,
@@ -345,10 +348,28 @@ class GameDB:
                 json.dumps(decision.events),
                 decision.phase_before, decision.phase_after,
                 decision.timestamp,
+                decision.llm_narration,
+                decision.llm_turn_context,
             ),
         )
         self.conn.commit()
         return decision
+
+    def update_last_decision_llm_context(
+        self, session_id: str, narration: str, turn_context: str,
+    ) -> None:
+        """Attach LLM reasoning to the most recent decision in a session."""
+        self.conn.execute(
+            """UPDATE decision_records
+               SET llm_narration = ?, llm_turn_context = ?
+               WHERE id = (
+                   SELECT id FROM decision_records
+                   WHERE session_id = ?
+                   ORDER BY timestamp DESC LIMIT 1
+               )""",
+            (narration, turn_context, session_id),
+        )
+        self.conn.commit()
 
     def get_session_decisions(self, session_id: str) -> list[DecisionRecord]:
         rows = self.conn.execute(
@@ -372,6 +393,8 @@ class GameDB:
             phase_before=row["phase_before"],
             phase_after=row["phase_after"],
             timestamp=row["timestamp"],
+            llm_narration=row["llm_narration"],
+            llm_turn_context=row["llm_turn_context"],
         )
 
     def _row_to_roll(self, row: sqlite3.Row) -> DiceRoll:
