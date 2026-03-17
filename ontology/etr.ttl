@@ -1,0 +1,315 @@
+@prefix etr: <http://gia.dev/etr#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# === Classes ===
+
+etr:Character a rdfs:Class ;
+    rdfs:label "Character" ;
+    rdfs:comment "A playable vampire commando" .
+
+etr:Stat a rdfs:Class ;
+    rdfs:label "Stat" ;
+    rdfs:comment "One of the seven character statistics" .
+
+etr:Ability a rdfs:Class ;
+    rdfs:label "Ability" ;
+    rdfs:comment "A character's innate vampire ability" .
+
+etr:Advance a rdfs:Class ;
+    rdfs:label "Advance" ;
+    rdfs:comment "An unlockable ability gained by drinking Übermensch blood" .
+
+etr:Equipment a rdfs:Class ;
+    rdfs:label "Equipment" ;
+    rdfs:comment "A piece of equipment carried by a character" .
+
+etr:Enemy a rdfs:Class ;
+    rdfs:label "Enemy" ;
+    rdfs:comment "A nazi enemy type with threat and attack ratings" .
+
+etr:Ubermensch rdfs:subClassOf etr:Enemy ;
+    rdfs:label "Übermensch" ;
+    rdfs:comment "A supernaturally-augmented elite enemy" .
+
+etr:Location a rdfs:Class ;
+    rdfs:label "Location" ;
+    rdfs:comment "A location on the map of Paris" .
+
+etr:Sector a rdfs:Class ;
+    rdfs:label "Sector" ;
+    rdfs:comment "One of the three map sectors" .
+
+etr:Objective a rdfs:Class ;
+    rdfs:label "Objective" ;
+    rdfs:comment "A task the vampires must overcome" .
+
+etr:Threat a rdfs:Class ;
+    rdfs:label "Threat" ;
+    rdfs:comment "An active enemy force in a scene" .
+
+etr:LootItem a rdfs:Class ;
+    rdfs:label "LootItem" ;
+    rdfs:comment "Equipment that can be looted from a location" .
+
+etr:InjurySlot a rdfs:Class ;
+    rdfs:label "InjurySlot" ;
+    rdfs:comment "A character-specific injury category with unique penalties" .
+
+etr:Rule a rdfs:Class ;
+    rdfs:label "Rule" ;
+    rdfs:comment "A game rule or mechanic description" .
+
+# === Properties ===
+
+# Character properties
+etr:hasStat a rdf:Property ;
+    rdfs:domain etr:Character ;
+    rdfs:range etr:Stat .
+
+etr:hasAbility a rdf:Property ;
+    rdfs:domain etr:Character ;
+    rdfs:range etr:Ability .
+
+etr:hasAdvance a rdf:Property ;
+    rdfs:domain etr:Character ;
+    rdfs:range etr:Advance .
+
+etr:hasStartingEquipment a rdf:Property ;
+    rdfs:domain etr:Character ;
+    rdfs:range etr:Equipment .
+
+etr:hasInjurySlot a rdf:Property ;
+    rdfs:domain etr:Character ;
+    rdfs:range etr:InjurySlot .
+
+etr:characterDescription a rdf:Property ;
+    rdfs:domain etr:Character ;
+    rdfs:range xsd:string .
+
+etr:lastStand a rdf:Property ;
+    rdfs:domain etr:Character ;
+    rdfs:range xsd:string .
+
+# Stat properties
+etr:statName a rdf:Property ;
+    rdfs:domain etr:Stat ;
+    rdfs:range xsd:string .
+
+etr:statValue a rdf:Property ;
+    rdfs:domain etr:Stat ;
+    rdfs:range xsd:integer .
+
+# Ability / Advance properties
+etr:abilityName a rdf:Property ;
+    rdfs:range xsd:string .
+
+etr:abilityDescription a rdf:Property ;
+    rdfs:range xsd:string .
+
+etr:bloodCost a rdf:Property ;
+    rdfs:range xsd:integer .
+
+etr:bonusDiceCondition a rdf:Property ;
+    rdfs:range xsd:string .
+
+etr:bonusDiceCount a rdf:Property ;
+    rdfs:range xsd:integer .
+
+etr:specialEffect a rdf:Property ;
+    rdfs:range xsd:string .
+
+# Equipment properties
+etr:equipmentName a rdf:Property ;
+    rdfs:domain etr:Equipment ;
+    rdfs:range xsd:string .
+
+etr:maxUses a rdf:Property ;
+    rdfs:domain etr:Equipment ;
+    rdfs:range xsd:integer .
+
+# Enemy properties
+etr:enemyName a rdf:Property ;
+    rdfs:domain etr:Enemy ;
+    rdfs:range xsd:string .
+
+etr:enemyDescription a rdf:Property ;
+    rdfs:domain etr:Enemy ;
+    rdfs:range xsd:string .
+
+etr:rating a rdf:Property ;
+    rdfs:domain etr:Enemy ;
+    rdfs:range xsd:integer .
+
+etr:attackDice a rdf:Property ;
+    rdfs:domain etr:Enemy ;
+    rdfs:range xsd:integer .
+
+etr:challengeRating a rdf:Property ;
+    rdfs:range xsd:integer .
+
+etr:isSolo a rdf:Property ;
+    rdfs:domain etr:Enemy ;
+    rdfs:range xsd:boolean .
+
+etr:hasSpecialRule a rdf:Property ;
+    rdfs:domain etr:Enemy ;
+    rdfs:range xsd:string .
+
+etr:hasForeshadowing a rdf:Property ;
+    rdfs:domain etr:Enemy ;
+    rdfs:range xsd:string .
+
+etr:bloodFlavour a rdf:Property ;
+    rdfs:domain etr:Enemy ;
+    rdfs:range xsd:string .
+
+# Location properties
+etr:locationName a rdf:Property ;
+    rdfs:domain etr:Location ;
+    rdfs:range xsd:string .
+
+etr:locationDescription a rdf:Property ;
+    rdfs:domain etr:Location ;
+    rdfs:range xsd:string .
+
+etr:inSector a rdf:Property ;
+    rdfs:domain etr:Location ;
+    rdfs:range etr:Sector .
+
+etr:connectsTo a rdf:Property ;
+    rdfs:domain etr:Location ;
+    rdfs:range etr:Location .
+
+etr:hasObjective a rdf:Property ;
+    rdfs:domain etr:Location ;
+    rdfs:range etr:Objective .
+
+etr:hasThreat a rdf:Property ;
+    rdfs:domain etr:Location ;
+    rdfs:range xsd:string .
+
+etr:hasLoot a rdf:Property ;
+    rdfs:domain etr:Location ;
+    rdfs:range etr:LootItem .
+
+# Objective properties
+etr:objectiveName a rdf:Property ;
+    rdfs:domain etr:Objective ;
+    rdfs:range xsd:string .
+
+etr:objectiveRating a rdf:Property ;
+    rdfs:domain etr:Objective ;
+    rdfs:range xsd:integer .
+
+# Injury slot properties
+etr:injuryCategory a rdf:Property ;
+    rdfs:domain etr:InjurySlot ;
+    rdfs:range xsd:string .
+
+etr:minorInjury a rdf:Property ;
+    rdfs:domain etr:InjurySlot ;
+    rdfs:range xsd:string .
+
+etr:majorInjury a rdf:Property ;
+    rdfs:domain etr:InjurySlot ;
+    rdfs:range xsd:string .
+
+etr:majorPenalty a rdf:Property ;
+    rdfs:domain etr:InjurySlot ;
+    rdfs:range xsd:string .
+
+# Sector properties
+etr:sectorNumber a rdf:Property ;
+    rdfs:domain etr:Sector ;
+    rdfs:range xsd:integer .
+
+# Rule properties
+etr:ruleName a rdf:Property ;
+    rdfs:domain etr:Rule ;
+    rdfs:range xsd:string .
+
+etr:ruleText a rdf:Property ;
+    rdfs:domain etr:Rule ;
+    rdfs:range xsd:string .
+
+# === Sector Instances ===
+
+etr:sector_1 a etr:Sector ;
+    etr:sectorNumber 1 ;
+    rdfs:label "Sector 1 — Endgame" .
+
+etr:sector_2 a etr:Sector ;
+    etr:sectorNumber 2 ;
+    rdfs:label "Sector 2 — Bulk of Assault" .
+
+etr:sector_3 a etr:Sector ;
+    etr:sectorNumber 3 ;
+    rdfs:label "Sector 3 — Starting Sections" .
+
+# === Core Rules ===
+
+etr:rule_dice_success a etr:Rule ;
+    etr:ruleName "Dice Success" ;
+    etr:ruleText "Roll D6: results of 1-3 are discarded. 4-5 = 1 success. 6 = critical (2 successes or activate SPECIAL)." .
+
+etr:rule_allocation a etr:Rule ;
+    etr:ruleName "Dice Allocation" ;
+    etr:ruleText "Allocate each kept die to: Objective (reduce rating), Threat (reduce rating), Defense (remove GM attack dice), Feed (gain Blood), or Special (crit only, activate SPECIAL ability)." .
+
+etr:rule_challenge a etr:Rule ;
+    etr:ruleName "Challenge" ;
+    etr:ruleText "If an Objective or Threat has Challenge N, it absorbs N successes per vampire per turn before taking damage." .
+
+etr:rule_reinforcements a etr:Rule ;
+    etr:ruleName "Reinforcements" ;
+    etr:ruleText "At end of round, if a Threat was reduced to 0: restore rating by 1D6 and Attack to half starting value (rounded down). Increase each active Threat's Attack by 1. Does not apply to Solo enemies." .
+
+etr:rule_injury a etr:Rule ;
+    etr:ruleName "Injury" ;
+    etr:ruleText "If GM has Attack dice remaining after allocation: roll D6 for injury category and mark first available box. If GM has 3+ remaining: mark all boxes in that category and character is Downed." .
+
+etr:rule_downed a etr:Rule ;
+    etr:ruleName "Downed" ;
+    etr:ruleText "A Downed character is out of the fight. Rescuing them becomes a new Objective (rating 2-4). If not rescued before moving on, character is captured." .
+
+etr:rule_healing a etr:Rule ;
+    etr:ruleName "Healing" ;
+    etr:ruleText "Spend 3 Blood at any time to heal (erase) one Injury." .
+
+etr:rule_death a etr:Rule ;
+    etr:ruleName "Death & Last Stand" ;
+    etr:ruleText "If all 6 Injuries are marked, the character dies. Roll 8D6 as a Last Stand and allocate freely to Objectives and Threats." .
+
+etr:rule_blood a etr:Rule ;
+    etr:ruleName "Blood" ;
+    etr:ruleText "Vampires start with 0 Blood. Maximum 10. Gain by allocating dice to Feed. Spend for abilities and healing. Can be shared between vampires within arm's reach." .
+
+etr:rule_flashback a etr:Rule ;
+    etr:ruleName "Flashback" ;
+    etr:ruleText "Once per session, when you roll 2 successes or fewer: add 2 dice to pool and reroll everything. Second result stands." .
+
+etr:rule_looting a etr:Rule ;
+    etr:ruleName "Looting" ;
+    etr:ruleText "Once per Objective, write found item in Loot slot. Functions as equipment with 3 uses and a bonus condition. Last use of any multi-use item adds 1 extra bonus die." .
+
+etr:rule_last_use_bonus a etr:Rule ;
+    etr:ruleName "Last Use Bonus" ;
+    etr:ruleText "The last use of any item that starts with more than one use adds an additional bonus die to the pool." .
+
+etr:rule_turn_order a etr:Rule ;
+    etr:ruleName "Turn Order" ;
+    etr:ruleText "The GM chooses which player character acts first. Once they complete their turn, the GM chooses the next. After all PCs act, reinforcements arrive and a new round begins." .
+
+etr:rule_ubermensch a etr:Rule ;
+    etr:ruleName "Übermenschen" ;
+    etr:ruleText "Elite enemies. Drinking their blood allows a PC to unlock one Advance from their sheet. Do not use Reinforcement rules (Solo). When reduced to 0, they are permanently dead." .
+
+etr:rule_rust_witch_discard a etr:Rule ;
+    etr:ruleName "Aura of Misfortune" ;
+    etr:ruleText "When engaged with the Rust-Witch, players discard rolls of 1-4 rather than 1-3." .
+
+etr:rule_retreat a etr:Rule ;
+    etr:ruleName "Retreat" ;
+    etr:ruleText "Players can retreat: create new Objective (Escape!) with appropriate rating. On completion, move back to previous location. Cannot end up closer to Eiffel Tower." .

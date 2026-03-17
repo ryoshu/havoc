@@ -1,0 +1,217 @@
+[
+  {
+    "id": "police_patrol",
+    "name": "Police Patrol",
+    "description": "A group of civilian enforcers with pistols, batons and handcuffs.",
+    "threat": 4,
+    "attack": 2,
+    "challenge": 0,
+    "is_ubermensch": false,
+    "solo": false,
+    "special_rules": [],
+    "foreshadowing": [],
+    "blood_flavour": null
+  },
+  {
+    "id": "infantry_squad",
+    "name": "Infantry Squad",
+    "description": "Ten jack-booted soldiers with rifles and submachine guns.",
+    "threat": 6,
+    "attack": 3,
+    "challenge": 0,
+    "is_ubermensch": false,
+    "solo": false,
+    "special_rules": [],
+    "foreshadowing": [],
+    "blood_flavour": null
+  },
+  {
+    "id": "armoured_car",
+    "name": "Armoured Car",
+    "description": "A steel-armoured wheeled troop transport with a machine gun bolted to the top.",
+    "threat": 4,
+    "attack": 2,
+    "challenge": 1,
+    "is_ubermensch": false,
+    "solo": true,
+    "special_rules": [],
+    "foreshadowing": [],
+    "blood_flavour": null
+  },
+  {
+    "id": "armoured_infantry",
+    "name": "Armoured Infantry Squad",
+    "description": "Steel plates and toughened leather make these troopers hard to put down.",
+    "threat": 6,
+    "attack": 3,
+    "challenge": 1,
+    "is_ubermensch": false,
+    "solo": false,
+    "special_rules": [],
+    "foreshadowing": [],
+    "blood_flavour": null
+  },
+  {
+    "id": "motorcycle_squad",
+    "name": "Motorcycle Squad",
+    "description": "Skilled riders on fast motorcycles. When they go down, they stay down.",
+    "threat": 10,
+    "attack": 3,
+    "challenge": 0,
+    "is_ubermensch": false,
+    "solo": false,
+    "special_rules": [
+      "All vampires gain SPECIAL when engaged: CRASH AND BURN — Inflict 3 damage to the Motorcycle Squad."
+    ],
+    "foreshadowing": [],
+    "blood_flavour": null
+  },
+  {
+    "id": "sniper_team",
+    "name": "Sniper Team",
+    "description": "Sharpshooters and spotters hiding in concealed positions.",
+    "threat": 3,
+    "attack": 6,
+    "challenge": 2,
+    "is_ubermensch": false,
+    "solo": true,
+    "special_rules": [],
+    "foreshadowing": [],
+    "blood_flavour": null
+  },
+  {
+    "id": "paratrooper_squad",
+    "name": "Paratrooper Squad",
+    "description": "Dropping from planes flying overhead to engage the vampire menace.",
+    "threat": 6,
+    "attack": 3,
+    "challenge": 0,
+    "is_ubermensch": false,
+    "solo": false,
+    "special_rules": [
+      "Rapid Deployment: When you add to the Paratrooper Squad's Attack through Reinforcement, add +2 Threat rating."
+    ],
+    "foreshadowing": [],
+    "blood_flavour": null
+  },
+  {
+    "id": "tank",
+    "name": "Tank",
+    "description": "A rumbling, roaring behemoth with a single-shot cannon mounted atop a turret.",
+    "threat": 8,
+    "attack": 6,
+    "challenge": 2,
+    "is_ubermensch": false,
+    "solo": true,
+    "special_rules": [],
+    "foreshadowing": [],
+    "blood_flavour": null
+  },
+  {
+    "id": "vampirjager_cadre",
+    "name": "Vampirjäger Cadre",
+    "description": "Five oath-sworn hunters carrying blessed bullets, holy water sprayers, sharpened stakes and firebombs.",
+    "threat": 8,
+    "attack": 6,
+    "challenge": 0,
+    "is_ubermensch": false,
+    "solo": true,
+    "special_rules": [
+      "Anathema: Attack dice generate 2 successes each on the roll of a 6."
+    ],
+    "foreshadowing": [],
+    "blood_flavour": null
+  },
+  {
+    "id": "stahlsoldat",
+    "name": "Stahlsoldat",
+    "description": "The first of what Hitler hopes will be a legion of half-man, half-machine warriors. Pistons replace muscles, steel replaces skin, and the troublesome parts of the brain are cut away until only the bare instinct of killing remains.",
+    "threat": 6,
+    "attack": 4,
+    "challenge": 2,
+    "is_ubermensch": true,
+    "solo": false,
+    "special_rules": [
+      "Powering up: Uses reinforcement rules as normal, but is defeated when reduced to 0 Threat."
+    ],
+    "foreshadowing": [
+      "Banners strung up on the outside of the technology pavilion promising the future of warfare",
+      "Suspicious hissing and grinding as it powers up",
+      "Steel shutters trapping the vampires inside the pavilion"
+    ],
+    "blood_flavour": "Bleach, pine tar, petrol."
+  },
+  {
+    "id": "einherjar",
+    "name": "Einherjar",
+    "description": "Haunted suits of armour and warrior mummies brought to life by grim nazi wizardry.",
+    "threat": 7,
+    "attack": 3,
+    "challenge": 0,
+    "is_ubermensch": false,
+    "solo": false,
+    "special_rules": [
+      "Painless: Each dice in the GM's Attack pool that shows 1 increases this enemy's Challenge by 1 for this action.",
+      "Bloodless: Player characters cannot spend dice to regain Blood whilst engaged only with the Einherjar."
+    ],
+    "foreshadowing": [],
+    "blood_flavour": null
+  },
+  {
+    "id": "rust_witch",
+    "name": "Rust-Witch",
+    "description": "Uses golden technology harvested from Atlantean satellite ruins to manipulate the forces of chance and decay. Of all the Übermenschen in Paris, she is the most difficult to control and has a penchant for wild chaos.",
+    "threat": 10,
+    "attack": 6,
+    "challenge": 0,
+    "is_ubermensch": true,
+    "solo": true,
+    "special_rules": [
+      "Aura of Misfortune: Players discard rolls of 1-4 rather than 1-3 when engaged with the Rust-Witch.",
+      "Rust Curse: At the end of each round, choose a player character. One piece of their equipment, chosen at random, rusts or degrades into uselessness."
+    ],
+    "foreshadowing": [
+      "Carrion birds spiral around above the fairground",
+      "A completely useless tank abandoned by its crew on the edge of the area of effect",
+      "A fighter plane passes over the park and tumbles towards the ground"
+    ],
+    "blood_flavour": "Stinging nettles, pop rocks and tonic water."
+  },
+  {
+    "id": "damonenblut",
+    "name": "Dämonenblut",
+    "description": "Franz Vogel, popular movie star turned Übermensch. Obisidian-black ichor pumps thick through his body thanks to the implanted heart of a lesser demon. Horns, teeth and claws sprout from his skin and rend foes asunder.",
+    "threat": 12,
+    "attack": 4,
+    "challenge": 1,
+    "is_ubermensch": true,
+    "solo": true,
+    "special_rules": [],
+    "foreshadowing": [
+      "Posters displaying his handsome human face announcing his starring role in an upcoming propaganda film",
+      "Horns and teeth discarded on the floor or growing from the walls",
+      "Trapped opera-goers cowering in fear"
+    ],
+    "blood_flavour": "A jar of chicken fat with a cigar stubbed out in it."
+  },
+  {
+    "id": "werhund",
+    "name": "Werhund",
+    "description": "Multiple infusions of cursed wolfblood and implanted canine teeth against the spinal column has given this soldier the ability to transform into a half-man, half-hound with impossible strength.",
+    "threat": 10,
+    "attack": 5,
+    "challenge": 1,
+    "is_ubermensch": true,
+    "solo": true,
+    "special_rules": [
+      "Rending Claws: When marking an Injury from the Werhund, check off all available boxes in the section rolled, not just the highest available one.",
+      "Regeneration: The Werhund's challenge cannot be lowered by any means."
+    ],
+    "foreshadowing": [
+      "A full moon hanging ominous in the sky",
+      "Terrible howling heard echoing across the city",
+      "Mutilated corpses of nazi soldiers that the vampires aren't responsible for"
+    ],
+    "blood_flavour": "Sweat, meat, cheap leather."
+  }
+]

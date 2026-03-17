@@ -1,0 +1,668 @@
+[
+  {
+    "id": "iryna",
+    "name": "Iryna",
+    "description": "Old Money undead occultist and bonne vivante. Black sheep of a well-established vampyr clan. Ancestral home (and family) torn apart by nazis. Providing a significant portion of F.A.N.G. funding.",
+    "hooks": [
+      "Poshest of all the characters, probably the best dressed",
+      "Abilities and equipment allow for interesting descriptions of magic",
+      "Players who want to be beautiful and elegant rulers of the night"
+    ],
+    "stats": {
+      "brawl": 2,
+      "con": 4,
+      "fix": 2,
+      "search": 2,
+      "shoot": 3,
+      "sneak": 1,
+      "terrify": 3
+    },
+    "abilities": [
+      {
+        "name": "Dark Glamour",
+        "description": "Spend 1 Blood: those nearby are mesmerised by your unearthly visage.",
+        "cost": 1,
+        "bonus_condition": "+beautiful surroundings",
+        "bonus_dice": 1,
+        "special": null
+      },
+      {
+        "name": "Night's Willing Servants",
+        "description": "Spend 1 Blood: summon a swarm of bats under your control.",
+        "cost": 1,
+        "bonus_condition": "+old buildings",
+        "bonus_dice": 1,
+        "special": null
+      },
+      {
+        "name": "Deadeye Shot",
+        "description": "When you use a ranged weapon, SPECIAL: Reduce a Threat's Attack rating by 1.",
+        "cost": 0,
+        "bonus_condition": null,
+        "bonus_dice": 0,
+        "special": "Reduce a Threat's Attack rating by 1"
+      }
+    ],
+    "advances": [
+      {
+        "name": "Hell's Ravenous Fire",
+        "description": "Spend 1 Blood: ignore Challenge on your next action against a Threat.",
+        "cost": 1
+      },
+      {
+        "name": "Enervation of the Soul",
+        "description": "Spend 1 Blood: on your next roll, gain SPECIAL: Inflict 4 damage to an Übermensch.",
+        "cost": 1
+      },
+      {
+        "name": "Mantle of the Fell Beast",
+        "description": "Spend 2 Blood: BRAWL and TERRIFY become 4, all other stats are set to 1, and you cannot use items. Lasts until the Objective is completed.",
+        "cost": 2
+      }
+    ],
+    "equipment": [
+      {
+        "name": "Exquisite hunting rifle",
+        "bonus_condition": "+elevated position",
+        "bonus_dice": 1,
+        "max_uses": 3
+      },
+      {
+        "name": "Magic cavalry sabre",
+        "bonus_condition": "+charge!",
+        "bonus_dice": 1,
+        "max_uses": 3
+      },
+      {
+        "name": "Explosive runes",
+        "bonus_condition": "++concealed",
+        "bonus_dice": 2,
+        "max_uses": 3
+      },
+      {
+        "name": "Cigarettes taken from the pockets of hanged men",
+        "bonus_condition": null,
+        "bonus_dice": 0,
+        "max_uses": 1,
+        "special_use": "Mark to regain 2 Blood"
+      }
+    ],
+    "injuries": {
+      "1-2": {
+        "minor": "Suit Torn",
+        "major": "Abdominal Puncture",
+        "major_penalty": "Can't use + dice"
+      },
+      "3-4": {
+        "minor": "Hair Ruined",
+        "major": "Headshot",
+        "major_penalty": "+2 BRAWL, -2 CON"
+      },
+      "5-6": {
+        "minor": "Shoulder Injury",
+        "major": "Arm Removed",
+        "major_penalty": "May only use 1 item per turn"
+      }
+    },
+    "last_stand": "Forbidden Sorceries (8D6)",
+    "starting_blood": 0
+  },
+  {
+    "id": "nicole",
+    "name": "Nicole",
+    "description": "Resistance guerrilla fighter and demolitions expert. Packing more heat than a whole platoon. Lost your cell to nazi purges, bitter about it. Bitten by your (now dead) vampire girlfriend. Desperate to meet a glorious end in battle.",
+    "hooks": [
+      "Has a bunch of guns",
+      "For players who like guns, glorious self-destruction, or linear application of extreme violence",
+      "Has the most equipment items (6 weapons)"
+    ],
+    "stats": {
+      "brawl": 2,
+      "con": 2,
+      "fix": 1,
+      "search": 2,
+      "shoot": 4,
+      "sneak": 3,
+      "terrify": 3
+    },
+    "abilities": [
+      {
+        "name": "Scavenger",
+        "description": "SPECIAL: Roll a D6 and compare it to the numbers in square brackets on Nicole's equipment list. Restore 1 use of the weapon rolled.",
+        "cost": 0,
+        "bonus_condition": null,
+        "bonus_dice": 0,
+        "special": "Roll D6, restore 1 use of weapon [1]-[6]"
+      },
+      {
+        "name": "Sapper",
+        "description": "When you use explosives, SPECIAL: reduce an Objective or Threat's Challenge by 1.",
+        "cost": 0,
+        "bonus_condition": null,
+        "bonus_dice": 0,
+        "special": "Reduce an Objective or Threat's Challenge by 1"
+      },
+      {
+        "name": "Blink",
+        "description": "Spend 1 Blood: burst into shadows and reform a few feet away.",
+        "cost": 1,
+        "bonus_condition": "+infiltration",
+        "bonus_dice": 1,
+        "special": null
+      }
+    ],
+    "advances": [
+      {
+        "name": "Rat Swarm",
+        "description": "Spend 1 Blood: summon a swarm of rats under your control.",
+        "cost": 1,
+        "bonus_condition": "++filth",
+        "bonus_dice": 2
+      },
+      {
+        "name": "Feed on Fear",
+        "description": "When you reduce a Threat rating to 0, gain 3 Blood.",
+        "cost": 0
+      },
+      {
+        "name": "Pitch Black",
+        "description": "Spend 1 Blood: plunge the area around you into shadow; you can see fine.",
+        "cost": 1,
+        "bonus_condition": "++ambush",
+        "bonus_dice": 2
+      }
+    ],
+    "equipment": [
+      {
+        "name": "M3 submachine gun",
+        "scavenger_roll": 1,
+        "bonus_condition": "+flanking",
+        "bonus_dice": 1,
+        "max_uses": 3
+      },
+      {
+        "name": "Cut-down Lee Enfield rifle",
+        "scavenger_roll": 2,
+        "bonus_condition": "+close quarters",
+        "bonus_dice": 1,
+        "max_uses": 3
+      },
+      {
+        "name": "Smoke grenades",
+        "scavenger_roll": 3,
+        "bonus_condition": "+cover advance",
+        "bonus_dice": 1,
+        "max_uses": 3
+      },
+      {
+        "name": "Firebombs",
+        "scavenger_roll": 4,
+        "bonus_condition": "++firetrap",
+        "bonus_dice": 2,
+        "max_uses": 3
+      },
+      {
+        "name": "Panzerfaust",
+        "scavenger_roll": 5,
+        "bonus_condition": "+++armoured target",
+        "bonus_dice": 3,
+        "max_uses": 1
+      },
+      {
+        "name": "Dynamite",
+        "scavenger_roll": 6,
+        "bonus_condition": "++++demolitions",
+        "bonus_dice": 4,
+        "max_uses": 1
+      }
+    ],
+    "injuries": {
+      "1-2": {
+        "minor": "Dazed",
+        "major": "Headshot",
+        "major_penalty": "Can't trigger specials"
+      },
+      "3-4": {
+        "minor": "Just a Graze",
+        "major": "Bleeding Out",
+        "major_penalty": "Spend 1 Blood at the start of your turn"
+      },
+      "5-6": {
+        "minor": "Hand Injury",
+        "major": "Lost an Arm",
+        "major_penalty": "May only use 1 item per turn"
+      }
+    },
+    "last_stand": "Rigged to Blow (8D6)",
+    "starting_blood": 0
+  },
+  {
+    "id": "cosgrave",
+    "name": "Cosgrave",
+    "description": "Hackney necromancer, taught by your aunt. Medically dead, but can still walk around and that. On the run from East London's undead mafia. Crooked as a three bob note, but charming with it. Lots of weird black magic tricks.",
+    "hooks": [
+      "Most magical character",
+      "Abilities come with expectation that players will use them in creative ways",
+      "Give to a player comfortable with improvising in the moment"
+    ],
+    "stats": {
+      "brawl": 2,
+      "con": 3,
+      "fix": 3,
+      "search": 2,
+      "shoot": 2,
+      "sneak": 3,
+      "terrify": 2
+    },
+    "abilities": [
+      {
+        "name": "Danse Macabre",
+        "description": "Spend 1 Blood: gain full control of a corpse for around a minute, after which it falls apart.",
+        "cost": 1,
+        "bonus_condition": "+Hans, are you okay?",
+        "bonus_dice": 1,
+        "special": null
+      },
+      {
+        "name": "Back-Pocket Hex",
+        "description": "SPECIAL: Reduce a Threat's Attack rating by 1.",
+        "cost": 0,
+        "bonus_condition": null,
+        "bonus_dice": 0,
+        "special": "Reduce a Threat's Attack rating by 1"
+      },
+      {
+        "name": "Phantasmagoria",
+        "description": "Spend 1 Blood: conjure nightmare illusions in the area immediately around you.",
+        "cost": 1,
+        "bonus_condition": "+incorporates the background in a clever way",
+        "bonus_dice": 1,
+        "special": null
+      }
+    ],
+    "advances": [
+      {
+        "name": "Memory Rot",
+        "description": "Spend 1 Blood: remove or implant memories from someone you lock eyes with.",
+        "cost": 1,
+        "bonus_condition": "+you were never here",
+        "bonus_dice": 1
+      },
+      {
+        "name": "Death Burst",
+        "description": "Spend 1 Blood: curse a nazi within arm's reach to explode when they die.",
+        "cost": 1,
+        "bonus_condition": "++enclosed spaces",
+        "bonus_dice": 2
+      },
+      {
+        "name": "Dead Man's Luck",
+        "description": "After you roll your dice pool, before you discard dice, reduce the GM's successful Attack dice by 1 for each 1 you rolled.",
+        "cost": 0
+      }
+    ],
+    "equipment": [
+      {
+        "name": "Enormous knife",
+        "bonus_condition": "+never saw you coming",
+        "bonus_dice": 1,
+        "max_uses": 3
+      },
+      {
+        "name": "Sawn-off shotgun",
+        "bonus_condition": "++point-blank",
+        "bonus_dice": 2,
+        "max_uses": 3
+      },
+      {
+        "name": "Bottled ghosts",
+        "bonus_condition": "++pass through walls",
+        "bonus_dice": 2,
+        "max_uses": 3
+      },
+      {
+        "name": "Mother Millicent's stolen soul jar",
+        "bonus_condition": "+++any",
+        "bonus_dice": 3,
+        "max_uses": 1
+      }
+    ],
+    "injuries": {
+      "1-2": {
+        "minor": "Lost Some Fingers",
+        "major": "Arm Ripped Off",
+        "major_penalty": "-1 to all stats"
+      },
+      "3-4": {
+        "minor": "Sucking Chest Wound",
+        "major": "Shot in the Face",
+        "major_penalty": "+2 TERRIFY, -2 CON"
+      },
+      "5-6": {
+        "minor": "Grimoire Damaged",
+        "major": "Wards Compromised",
+        "major_penalty": "Can't spend Blood to use abilities"
+      }
+    },
+    "last_stand": "Undead Horde (8D6)",
+    "starting_blood": 0
+  },
+  {
+    "id": "chuck",
+    "name": "Chuck",
+    "description": "Grew up on the wrong side of the tracks, buried a sibling or two. Loves cowboy movies, honest work, human liver and the wide open plains. Genuinely decent guy, apart from the eating people bit. F.A.N.G. pulled you out of jail after you ate a county sheriff and half his deputy.",
+    "hooks": [
+      "Good-natured cowpoke who eats corpses",
+      "Incongruous and has plenty of opportunities to make light of situations",
+      "Give to the joker in your group"
+    ],
+    "stats": {
+      "brawl": 3,
+      "con": 1,
+      "fix": 4,
+      "search": 2,
+      "shoot": 3,
+      "sneak": 2,
+      "terrify": 2
+    },
+    "abilities": [
+      {
+        "name": "Acid Spit",
+        "description": "Spend 1 Blood: hawk up a gutful of fierce acid.",
+        "cost": 1,
+        "bonus_condition": "++vs metal",
+        "bonus_dice": 2,
+        "special": null
+      },
+      {
+        "name": "Spider Scurry",
+        "description": "Spend 1 Blood: skitter across ceilings and up walls.",
+        "cost": 1,
+        "bonus_condition": "+low ceilings",
+        "bonus_dice": 1,
+        "special": null
+      },
+      {
+        "name": "Corpse Eater",
+        "description": "After you roll your dice pool, before you discard dice, gain 1 Blood if you rolled any 1s.",
+        "cost": 0,
+        "bonus_condition": null,
+        "bonus_dice": 0,
+        "special": null
+      }
+    ],
+    "advances": [
+      {
+        "name": "Elbow Grease",
+        "description": "When you roll up your sleeves and take on an Objective single-handed with the FIX stat, gain SPECIAL: reduce the Objective's rating by 4.",
+        "cost": 0
+      },
+      {
+        "name": "Corrosive Fluids",
+        "description": "When you mark an Injury, reduce the rating of a Threat you're engaged with by 2.",
+        "cost": 0
+      },
+      {
+        "name": "Lashing Tongue",
+        "description": "Spend 1 Blood: your strong, prehensile tongue extends several yards out of your mouth.",
+        "cost": 1,
+        "bonus_condition": "+restrain",
+        "bonus_dice": 1
+      }
+    ],
+    "equipment": [
+      {
+        "name": "Paired revolvers, Betsy and Maria",
+        "bonus_condition": "+duel",
+        "bonus_dice": 1,
+        "max_uses": 3
+      },
+      {
+        "name": "Tool belt",
+        "bonus_condition": "+Jerry-rigging",
+        "bonus_dice": 1,
+        "max_uses": 3
+      },
+      {
+        "name": "Cowboy hat",
+        "bonus_condition": null,
+        "bonus_dice": 0,
+        "max_uses": 1,
+        "special_use": "Mark to ignore an Injury or being Downed; hat is destroyed"
+      }
+    ],
+    "injuries": {
+      "1-2": {
+        "minor": "Flesh Wound",
+        "major": "Shot Fulla Holes",
+        "major_penalty": "Spend 1 Blood at the start of your turn"
+      },
+      "3-4": {
+        "minor": "Limping",
+        "major": "Crawling",
+        "major_penalty": "-1 to all stats"
+      },
+      "5-6": {
+        "minor": "Mauled",
+        "major": "Eviscerated",
+        "major_penalty": "Can't use + dice"
+      }
+    },
+    "last_stand": "Go Down Shooting (8D6)",
+    "starting_blood": 0
+  },
+  {
+    "id": "astrid",
+    "name": "Astrid",
+    "description": "Ex-fighter pilot, bitten by something after a crash in the frozen taiga. The parasite soul of a wild predator is nestled around your heart. Now ancient magic flows in your blood and wild spirits bow to you.",
+    "hooks": [
+      "Most basic character in mechanical terms",
+      "Very good at fighting nazis",
+      "For players who don't want complex decisions and just want to rip nazis in half"
+    ],
+    "stats": {
+      "brawl": 3,
+      "con": 1,
+      "fix": 2,
+      "search": 3,
+      "shoot": 2,
+      "sneak": 2,
+      "terrify": 4
+    },
+    "abilities": [
+      {
+        "name": "Apex Predator",
+        "description": "SPECIAL: Reduce a Threat's rating by 3.",
+        "cost": 0,
+        "bonus_condition": null,
+        "bonus_dice": 0,
+        "special": "Reduce a Threat's rating by 3"
+      },
+      {
+        "name": "Unnatural Endurance",
+        "description": "SPECIAL: Reduce the GM's Attack dice by 3.",
+        "cost": 0,
+        "bonus_condition": null,
+        "bonus_dice": 0,
+        "special": "Reduce the GM's Attack dice by 3"
+      },
+      {
+        "name": "Bloodhunt",
+        "description": "Spend 1 Blood: track targets or search for things using your sense of smell.",
+        "cost": 1,
+        "bonus_condition": "+target fleeing",
+        "bonus_dice": 1,
+        "special": null
+      }
+    ],
+    "advances": [
+      {
+        "name": "Nightmare Regeneration",
+        "description": "SPECIAL: Clear a marked Injury.",
+        "cost": 0
+      },
+      {
+        "name": "Spirit Storm",
+        "description": "Spend 1 Blood: hurl items like a poltergeist.",
+        "cost": 1,
+        "bonus_condition": "++something sharp AND heavy",
+        "bonus_dice": 2
+      },
+      {
+        "name": "Tethered Phantom",
+        "description": "Spend 1 Blood: reduce an Objective or Threat's Challenge by 1 until the end of the round.",
+        "cost": 1
+      }
+    ],
+    "equipment": [
+      {
+        "name": "Machine Gun",
+        "bonus_condition": "+enemies in cover",
+        "bonus_dice": 1,
+        "max_uses": 3
+      },
+      {
+        "name": "Greatspear",
+        "bonus_condition": "+receive a charge",
+        "bonus_dice": 1,
+        "max_uses": 3
+      },
+      {
+        "name": "Fragmentation Grenades",
+        "bonus_condition": "++enclosed spaces",
+        "bonus_dice": 2,
+        "max_uses": 3
+      },
+      {
+        "name": "Spirit Fetters",
+        "bonus_condition": "+++animals",
+        "bonus_dice": 3,
+        "max_uses": 3
+      }
+    ],
+    "injuries": {
+      "1-2": {
+        "minor": "Spirits Cowed",
+        "major": "Spirits Cast Out",
+        "major_penalty": "Can't trigger Specials"
+      },
+      "3-4": {
+        "minor": "Sigils Marred",
+        "major": "Bleeding Shadows",
+        "major_penalty": "+2 SNEAK, -2 TERRIFY"
+      },
+      "5-6": {
+        "minor": "Limping",
+        "major": "Ruined Leg",
+        "major_penalty": "-1 to all stats"
+      }
+    },
+    "last_stand": "Unleash the Spirits (8D6)",
+    "starting_blood": 0
+  },
+  {
+    "id": "flint",
+    "name": "Flint",
+    "description": "Born in a cave, driven out by nazis. Half-bat, half-human, all nightmare. Monstrous hunter with a taste for blood. May or may not be able to talk (possibly just shy).",
+    "hooks": [
+      "Half-man half-bat monster who may or may not be able to talk",
+      "Good for players new to roleplaying or talking in-character",
+      "Big friendly dog-like creature that isn't very friendly to nazis"
+    ],
+    "stats": {
+      "brawl": 4,
+      "con": 2,
+      "fix": 2,
+      "search": 2,
+      "shoot": 1,
+      "sneak": 3,
+      "terrify": 3
+    },
+    "abilities": [
+      {
+        "name": "Ravenous",
+        "description": "When you're in melee combat, SPECIAL: gain 3 Blood.",
+        "cost": 0,
+        "bonus_condition": null,
+        "bonus_dice": 0,
+        "special": "Gain 3 Blood"
+      },
+      {
+        "name": "Sense Heartbeat",
+        "description": "Spend 1 Blood: you can see the heartbeats of living beings through walls and other obstacles.",
+        "cost": 1,
+        "bonus_condition": "+dense cover",
+        "bonus_dice": 1,
+        "special": null
+      },
+      {
+        "name": "Improvised Projectile",
+        "description": "Spend 1 Blood: chuck something large and heavy a surprising distance.",
+        "cost": 1,
+        "bonus_condition": "+aerodynamic",
+        "bonus_dice": 1,
+        "special": null
+      },
+      {
+        "name": "Wings",
+        "description": "Spend 1 Blood: you can fly.",
+        "cost": 1,
+        "bonus_condition": "+aerial combat",
+        "bonus_dice": 1,
+        "special": null
+      }
+    ],
+    "advances": [
+      {
+        "name": "Hellish Screech",
+        "description": "Spend 2 Blood: reduce a Threat's Challenge by 1.",
+        "cost": 2
+      },
+      {
+        "name": "Bone Armour",
+        "description": "After you roll your dice pool, before you discard dice, reduce the GM's successful Attack dice by 1 for each 1 you rolled.",
+        "cost": 0
+      },
+      {
+        "name": "Ooze Form",
+        "description": "Spend 1 Blood: squeeze through gaps, glop around, etc.",
+        "cost": 1,
+        "bonus_condition": "+it's in the walls!",
+        "bonus_dice": 1
+      }
+    ],
+    "equipment": [
+      {
+        "name": "Steel gouging claws",
+        "bonus_condition": "+ambush",
+        "bonus_dice": 1,
+        "max_uses": 3
+      },
+      {
+        "name": "Grappling hook",
+        "bonus_condition": "++three or more storeys",
+        "bonus_dice": 2,
+        "max_uses": 3
+      }
+    ],
+    "injuries": {
+      "1-2": {
+        "minor": "Teeth Smashed",
+        "major": "Jaw Broken",
+        "major_penalty": "Can't gain Blood from nazis"
+      },
+      "3-4": {
+        "minor": "Spooked",
+        "major": "Broken",
+        "major_penalty": "+2 SEARCH, -2 BRAWL"
+      },
+      "5-6": {
+        "minor": "Hamstrung",
+        "major": "Eviscerated",
+        "major_penalty": "Can't use + dice"
+      }
+    },
+    "last_stand": "Final Form (8D6)",
+    "starting_blood": 0
+  }
+]

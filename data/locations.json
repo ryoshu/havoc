@@ -1,0 +1,382 @@
+[
+  {
+    "id": "place_de_la_sirene",
+    "name": "Place de la Sirène",
+    "sector": 3,
+    "description": "Classy area with bistros, cafes and boutiques. Well-to-do families drink coffee and eat pastries at outdoor tables, and a mermaid fountain graces the centre of the square.",
+    "objective": {
+      "name": "Get out of the open and into cover",
+      "rating": 6,
+      "challenge": 0
+    },
+    "enemies": ["police_patrol", "police_patrol"],
+    "loot": [],
+    "secondary_objectives": [],
+    "connections": ["grand_magasin_martin", "graveyard", "hotel_letoile"]
+  },
+  {
+    "id": "grand_magasin_martin",
+    "name": "Grand Magasin Martin",
+    "sector": 3,
+    "description": "Sprawling, multi-level department store selling most anything you can imagine. State-of-the-art escalators ferry fur-coated customers up and down between sections.",
+    "objective": {
+      "name": "Find your way out of the maze-like building",
+      "rating": 6,
+      "challenge": 0
+    },
+    "enemies": ["infantry_squad", "armoured_car"],
+    "loot": [],
+    "secondary_objectives": [],
+    "connections": ["place_de_la_sirene", "graveyard", "catacombs"]
+  },
+  {
+    "id": "graveyard",
+    "name": "Graveyard",
+    "sector": 3,
+    "description": "A new, German-only graveyard with memorials for officers who died during the conquest of France. A military funeral is wrapping up as the vampires arrive.",
+    "objective": {
+      "name": "Ruin that funeral",
+      "rating": 6,
+      "challenge": 0
+    },
+    "enemies": ["infantry_squad"],
+    "loot": [],
+    "secondary_objectives": [],
+    "connections": ["place_de_la_sirene", "grand_magasin_martin", "saint_medard_church"]
+  },
+  {
+    "id": "hotel_letoile",
+    "name": "Hôtel L'Étoile",
+    "sector": 3,
+    "description": "Very swish hotel that caters to families of visiting dignitaries. One of the last functional grand pianos in Paris takes pride of place in the sixth-storey bar.",
+    "objective": {
+      "name": "Make a suitable entrance",
+      "rating": 6,
+      "challenge": 0
+    },
+    "enemies": ["police_patrol", "police_patrol"],
+    "loot": [],
+    "secondary_objectives": [],
+    "connections": ["place_de_la_sirene", "catacombs", "german_tech_pavilion"]
+  },
+  {
+    "id": "catacombs",
+    "name": "Catacombs",
+    "sector": 3,
+    "description": "Paris is home to many tunnels, sepulchres, forgotten mausolea — natural places for vampires. Navigating underground is difficult thanks to centuries of disrepair.",
+    "objective": {
+      "name": "Get into (and subsequently out of) the subterranean labyrinth",
+      "rating": 6,
+      "challenge": 1
+    },
+    "enemies": ["armoured_infantry"],
+    "loot": [],
+    "secondary_objectives": [],
+    "connections": ["grand_magasin_martin", "hotel_letoile", "saint_medard_church", "metro_station"]
+  },
+  {
+    "id": "saint_medard_church",
+    "name": "Saint-Médard Church",
+    "sector": 3,
+    "description": "Impressive church with well-maintained stained glass windows, oak pews and a grand central altarpiece. Empty when the vampires arrive, but nazi troops soon show up.",
+    "objective": {
+      "name": "Punch a hole in the attacking line and get out of there",
+      "rating": 8,
+      "challenge": 0
+    },
+    "enemies": ["infantry_squad", "infantry_squad", "sniper_team"],
+    "loot": [
+      {
+        "name": "Particularly huge cross",
+        "bonus_condition": "++swing for the fences",
+        "bonus_dice": 2,
+        "max_uses": 3
+      }
+    ],
+    "secondary_objectives": [],
+    "connections": ["graveyard", "catacombs", "german_tech_pavilion", "museum_of_european_warfare"]
+  },
+  {
+    "id": "german_tech_pavilion",
+    "name": "The German Technology Pavilion",
+    "sector": 2,
+    "description": "Exhibition hall showcasing experimental German technology. Experimental fuel sources hum and glow ominously. A deactivated quadrupedal weapons platform stands proudly in the centre.",
+    "objective": {
+      "name": "Storm the pavilion and get out the other side",
+      "rating": 9,
+      "challenge": 0
+    },
+    "enemies": ["stahlsoldat"],
+    "loot": [
+      {
+        "name": "Prototype beam emitter",
+        "bonus_condition": "++++properly calibrated before firing",
+        "bonus_dice": 4,
+        "max_uses": 1
+      },
+      {
+        "name": "Loose, glowing fuel source",
+        "bonus_condition": "++near flammable material",
+        "bonus_dice": 2,
+        "max_uses": 3
+      }
+    ],
+    "secondary_objectives": [
+      {
+        "name": "Power up the weapons platform",
+        "rating": 5,
+        "reward": "Access to: Quadrupedal weapons platform (+shrug off incoming fire) and Microwave array turret (+++anti-tank)"
+      }
+    ],
+    "connections": ["hotel_letoile", "saint_medard_church", "metro_station", "expensive_garage"]
+  },
+  {
+    "id": "metro_station",
+    "name": "Metro Station",
+    "sector": 2,
+    "description": "None of the trains are running, but the Metro makes for an excellent means of slipping through the city undetected. Miles of rail tunnels and maintenance shafts.",
+    "objective": {
+      "name": "Cut through the metro tunnels",
+      "rating": 10,
+      "challenge": 0
+    },
+    "enemies": ["armoured_infantry", "armoured_infantry", "motorcycle_squad"],
+    "loot": [],
+    "secondary_objectives": [],
+    "connections": ["catacombs", "german_tech_pavilion", "le_cochon_noir", "exhibition_degenerate_art"]
+  },
+  {
+    "id": "expensive_garage",
+    "name": "Expensive-Looking Garage",
+    "sector": 2,
+    "description": "Few people owned a car in 1940s Paris. Most vehicles here belong to German expats or diplomats who want to be seen driving something expensive.",
+    "objective": {
+      "name": "Steal something flashy and get the hell out of there",
+      "rating": 8,
+      "challenge": 0
+    },
+    "enemies": ["infantry_squad", "sniper_team"],
+    "loot": [
+      {
+        "name": "Open-topped Italian speedster",
+        "bonus_condition": "++stunts",
+        "bonus_dice": 2,
+        "max_uses": 3
+      },
+      {
+        "name": "Reliable German import",
+        "bonus_condition": "++tight turns",
+        "bonus_dice": 2,
+        "max_uses": 3
+      },
+      {
+        "name": "Unremarkable French jalopy",
+        "bonus_condition": "++go unnoticed",
+        "bonus_dice": 2,
+        "max_uses": 3
+      }
+    ],
+    "secondary_objectives": [],
+    "connections": ["german_tech_pavilion", "le_cochon_noir", "jardin_de_fee"]
+  },
+  {
+    "id": "le_cochon_noir",
+    "name": "Le Cochon Noir, French Resistance Hideout",
+    "sector": 2,
+    "description": "A run-down backstreet bar made up entirely of interconnected basements. Smoky, dark, badly-ventilated rooms hold dozens of hard-bitten partisans.",
+    "objective": {
+      "name": "Lose the nazis by hiding in the bar",
+      "rating": 6,
+      "challenge": 0
+    },
+    "enemies": ["police_patrol", "police_patrol", "infantry_squad"],
+    "loot": [],
+    "secondary_objectives": [
+      {
+        "name": "Team up with the Resistance",
+        "rating": 4,
+        "reward": "Access to: Guerrilla Squad (+flanking manoeuvre)"
+      }
+    ],
+    "connections": ["metro_station", "expensive_garage", "concert_hall"]
+  },
+  {
+    "id": "museum_of_european_warfare",
+    "name": "Museum of European Warfare",
+    "sector": 2,
+    "description": "Sprawling, poorly-maintained museum with tools of war from a thousand years ago to the modern day. A desperate nazi warlock has animated empty suits of armour and warrior mummies.",
+    "objective": {
+      "name": "Smash through the museum before you're overwhelmed by the undead",
+      "rating": 8,
+      "challenge": 1
+    },
+    "enemies": ["einherjar", "police_patrol"],
+    "loot": [
+      {
+        "name": "Painstakingly maintained masterwork greatbow",
+        "bonus_condition": "++silent killer",
+        "bonus_dice": 2,
+        "max_uses": 3
+      },
+      {
+        "name": "Still-functional improbably loaded cannon",
+        "bonus_condition": "+++immobile target",
+        "bonus_dice": 3,
+        "max_uses": 1
+      },
+      {
+        "name": "Turncoat warrior mummy",
+        "bonus_condition": "+bandage restraints",
+        "bonus_dice": 1,
+        "max_uses": 3
+      },
+      {
+        "name": "Napoleon's undead horse",
+        "bonus_condition": "+trample",
+        "bonus_dice": 1,
+        "max_uses": 3
+      }
+    ],
+    "secondary_objectives": [],
+    "connections": ["saint_medard_church", "exhibition_degenerate_art", "concert_hall"]
+  },
+  {
+    "id": "jardin_de_fee",
+    "name": "Jardin de Fée, Illuminations and Amusements",
+    "sector": 2,
+    "description": "Nazi-built amusement arcade and illuminations. Europe's third-largest ferris wheel is the crowning glory. Civilians fled without shutting down the machinery.",
+    "objective": {
+      "name": "Navigate a collapsing fairground whilst hunted by an entropy witch",
+      "rating": 10,
+      "challenge": 1
+    },
+    "enemies": ["police_patrol", "rust_witch"],
+    "loot": [],
+    "secondary_objectives": [],
+    "connections": ["expensive_garage", "ammunition_depot", "nazi_pleasure_gardens"]
+  },
+  {
+    "id": "exhibition_degenerate_art",
+    "name": "Exhibition of Degenerate Art",
+    "sector": 2,
+    "description": "Art the nazis deem antithetical to German values, deliberately badly-framed and hung with mocking commentary. Tonight marks one of the largest burnings of art on record.",
+    "objective": {
+      "name": "Undertake a very quick and violent gallery tour",
+      "rating": 8,
+      "challenge": 0
+    },
+    "enemies": ["infantry_squad", "police_patrol"],
+    "loot": [],
+    "secondary_objectives": [
+      {
+        "name": "Track down a lost Van Gogh or something",
+        "rating": 4,
+        "reward": "No mechanical benefit, but you've got a lost Van Gogh"
+      }
+    ],
+    "connections": ["metro_station", "museum_of_european_warfare", "concert_hall"]
+  },
+  {
+    "id": "concert_hall",
+    "name": "Concert Hall",
+    "sector": 2,
+    "description": "Once festooned with beautiful 17th century decor, now replaced with stark architecture. Dämonenblut is demanding trapped performers finish a Wagner performance, executing audience members for mistakes.",
+    "objective": {
+      "name": "Hustle through the corridors and make your way towards Hitler, ignoring the Übermensch",
+      "rating": 4,
+      "challenge": 0
+    },
+    "enemies": ["damonenblut"],
+    "loot": [],
+    "secondary_objectives": [],
+    "connections": ["le_cochon_noir", "museum_of_european_warfare", "exhibition_degenerate_art", "ammunition_depot"]
+  },
+  {
+    "id": "ammunition_depot",
+    "name": "Ammunition and Vehicle Depot",
+    "sector": 1,
+    "description": "A collection of cars for use by nazi officers. Most are unremarkable, but root around and you'll find the souped-up bullet-proof black Volkswagen of your dreams.",
+    "objective": {
+      "name": "Scramble across the motor pool",
+      "rating": 8,
+      "challenge": 0
+    },
+    "enemies": ["motorcycle_squad", "infantry_squad", "tank"],
+    "loot": [
+      {
+        "name": "The souped-up bullet-proof black Volkswagen of your dreams",
+        "bonus_condition": "++front-mounted machine guns",
+        "bonus_dice": 2,
+        "max_uses": 3
+      }
+    ],
+    "secondary_objectives": [
+      {
+        "name": "Raid the ammunition dump",
+        "rating": 4,
+        "reward": "Each player restores all uses of any firearms, grenades or similar weapons"
+      }
+    ],
+    "connections": ["jardin_de_fee", "concert_hall", "nazi_pleasure_gardens"]
+  },
+  {
+    "id": "nazi_pleasure_gardens",
+    "name": "Nazi Pleasure Gardens",
+    "sector": 1,
+    "description": "The area around the Eiffel Tower remade into pleasure gardens for nazi officers. Winding pathways, thick copses of trees and charming ersatz waterfalls. A garden party is in full swing.",
+    "objective": {
+      "name": "Blitzkrieg the garden party",
+      "rating": 8,
+      "challenge": 0
+    },
+    "enemies": ["infantry_squad", "sniper_team", "sniper_team"],
+    "loot": [],
+    "secondary_objectives": [],
+    "connections": ["ammunition_depot", "jardin_de_fee", "eiffel_tower"]
+  },
+  {
+    "id": "eiffel_tower",
+    "name": "The Eiffel Tower",
+    "sector": 1,
+    "description": "Retro-fitted with the latest in German technology. Elevators rocket up the structure, dazzling electric lights blaze out. There's a zeppelin attached to the top containing Adolf Hitler.",
+    "objective": {
+      "name": "Ascend the Eiffel Tower",
+      "rating": 8,
+      "challenge": 1
+    },
+    "enemies": ["armoured_infantry", "paratrooper_squad"],
+    "loot": [],
+    "secondary_objectives": [],
+    "connections": ["nazi_pleasure_gardens", "fuhrers_zeppelin"]
+  },
+  {
+    "id": "fuhrers_zeppelin",
+    "name": "The Führer's Zeppelin",
+    "sector": 1,
+    "description": "Sumptuous and airborne. Outfitted with marble, silk, gold and mahogany. Grand staircases lead to mezzanine levels loaded with Hitler's own paintings and plundered treasures.",
+    "objective": {
+      "name": "Reach Hitler's Broadcast Suite",
+      "rating": 6,
+      "challenge": 1
+    },
+    "enemies": ["vampirjager_cadre"],
+    "loot": [],
+    "secondary_objectives": [],
+    "connections": ["eiffel_tower", "hitlers_broadcast_suite"]
+  },
+  {
+    "id": "hitlers_broadcast_suite",
+    "name": "Hitler's Broadcast Suite",
+    "sector": 1,
+    "description": "An elaborate set: great banners, an iron and basalt lectern atop a staircase, and a roaring firepit. Hitler awaits with the Werhund — his intention is to broadcast the slaughter live.",
+    "objective": {
+      "name": "Kill Hitler",
+      "rating": 0,
+      "challenge": 0
+    },
+    "enemies": ["werhund"],
+    "loot": [],
+    "secondary_objectives": [],
+    "connections": ["fuhrers_zeppelin"]
+  }
+]

@@ -1,0 +1,66 @@
+[
+  {
+    "id": "submachine_gun",
+    "name": "Submachine Gun",
+    "bonus_condition": "+flanking",
+    "bonus_dice": 1,
+    "max_uses": 3,
+    "loot": true
+  },
+  {
+    "id": "rifle",
+    "name": "Rifle",
+    "bonus_condition": "+long range",
+    "bonus_dice": 1,
+    "max_uses": 3,
+    "loot": true
+  },
+  {
+    "id": "pistol",
+    "name": "Pistol",
+    "bonus_condition": "+close quarters",
+    "bonus_dice": 1,
+    "max_uses": 3,
+    "loot": true
+  },
+  {
+    "id": "machine_gun_loot",
+    "name": "Machine Gun",
+    "bonus_condition": "+enemies in cover",
+    "bonus_dice": 1,
+    "max_uses": 3,
+    "loot": true
+  },
+  {
+    "id": "frag_grenades_loot",
+    "name": "Fragmentation Grenades",
+    "bonus_condition": "+enclosed spaces",
+    "bonus_dice": 1,
+    "max_uses": 3,
+    "loot": true
+  },
+  {
+    "id": "armoured_car_loot",
+    "name": "Armoured Car",
+    "bonus_condition": "+under heavy fire",
+    "bonus_dice": 1,
+    "max_uses": 3,
+    "loot": true
+  },
+  {
+    "id": "luxury_car",
+    "name": "Luxury Car",
+    "bonus_condition": "+open roads",
+    "bonus_dice": 1,
+    "max_uses": 3,
+    "loot": true
+  },
+  {
+    "id": "tank_loot",
+    "name": "Tank",
+    "bonus_condition": "+smash through buildings",
+    "bonus_dice": 1,
+    "max_uses": 3,
+    "loot": true
+  }
+]
