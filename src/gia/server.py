@@ -10,6 +10,7 @@ from .affordances import compute_affordances
 from .context import GameContext
 from .domain import DomainError, HavocEngine
 from .models import (
+    DecisionRecord,
     DiceAllocation,
     EquipmentState,
     GamePhase,
@@ -131,8 +132,53 @@ class GameRuntime:
             parsed = json.loads(params) if isinstance(params, str) else params
         except json.JSONDecodeError:
             parsed = {}
+
+        # Snapshot state before action
+        session_before = self.ctx.get_session(sid)
+        phase_before = session_before.phase.value if session_before else ""
+        actor_id = session_before.active_character_id or "system" if session_before else "system"
+        actor_name = ""
+        if actor_id != "system":
+            actor_char = self.ctx.db.get_character(actor_id)
+            actor_name = actor_char.name if actor_char else ""
+
+        # Snapshot affordances available at decision time
+        pre_affordances = compute_affordances(self.ctx, sid)
+        affordances_snapshot = [
+            {"action": a.action, "description": a.description}
+            for a in pre_affordances
+        ]
+        affordances_not_taken = [
+            a.action for a in pre_affordances if a.action != action
+        ]
+
         try:
             result, events = self._dispatch_action(sid, action, parsed)
+
+            # Snapshot phase after
+            session_after = self.ctx.get_session(sid)
+            phase_after = session_after.phase.value if session_after else phase_before
+
+            # Build result summary
+            result_data = result if isinstance(result, dict) else {}
+            result_summary = result_data.get("message", "")[:200]
+
+            # Record the decision
+            decision = DecisionRecord(
+                session_id=sid,
+                actor_id=actor_id,
+                actor_name=actor_name,
+                action=action,
+                params=parsed,
+                affordances_snapshot=affordances_snapshot,
+                affordances_not_taken=list(set(affordances_not_taken)),
+                result_summary=result_summary,
+                events=[e.model_dump() for e in events],
+                phase_before=phase_before,
+                phase_after=phase_after,
+            )
+            self.ctx.db.record_decision(decision)
+
             affordances = compute_affordances(self.ctx, sid)
             response = format_response(result, affordances)
             if events:

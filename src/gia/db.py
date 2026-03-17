@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from .models import (
     CharacterState,
+    DecisionRecord,
     DiceRoll,
     EquipmentState,
     GamePhase,
@@ -68,6 +69,22 @@ CREATE TABLE IF NOT EXISTS dice_rolls (
     gm_results_json TEXT NOT NULL DEFAULT '[]',
     gm_discarded_json TEXT NOT NULL DEFAULT '[]',
     gm_kept_json TEXT NOT NULL DEFAULT '[]',
+    timestamp TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS decision_records (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES game_sessions(id),
+    actor_id TEXT NOT NULL,
+    actor_name TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL,
+    params_json TEXT NOT NULL DEFAULT '{}',
+    affordances_snapshot_json TEXT NOT NULL DEFAULT '[]',
+    affordances_not_taken_json TEXT NOT NULL DEFAULT '[]',
+    result_summary TEXT NOT NULL DEFAULT '',
+    events_json TEXT NOT NULL DEFAULT '[]',
+    phase_before TEXT NOT NULL DEFAULT '',
+    phase_after TEXT NOT NULL DEFAULT '',
     timestamp TEXT NOT NULL
 );
 """
@@ -304,6 +321,58 @@ class GameDB:
             (session_id,),
         ).fetchall()
         return [self._row_to_roll(r) for r in rows]
+
+    # --- Decision Records ---
+
+    def record_decision(self, decision: DecisionRecord) -> DecisionRecord:
+        if not decision.id:
+            decision.id = _uid("dr-")
+        if not decision.timestamp:
+            decision.timestamp = datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            """INSERT INTO decision_records
+               (id, session_id, actor_id, actor_name, action, params_json,
+                affordances_snapshot_json, affordances_not_taken_json,
+                result_summary, events_json, phase_before, phase_after, timestamp)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                decision.id, decision.session_id, decision.actor_id,
+                decision.actor_name, decision.action,
+                json.dumps(decision.params),
+                json.dumps(decision.affordances_snapshot),
+                json.dumps(decision.affordances_not_taken),
+                decision.result_summary,
+                json.dumps(decision.events),
+                decision.phase_before, decision.phase_after,
+                decision.timestamp,
+            ),
+        )
+        self.conn.commit()
+        return decision
+
+    def get_session_decisions(self, session_id: str) -> list[DecisionRecord]:
+        rows = self.conn.execute(
+            "SELECT * FROM decision_records WHERE session_id = ? ORDER BY timestamp",
+            (session_id,),
+        ).fetchall()
+        return [self._row_to_decision(r) for r in rows]
+
+    def _row_to_decision(self, row: sqlite3.Row) -> DecisionRecord:
+        return DecisionRecord(
+            id=row["id"],
+            session_id=row["session_id"],
+            actor_id=row["actor_id"],
+            actor_name=row["actor_name"],
+            action=row["action"],
+            params=json.loads(row["params_json"]),
+            affordances_snapshot=json.loads(row["affordances_snapshot_json"]),
+            affordances_not_taken=json.loads(row["affordances_not_taken_json"]),
+            result_summary=row["result_summary"],
+            events=json.loads(row["events_json"]),
+            phase_before=row["phase_before"],
+            phase_after=row["phase_after"],
+            timestamp=row["timestamp"],
+        )
 
     def _row_to_roll(self, row: sqlite3.Row) -> DiceRoll:
         return DiceRoll(

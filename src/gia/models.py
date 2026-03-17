@@ -231,3 +231,22 @@ class Affordance(BaseModel):
 class DomainEvent(BaseModel):
     type: str
     data: dict = Field(default_factory=dict)
+
+
+# --- Decision Records (reasoning traces) ---
+
+class DecisionRecord(BaseModel):
+    """Captures a single decision: who did what, when, from what options, with what result."""
+    id: str = ""
+    session_id: str = ""
+    actor_id: str = ""  # character_id or "system"
+    actor_name: str = ""
+    action: str = ""
+    params: dict = Field(default_factory=dict)
+    affordances_snapshot: list[dict] = Field(default_factory=list)  # what was available
+    affordances_not_taken: list[str] = Field(default_factory=list)  # actions they chose NOT to do
+    result_summary: str = ""  # short description of outcome
+    events: list[dict] = Field(default_factory=list)  # domain events triggered
+    phase_before: str = ""
+    phase_after: str = ""
+    timestamp: str = ""

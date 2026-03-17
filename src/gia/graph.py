@@ -274,6 +274,88 @@ class GameGraph:
             }
         """)
 
+    # --- Decision Records ---
+
+    def load_decisions(self, decisions: list) -> None:
+        """Load DecisionRecord objects into the graph for SPARQL querying."""
+        for d in decisions:
+            did = _iri(f"decision_{d.id}")
+            self._add(did, _iri("rdf_type"), _iri("Decision"))
+            self._add(did, _iri("sessionId"), _lit(d.session_id))
+            self._add(did, _iri("actorId"), _lit(d.actor_id))
+            self._add(did, _iri("actorName"), _lit(d.actor_name))
+            self._add(did, _iri("actionTaken"), _lit(d.action))
+            self._add(did, _iri("resultSummary"), _lit(d.result_summary))
+            self._add(did, _iri("phaseBefore"), _lit(d.phase_before))
+            self._add(did, _iri("phaseAfter"), _lit(d.phase_after))
+            self._add(did, _iri("timestamp"), _lit(d.timestamp))
+
+            for i, alt in enumerate(d.affordances_not_taken):
+                self._add(did, _iri("actionNotTaken"), _lit(alt))
+
+            for ev in d.events:
+                eid = _iri(f"decision_{d.id}_event_{ev.get('type', 'unknown')}")
+                self._add(eid, _iri("rdf_type"), _iri("DecisionEvent"))
+                self._add(eid, _iri("eventType"), _lit(ev.get("type", "")))
+                self._add(did, _iri("triggeredEvent"), eid)
+
+            # Link to actor
+            if d.actor_id != "system":
+                self._add(did, _iri("madeBy"), _lit(d.actor_id))
+
+    def get_decisions_by_actor(self, actor_name: str) -> list[dict]:
+        return self.query(f"""
+            SELECT ?id ?action ?result ?phase_before ?phase_after ?ts WHERE {{
+                ?id etr:rdf_type etr:Decision .
+                ?id etr:actorName "{actor_name}" .
+                ?id etr:actionTaken ?action .
+                ?id etr:resultSummary ?result .
+                ?id etr:phaseBefore ?phase_before .
+                ?id etr:phaseAfter ?phase_after .
+                ?id etr:timestamp ?ts .
+            }} ORDER BY ?ts
+        """)
+
+    def get_actions_not_taken(self, actor_name: str) -> list[dict]:
+        """Find what actions an actor chose NOT to do — the roads not taken."""
+        return self.query(f"""
+            SELECT ?action ?alternative ?ts WHERE {{
+                ?id etr:rdf_type etr:Decision .
+                ?id etr:actorName "{actor_name}" .
+                ?id etr:actionTaken ?action .
+                ?id etr:actionNotTaken ?alternative .
+                ?id etr:timestamp ?ts .
+            }} ORDER BY ?ts
+        """)
+
+    def get_decisions_with_events(self, event_type: str) -> list[dict]:
+        """Find all decisions that triggered a specific event type."""
+        return self.query(f"""
+            SELECT ?actor ?action ?result ?ts WHERE {{
+                ?id etr:rdf_type etr:Decision .
+                ?id etr:actorName ?actor .
+                ?id etr:actionTaken ?action .
+                ?id etr:resultSummary ?result .
+                ?id etr:timestamp ?ts .
+                ?id etr:triggeredEvent ?ev .
+                ?ev etr:eventType "{event_type}" .
+            }} ORDER BY ?ts
+        """)
+
+    def get_phase_transitions(self) -> list[dict]:
+        """Get all phase transitions across the session."""
+        return self.query("""
+            SELECT ?actor ?action ?phase_before ?phase_after ?ts WHERE {
+                ?id etr:rdf_type etr:Decision .
+                ?id etr:actorName ?actor .
+                ?id etr:actionTaken ?action .
+                ?id etr:phaseBefore ?phase_before .
+                ?id etr:phaseAfter ?phase_after .
+                ?id etr:timestamp ?ts .
+                FILTER(?phase_before != ?phase_after)
+            } ORDER BY ?ts
+        """)
+
     def get_location_threats(self, location_id: str) -> list[str]:
         rows = self.query(f"""
             SELECT ?enemyId WHERE {{
