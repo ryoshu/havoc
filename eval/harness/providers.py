@@ -76,6 +76,14 @@ def get_available_models() -> list[ModelConfig]:
             tier="frontier",
             is_anthropic=True,
         ))
+        models.append(ModelConfig(
+            name="claude-opus",
+            model="claude-opus-4-6",
+            api_base="https://api.anthropic.com",
+            api_key=anthropic_key,
+            tier="frontier",
+            is_anthropic=True,
+        ))
 
     return models
 
