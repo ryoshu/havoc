@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import json
 
+from eval.harness.providers import LEGACY_NAME_MAP
 from eval.harness.results_db import ResultsDB
+
+
+def _normalize_model_name(name: str) -> str:
+    """Map legacy DB names to current canonical names."""
+    return LEGACY_NAME_MAP.get(name, name)
 
 
 def results_to_records(db: ResultsDB) -> list[dict]:
@@ -16,7 +22,7 @@ def results_to_records(db: ResultsDB) -> list[dict]:
             "task_id": row["task_id"],
             "task_tier": row["task_tier"],
             "mode": row["mode"],
-            "model_name": row["model_name"],
+            "model_name": _normalize_model_name(row["model_name"]),
             "total_turns": row["total_turns"],
             "total_tokens": row["total_tokens_in"] + row["total_tokens_out"],
             "tokens_in": row["total_tokens_in"],

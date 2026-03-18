@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from eval.harness.providers import MODEL_COLORS, MODEL_LABELS, MODEL_ORDER
+
 _RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 _DEFAULT_CHARTS = str(_RESULTS_DIR / "charts")
 
@@ -21,31 +23,6 @@ def try_import_plotting():
         )
 
 
-# Consistent model ordering and colors
-MODEL_ORDER = [
-    "GPT-4o (OpenAI)",
-    "GLM-5 (DeepInfra)",
-    "DeepSeek V3.2 (DeepInfra)",
-    "Claude Haiku 4.5 (Anthropic)",
-    "Nemotron 3 Nano 30B-A3B (DeepInfra)",
-    "Qwen3 32B (DeepInfra)",
-]
-MODEL_LABELS = {
-    "GPT-4o (OpenAI)": "GPT-4o",
-    "GLM-5 (DeepInfra)": "GLM-5",
-    "DeepSeek V3.2 (DeepInfra)": "DeepSeek V3.2",
-    "Claude Haiku 4.5 (Anthropic)": "Claude Haiku 4.5",
-    "Nemotron 3 Nano 30B-A3B (DeepInfra)": "Nemotron 3 Nano 30B-A3B",
-    "Qwen3 32B (DeepInfra)": "Qwen3 32B",
-}
-MODEL_COLORS = {
-    "GPT-4o (OpenAI)": "#0ea5e9",
-    "GLM-5 (DeepInfra)": "#16a34a",
-    "DeepSeek V3.2 (DeepInfra)": "#2563eb",
-    "Claude Haiku 4.5 (Anthropic)": "#f59e0b",
-    "Nemotron 3 Nano 30B-A3B (DeepInfra)": "#dc2626",
-    "Qwen3 32B (DeepInfra)": "#0891b2",
-}
 MODE_COLORS = {"gas": "#58a6ff", "trad-15": "#f85149", "trad-30": "#d29922", "trad-60": "#bc8cff"}
 TOOL_COUNT_MAP = {"gas": 3, "trad-15": 15, "trad-30": 30, "trad-60": 60}
 

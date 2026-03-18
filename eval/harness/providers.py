@@ -1,9 +1,14 @@
-"""Model provider configuration for the authoritative eval model list."""
+"""Model provider configuration — single source of truth for the eval model catalog.
+
+All display metadata (labels, colors, ordering) lives here so that
+charts, summaries, and the CLI stay in sync automatically.
+"""
 
 from __future__ import annotations
 
 import os
 import sys
+from dataclasses import dataclass, field
 
 from .config import ModelConfig
 
@@ -11,34 +16,101 @@ DEEPINFRA_API_BASE = "https://api.deepinfra.com/v1/openai"
 OPENAI_API_BASE = "https://api.openai.com/v1"
 ANTHROPIC_API_BASE = "https://api.anthropic.com"
 
-# Canonical eval list (display name + provider in name for clarity).
-DEEPINFRA_MODELS: tuple[tuple[str, str], ...] = (
-    ("GLM-5 (DeepInfra)", os.environ.get("DEEPINFRA_MODEL_GLM_5", "zai-org/GLM-5")),
-    ("DeepSeek V3.2 (DeepInfra)", os.environ.get("DEEPINFRA_MODEL_DEEPSEEK_V3_2", "deepseek-ai/DeepSeek-V3.2")),
-    (
-        "Nemotron 3 Nano 30B-A3B (DeepInfra)",
-        os.environ.get("DEEPINFRA_MODEL_NEMOTRON_3_NANO_30B_A3B", "nvidia/Nemotron-3-Nano-30B-A3B-Instruct"),
+
+@dataclass
+class ModelCatalogEntry:
+    """Authoritative metadata for a model in the eval catalog."""
+    name: str          # canonical DB name, e.g. "GPT-4o (OpenAI)"
+    model_id: str      # API model ID
+    label: str         # short chart label, e.g. "GPT-4o"
+    color: str         # hex color for charts
+    provider: str      # "deepinfra", "openai", "anthropic"
+    tier: str = "open-weights"
+    is_anthropic: bool = False
+    aliases: list[str] = field(default_factory=list)
+    legacy_names: list[str] = field(default_factory=list)
+
+
+# --- Authoritative model catalog ---
+# Order here determines chart ordering.
+
+MODEL_CATALOG: list[ModelCatalogEntry] = [
+    ModelCatalogEntry(
+        name="GPT-4o (OpenAI)",
+        model_id=os.environ.get("OPENAI_MODEL_GPT_4O", "gpt-4o"),
+        label="GPT-4o",
+        color="#0ea5e9",
+        provider="openai",
+        tier="frontier",
+        aliases=["gpt-4o"],
     ),
-    ("Qwen3 32B (DeepInfra)", os.environ.get("DEEPINFRA_MODEL_QWEN3_32B", "Qwen/Qwen3-32B")),
-)
+    ModelCatalogEntry(
+        name="Claude Haiku 4.5 (Anthropic)",
+        model_id=os.environ.get("ANTHROPIC_MODEL_HAIKU_4_5", "claude-haiku-4-5"),
+        label="Claude Haiku 4.5",
+        color="#f59e0b",
+        provider="anthropic",
+        tier="frontier",
+        is_anthropic=True,
+        aliases=["claude-haiku-4.5"],
+    ),
+    ModelCatalogEntry(
+        name="GLM-5 (DeepInfra)",
+        model_id=os.environ.get("DEEPINFRA_MODEL_GLM_5", "zai-org/GLM-5"),
+        label="GLM-5",
+        color="#16a34a",
+        provider="deepinfra",
+        aliases=["glm-5"],
+        legacy_names=["GLM-5"],
+    ),
+    ModelCatalogEntry(
+        name="DeepSeek V3.2 (DeepInfra)",
+        model_id=os.environ.get("DEEPINFRA_MODEL_DEEPSEEK_V3_2", "deepseek-ai/DeepSeek-V3.2"),
+        label="DeepSeek V3.2",
+        color="#2563eb",
+        provider="deepinfra",
+        aliases=["deepseek-v3.2"],
+    ),
+    ModelCatalogEntry(
+        name="Nemotron 3 Nano 30B-A3B (DeepInfra)",
+        model_id=os.environ.get("DEEPINFRA_MODEL_NEMOTRON_3_NANO_30B_A3B", "nvidia/Nemotron-3-Nano-30B-A3B-Instruct"),
+        label="Nemotron 3 Nano",
+        color="#dc2626",
+        provider="deepinfra",
+        aliases=["nemotron-3-nano-30b-a3b"],
+    ),
+    ModelCatalogEntry(
+        name="Qwen3 32B (DeepInfra)",
+        model_id=os.environ.get("DEEPINFRA_MODEL_QWEN3_32B", "Qwen/Qwen3-32B"),
+        label="Qwen3 32B",
+        color="#0891b2",
+        provider="deepinfra",
+        aliases=["qwen3-32b"],
+    ),
+]
 
-OPENAI_MODELS: tuple[tuple[str, str], ...] = (
-    ("GPT-4o (OpenAI)", os.environ.get("OPENAI_MODEL_GPT_4O", "gpt-4o")),
-)
+# --- Derived lookups (built once from catalog) ---
 
-ANTHROPIC_MODELS: tuple[tuple[str, str], ...] = (
-    ("Claude Haiku 4.5 (Anthropic)", os.environ.get("ANTHROPIC_MODEL_HAIKU_4_5", "claude-haiku-4-5")),
-)
+# Ordered canonical names for chart axes
+MODEL_ORDER: list[str] = [e.name for e in MODEL_CATALOG]
 
-# Short aliases accepted by `--model`.
-NAME_ALIASES = {
-    "gpt-4o": "GPT-4o (OpenAI)",
-    "glm-5": "GLM-5 (DeepInfra)",
-    "deepseek-v3.2": "DeepSeek V3.2 (DeepInfra)",
-    "claude-haiku-4.5": "Claude Haiku 4.5 (Anthropic)",
-    "nemotron-3-nano-30b-a3b": "Nemotron 3 Nano 30B-A3B (DeepInfra)",
-    "qwen3-32b": "Qwen3 32B (DeepInfra)",
-}
+# Canonical name → short chart label
+MODEL_LABELS: dict[str, str] = {e.name: e.label for e in MODEL_CATALOG}
+
+# Canonical name → hex color
+MODEL_COLORS: dict[str, str] = {e.name: e.color for e in MODEL_CATALOG}
+
+# Legacy DB name → canonical name (for normalizing old runs)
+LEGACY_NAME_MAP: dict[str, str] = {}
+for _entry in MODEL_CATALOG:
+    for _legacy in _entry.legacy_names:
+        LEGACY_NAME_MAP[_legacy] = _entry.name
+
+# CLI alias → canonical name
+NAME_ALIASES: dict[str, str] = {}
+for _entry in MODEL_CATALOG:
+    for _alias in _entry.aliases:
+        NAME_ALIASES[_alias] = _entry.name
 
 
 def _normalize_name(value: str) -> str:
@@ -46,51 +118,37 @@ def _normalize_name(value: str) -> str:
 
 
 def get_available_models() -> list[ModelConfig]:
-    """Auto-detect available models from the authoritative catalog."""
+    """Auto-detect available models from the catalog based on API keys."""
     models = []
+    key_sources = {
+        "deepinfra": os.environ.get("DEEPINFRA_API_KEY", ""),
+        "openai": os.environ.get("OPENAI_API_KEY", ""),
+        "anthropic": os.environ.get("ANTHROPIC_API_KEY", "") or os.environ.get("ANTHROPIC_KEY", ""),
+    }
+    api_bases = {
+        "deepinfra": DEEPINFRA_API_BASE,
+        "openai": OPENAI_API_BASE,
+        "anthropic": ANTHROPIC_API_BASE,
+    }
 
-    # DeepInfra
-    deepinfra_key = os.environ.get("DEEPINFRA_API_KEY", "")
-    if deepinfra_key:
-        for name, model_id in DEEPINFRA_MODELS:
-            models.append(ModelConfig(
-                name=name,
-                model=model_id,
-                api_base=DEEPINFRA_API_BASE,
-                api_key=deepinfra_key,
-                tier="open-weights",
-            ))
-
-    # OpenAI
-    openai_key = os.environ.get("OPENAI_API_KEY", "")
-    if openai_key:
-        for name, model_id in OPENAI_MODELS:
-            models.append(ModelConfig(
-                name=name,
-                model=model_id,
-                api_base=OPENAI_API_BASE,
-                api_key=openai_key,
-                tier="frontier",
-            ))
-
-    # Anthropic (native SDK — not OpenAI-compatible)
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "") or os.environ.get("ANTHROPIC_KEY", "")
-    if anthropic_key:
-        for name, model_id in ANTHROPIC_MODELS:
-            models.append(ModelConfig(
-                name=name,
-                model=model_id,
-                api_base=ANTHROPIC_API_BASE,
-                api_key=anthropic_key,
-                tier="frontier",
-                is_anthropic=True,
-            ))
+    for entry in MODEL_CATALOG:
+        api_key = key_sources.get(entry.provider, "")
+        if not api_key:
+            continue
+        models.append(ModelConfig(
+            name=entry.name,
+            model=entry.model_id,
+            api_base=api_bases[entry.provider],
+            api_key=api_key,
+            tier=entry.tier,
+            is_anthropic=entry.is_anthropic,
+        ))
 
     return models
 
 
 def get_model_by_name(name: str) -> ModelConfig | None:
-    """Find a model config by display name."""
+    """Find a model config by display name, alias, or model ID."""
     search = _normalize_name(name)
     canonical = NAME_ALIASES.get(search, name)
     canonical_norm = _normalize_name(canonical)
