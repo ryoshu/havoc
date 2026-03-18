@@ -1,0 +1,226 @@
+"""CLI entry point for the GAS eval framework.
+
+Usage:
+    python -m eval.cli run --mode gas --model qwen3.5:9b --tiers 1 3
+    python -m eval.cli run --mode trad-15 --model qwen3.5:9b --tiers 1
+    python -m eval.cli matrix --models qwen3.5:9b --modes gas trad-15 trad-30 --tiers 1 3
+    python -m eval.cli summary --db eval_results.db
+    python -m eval.cli charts --db eval_results.db
+    python -m eval.cli list-tasks
+    python -m eval.cli list-models
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+
+from eval.harness.config import EvalConfig, MatrixConfig
+from eval.harness.providers import get_available_models, get_model_by_name, print_available_models
+from eval.harness.results_db import ResultsDB
+from eval.harness.runner import load_tasks, run_matrix, run_suite
+
+
+def cmd_run(args):
+    """Run eval suite with a single config."""
+    model = get_model_by_name(args.model)
+    if not model:
+        print(f"Model '{args.model}' not found.", file=sys.stderr)
+        print_available_models()
+        sys.exit(1)
+
+    # Parse mode
+    if args.mode == "gas":
+        eval_mode = "gas"
+        tool_level = 3
+    else:
+        eval_mode = "trad"
+        tool_level = int(args.mode.split("-")[1])
+
+    config = EvalConfig(
+        mode=eval_mode,
+        tool_level=tool_level,
+        model=model,
+        acting_user_id=args.user,
+    )
+
+    tiers = [int(t) for t in args.tiers] if args.tiers else None
+    tasks = load_tasks(tiers)
+
+    if not tasks:
+        print("No tasks found for specified tiers.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Running {len(tasks)} tasks | Mode: {args.mode} | Model: {model.name}")
+    print(f"Acting as: {config.acting_user_id}")
+    print()
+
+    results = run_suite(config, tasks)
+
+    # Save results
+    db = ResultsDB(args.db)
+    for r in results:
+        db.save_run(r)
+    db.close()
+
+    # Print summary
+    passed = sum(1 for r in results if r.oracle_passed)
+    total_invalid = sum(r.invalid_action_count for r in results)
+    total_valid = sum(r.valid_action_count for r in results)
+    rate = total_invalid / (total_invalid + total_valid) if (total_invalid + total_valid) else 0
+
+    print(f"\nResults: {passed}/{len(results)} oracle passed")
+    print(f"Invalid action rate: {rate:.1%} ({total_invalid}/{total_invalid + total_valid})")
+    print(f"Saved to: {args.db}")
+
+
+def cmd_matrix(args):
+    """Run full eval matrix."""
+    models = []
+    for name in args.models:
+        m = get_model_by_name(name)
+        if m:
+            models.append(m)
+        else:
+            print(f"Warning: model '{name}' not found, skipping.", file=sys.stderr)
+
+    if not models:
+        print("No valid models found.", file=sys.stderr)
+        print_available_models()
+        sys.exit(1)
+
+    matrix = MatrixConfig(
+        models=models,
+        modes=args.modes,
+        task_tiers=[int(t) for t in args.tiers] if args.tiers else [1, 3],
+        runs_per_cell=args.runs,
+    )
+
+    print(f"Matrix: {len(models)} models x {len(matrix.modes)} modes x {len(load_tasks(matrix.task_tiers))} tasks x {matrix.runs_per_cell} runs")
+    print()
+
+    db = run_matrix(matrix, args.db)
+    summary = db.get_summary()
+    db.close()
+
+    print(f"\n{'='*60}")
+    print("SUMMARY")
+    print(f"{'='*60}")
+    for mode, stats in summary.items():
+        print(f"\n{mode}:")
+        print(f"  Runs: {stats['run_count']}")
+        print(f"  Avg invalid rate: {stats['avg_invalid_rate']:.1%}")
+        print(f"  Oracle pass rate: {stats['oracle_pass_rate']:.1%}")
+        print(f"  Avg turns: {stats['avg_turns']:.1f}")
+        print(f"  Avg tokens: {stats['avg_tokens']:.0f}")
+        print(f"  Avg time: {stats['avg_time']:.1f}s")
+
+
+def cmd_summary(args):
+    """Print summary from results DB."""
+    db = ResultsDB(args.db)
+    summary = db.get_summary()
+    db.close()
+
+    if not summary:
+        print("No results found.")
+        return
+
+    print(f"{'Mode':<12} {'Runs':>5} {'Invalid%':>9} {'Oracle%':>8} {'Turns':>6} {'Tokens':>8} {'Time':>6}")
+    print("-" * 60)
+    for mode, stats in summary.items():
+        print(
+            f"{mode:<12} {stats['run_count']:>5} "
+            f"{stats['avg_invalid_rate']:>8.1%} "
+            f"{stats['oracle_pass_rate']:>7.1%} "
+            f"{stats['avg_turns']:>6.1f} "
+            f"{stats['avg_tokens']:>8.0f} "
+            f"{stats['avg_time']:>5.1f}s"
+        )
+
+
+def cmd_charts(args):
+    """Generate charts from results DB."""
+    from eval.analysis.charts import generate_all_charts
+    from eval.analysis.extract import results_to_dataframe
+
+    db = ResultsDB(args.db)
+    df = results_to_dataframe(db)
+    db.close()
+
+    if df.empty:
+        print("No results to chart.")
+        return
+
+    paths = generate_all_charts(df, args.output)
+    for p in paths:
+        print(f"Generated: {p}")
+
+
+def cmd_list_tasks(args):
+    """List all available tasks."""
+    tiers = [int(t) for t in args.tiers] if args.tiers else None
+    tasks = load_tasks(tiers)
+    for t in tasks:
+        print(f"  [{t.tier}] {t.id}: {t.name}")
+    print(f"\nTotal: {len(tasks)} tasks")
+
+
+def cmd_list_models(args):
+    """List available models."""
+    print_available_models()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="GAS Eval Framework")
+    sub = parser.add_subparsers(dest="command")
+
+    # run
+    p_run = sub.add_parser("run", help="Run eval suite with a single config")
+    p_run.add_argument("--mode", default="gas", help="gas, trad-15, trad-30, trad-60")
+    p_run.add_argument("--model", default="qwen3.5:9b", help="Model name")
+    p_run.add_argument("--tiers", nargs="+", default=None, help="Task tiers to run")
+    p_run.add_argument("--user", default="user-mgr-1", help="Acting user ID")
+    p_run.add_argument("--db", default="eval_results.db", help="Results DB path")
+    p_run.set_defaults(func=cmd_run)
+
+    # matrix
+    p_matrix = sub.add_parser("matrix", help="Run full eval matrix")
+    p_matrix.add_argument("--models", nargs="+", default=["qwen3.5:9b"])
+    p_matrix.add_argument("--modes", nargs="+", default=["gas", "trad-15"])
+    p_matrix.add_argument("--tiers", nargs="+", default=None)
+    p_matrix.add_argument("--runs", type=int, default=1, help="Runs per cell")
+    p_matrix.add_argument("--db", default="eval_results.db")
+    p_matrix.set_defaults(func=cmd_matrix)
+
+    # summary
+    p_summary = sub.add_parser("summary", help="Print results summary")
+    p_summary.add_argument("--db", default="eval_results.db")
+    p_summary.set_defaults(func=cmd_summary)
+
+    # charts
+    p_charts = sub.add_parser("charts", help="Generate charts")
+    p_charts.add_argument("--db", default="eval_results.db")
+    p_charts.add_argument("--output", default="eval_charts")
+    p_charts.set_defaults(func=cmd_charts)
+
+    # list-tasks
+    p_lt = sub.add_parser("list-tasks", help="List available tasks")
+    p_lt.add_argument("--tiers", nargs="+", default=None)
+    p_lt.set_defaults(func=cmd_list_tasks)
+
+    # list-models
+    p_lm = sub.add_parser("list-models", help="List available models")
+    p_lm.set_defaults(func=cmd_list_models)
+
+    args = parser.parse_args()
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

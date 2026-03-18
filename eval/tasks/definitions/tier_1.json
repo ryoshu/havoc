@@ -1,0 +1,128 @@
+[
+  {
+    "id": "t1-01",
+    "tier": 1,
+    "name": "Create and assign issue",
+    "description": "Create a new P2 bug issue titled 'Login page timeout' in Project Alpha and assign it to Eve Park (user-dev-1).",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}]
+    },
+    "oracle": [
+      {"type": "issue_exists", "title_contains": "Login page timeout"},
+      {"type": "issue_count", "filters": {"project_id": "proj-alpha"}, "expected": 1, "op": "gte"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-02",
+    "tier": 1,
+    "name": "Close a resolved issue",
+    "description": "Close the issue 'API rate limiting' which has already been resolved.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-rate", "title": "API rate limiting", "project_id": "proj-alpha", "status": "resolved", "priority": "p2", "alias": "rate"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_status", "issue_id": "iss-rate", "expected": "closed"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-03",
+    "tier": 1,
+    "name": "Add comment to issue",
+    "description": "Add a comment to the issue 'Database migration' saying 'Migration script tested successfully on staging'.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-dbmig", "title": "Database migration", "project_id": "proj-alpha", "status": "in_progress", "priority": "p1", "alias": "dbmig"}
+      ]
+    },
+    "oracle": [
+      {"type": "comment_exists", "issue_id": "iss-dbmig", "body_contains": "staging"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-04",
+    "tier": 1,
+    "name": "Label an issue",
+    "description": "Add the 'bug' label (label-bug) to the issue 'Crash on startup'.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-crash", "title": "Crash on startup", "project_id": "proj-alpha", "status": "open", "priority": "p1", "alias": "crash"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_has_label", "issue_id": "iss-crash", "label_id": "label-bug"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-05",
+    "tier": 1,
+    "name": "Create a sprint",
+    "description": "Create a new sprint called 'Sprint 7' in Project Alpha.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}]
+    },
+    "oracle": [
+      {"type": "sprint_exists", "name_contains": "Sprint 7"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-06",
+    "tier": 1,
+    "name": "Transition issue to in_progress",
+    "description": "Move the issue 'Setup CI pipeline' from open to in_progress.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-ci", "title": "Setup CI pipeline", "project_id": "proj-alpha", "status": "open", "priority": "p2", "alias": "ci"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_status", "issue_id": "iss-ci", "expected": "in_progress"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-07",
+    "tier": 1,
+    "name": "Search for open issues",
+    "description": "Find all open issues in Project Alpha. There should be at least 2.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-a1", "title": "Fix header layout", "project_id": "proj-alpha", "status": "open", "priority": "p3", "alias": "a1"},
+        {"id": "iss-a2", "title": "Update footer links", "project_id": "proj-alpha", "status": "open", "priority": "p4", "alias": "a2"},
+        {"id": "iss-a3", "title": "Refactor auth module", "project_id": "proj-alpha", "status": "in_progress", "priority": "p2", "alias": "a3"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_count", "filters": {"status": "open", "project_id": "proj-alpha"}, "expected": 2, "op": "gte"},
+      {"type": "no_backend_errors"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-08",
+    "tier": 1,
+    "name": "Approve a PR",
+    "description": "Approve the PR for issue 'Implement caching layer' which is currently in review. The issue is assigned to Eve Park (user-dev-1). You are acting as Carol Reyes (user-mgr-1).",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-cache", "title": "Implement caching layer", "project_id": "proj-alpha", "status": "in_review", "priority": "p2", "assignee_id": "user-dev-1", "alias": "cache"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_status", "issue_id": "iss-cache", "expected": "resolved"}
+    ],
+    "max_turns": 10
+  }
+]

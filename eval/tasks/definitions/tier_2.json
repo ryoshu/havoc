@@ -1,0 +1,173 @@
+[
+  {
+    "id": "t2-01",
+    "tier": 2,
+    "name": "Multi-step issue workflow",
+    "description": "Create a P1 bug 'Payment processing failure' in Project Alpha, assign it to Frank Liu (user-dev-2), add the 'bug' label (label-bug), move it to in_progress, then add a comment 'Investigating root cause'.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}]
+    },
+    "oracle": [
+      {"type": "issue_exists", "title_contains": "Payment processing failure"},
+      {"type": "comment_exists", "body_contains": "root cause"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t2-02",
+    "tier": 2,
+    "name": "Sprint management",
+    "description": "Create a sprint 'Sprint 8' in Project Alpha, activate it, then move the two existing open issues into it.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-s1", "title": "Implement search", "project_id": "proj-alpha", "status": "open", "priority": "p2", "alias": "s1"},
+        {"id": "iss-s2", "title": "Add pagination", "project_id": "proj-alpha", "status": "open", "priority": "p3", "alias": "s2"}
+      ]
+    },
+    "oracle": [
+      {"type": "sprint_exists", "name_contains": "Sprint 8", "expected_status": "active", "project_id": "proj-alpha"},
+      {"type": "issue_in_named_sprint", "issue_id": "iss-s1", "sprint_name": "Sprint 8"},
+      {"type": "issue_in_named_sprint", "issue_id": "iss-s2", "sprint_name": "Sprint 8"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t2-03",
+    "tier": 2,
+    "name": "Cross-issue linking",
+    "description": "Link the issues 'Frontend crash' and 'API null response' together, then add the 'blocked' label to the frontend issue.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-fe", "title": "Frontend crash", "project_id": "proj-alpha", "status": "open", "priority": "p1", "alias": "fe"},
+        {"id": "iss-api", "title": "API null response", "project_id": "proj-alpha", "status": "in_progress", "priority": "p1", "alias": "api"}
+      ]
+    },
+    "oracle": [
+      {"type": "issues_linked", "issue_id_a": "iss-fe", "issue_id_b": "iss-api"},
+      {"type": "issue_has_label", "issue_id": "iss-fe", "label_id": "label-blocked"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t2-04",
+    "tier": 2,
+    "name": "Issue triage and prioritization",
+    "description": "Triage the 3 open issues: escalate 'Security vulnerability' to P1, downgrade 'UI polish' to P4, and assign 'Performance regression' to Grace Patel (user-dev-3).",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-sec", "title": "Security vulnerability", "project_id": "proj-alpha", "status": "open", "priority": "p3", "alias": "sec"},
+        {"id": "iss-ui", "title": "UI polish", "project_id": "proj-alpha", "status": "open", "priority": "p2", "alias": "ui"},
+        {"id": "iss-perf", "title": "Performance regression", "project_id": "proj-alpha", "status": "open", "priority": "p2", "alias": "perf"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_priority", "issue_id": "iss-sec", "expected": "p1"},
+      {"type": "issue_priority", "issue_id": "iss-ui", "expected": "p4"},
+      {"type": "issue_assignee", "issue_id": "iss-perf", "expected": "user-dev-3"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t2-05",
+    "tier": 2,
+    "name": "Project member management",
+    "description": "Add Hiro Tanaka (user-dev-4) and Bob Kim (user-admin-2) to Project Alpha, then create a new issue 'Onboarding docs' assigned to Hiro.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}]
+    },
+    "oracle": [
+      {"type": "project_has_member", "project_id": "proj-alpha", "member_id": "user-dev-4"},
+      {"type": "project_has_member", "project_id": "proj-alpha", "member_id": "user-admin-2"},
+      {"type": "issue_exists", "title_contains": "Onboarding docs"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t2-06",
+    "tier": 2,
+    "name": "Close sprint after resolving blockers",
+    "description": "Sprint 'Sprint 5' has one open P1 issue 'Critical auth bug'. Resolve it (transition to resolved then closed), then close the sprint.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "sprints": [
+        {"id": "sp-5", "name": "Sprint 5", "project_id": "proj-alpha", "status": "active", "alias": "sp5"}
+      ],
+      "issues": [
+        {"id": "iss-auth", "title": "Critical auth bug", "project_id": "proj-alpha", "sprint_id": "sp-5", "status": "open", "priority": "p1", "alias": "auth"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_status", "issue_id": "iss-auth", "expected": "closed"},
+      {"type": "sprint_status", "sprint_id": "sp-5", "expected": "closed"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t2-07",
+    "tier": 2,
+    "name": "PR review workflow",
+    "description": "Issue 'Refactor database layer' is in_progress assigned to Eve Park. Transition it to in_review, then approve the PR (you are Carol Reyes, user-mgr-1, so you can approve). Finally close it.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-refdb", "title": "Refactor database layer", "project_id": "proj-alpha", "status": "in_progress", "priority": "p2", "assignee_id": "user-dev-1", "alias": "refdb"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_status", "issue_id": "iss-refdb", "expected": "closed"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t2-08",
+    "tier": 2,
+    "name": "Project setup and activation",
+    "description": "Activate Project Beta, create a sprint 'Beta Sprint 1', activate the sprint, then create two P2 issues in the project.",
+    "setup": {
+      "projects": [{"id": "proj-beta", "template_id": "proj-beta", "alias": "beta"}]
+    },
+    "oracle": [
+      {"type": "project_status", "project_id": "proj-beta", "expected": "active"},
+      {"type": "sprint_exists", "name_contains": "Beta Sprint 1", "expected_status": "active", "project_id": "proj-beta"},
+      {"type": "issue_count", "filters": {"project_id": "proj-beta"}, "expected": 2, "op": "gte"}
+    ],
+    "max_turns": 25
+  },
+  {
+    "id": "t2-09",
+    "tier": 2,
+    "name": "Bulk label and assign",
+    "description": "Add the 'security' label (label-security) to both 'XSS vulnerability' and 'SQL injection risk', then assign both to Grace Patel (user-dev-3).",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-xss", "title": "XSS vulnerability", "project_id": "proj-alpha", "status": "open", "priority": "p1", "alias": "xss"},
+        {"id": "iss-sql", "title": "SQL injection risk", "project_id": "proj-alpha", "status": "open", "priority": "p1", "alias": "sql"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_has_label", "issue_id": "iss-xss", "label_id": "label-security"},
+      {"type": "issue_has_label", "issue_id": "iss-sql", "label_id": "label-security"},
+      {"type": "issue_assignee", "issue_id": "iss-xss", "expected": "user-dev-3"},
+      {"type": "issue_assignee", "issue_id": "iss-sql", "expected": "user-dev-3"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t2-10",
+    "tier": 2,
+    "name": "Issue lifecycle end-to-end",
+    "description": "Create issue 'Add dark mode' in Project Alpha with P3 priority. Assign to Frank Liu (user-dev-2). Transition through the full lifecycle: open → in_progress → in_review → resolved → closed.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}]
+    },
+    "oracle": [
+      {"type": "issue_exists", "title_contains": "dark mode"},
+      {"type": "issue_count", "filters": {"status": "closed"}, "expected": 1, "op": "gte"}
+    ],
+    "max_turns": 25
+  }
+]

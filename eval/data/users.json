@@ -1,0 +1,12 @@
+[
+  {"id": "user-admin-1", "name": "Alice Chen", "email": "alice@example.com", "role": "admin"},
+  {"id": "user-admin-2", "name": "Bob Kim", "email": "bob@example.com", "role": "admin"},
+  {"id": "user-mgr-1", "name": "Carol Reyes", "email": "carol@example.com", "role": "manager"},
+  {"id": "user-mgr-2", "name": "Dan Okafor", "email": "dan@example.com", "role": "manager"},
+  {"id": "user-dev-1", "name": "Eve Park", "email": "eve@example.com", "role": "developer"},
+  {"id": "user-dev-2", "name": "Frank Liu", "email": "frank@example.com", "role": "developer"},
+  {"id": "user-dev-3", "name": "Grace Patel", "email": "grace@example.com", "role": "developer"},
+  {"id": "user-dev-4", "name": "Hiro Tanaka", "email": "hiro@example.com", "role": "developer"},
+  {"id": "user-view-1", "name": "Iris Novak", "email": "iris@example.com", "role": "viewer"},
+  {"id": "user-view-2", "name": "Jake Torres", "email": "jake@example.com", "role": "viewer"}
+]

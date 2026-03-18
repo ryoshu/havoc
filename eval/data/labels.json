@@ -1,0 +1,10 @@
+[
+  {"id": "label-bug", "name": "bug", "color": "#d73a4a", "description": "Something isn't working"},
+  {"id": "label-feature", "name": "feature", "color": "#0075ca", "description": "New feature request"},
+  {"id": "label-docs", "name": "documentation", "color": "#0e8a16", "description": "Documentation updates"},
+  {"id": "label-perf", "name": "performance", "color": "#e4e669", "description": "Performance improvements"},
+  {"id": "label-security", "name": "security", "color": "#b60205", "description": "Security-related issue"},
+  {"id": "label-ux", "name": "ux", "color": "#5319e7", "description": "User experience improvements"},
+  {"id": "label-infra", "name": "infrastructure", "color": "#006b75", "description": "Infrastructure and ops"},
+  {"id": "label-blocked", "name": "blocked", "color": "#c5def5", "description": "Blocked by another issue"}
+]

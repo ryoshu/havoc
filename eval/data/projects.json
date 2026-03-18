@@ -1,0 +1,26 @@
+[
+  {
+    "id": "proj-alpha",
+    "name": "Project Alpha",
+    "description": "Core platform API redesign — active development with multiple sprints",
+    "status": "active",
+    "owner_id": "user-mgr-1",
+    "member_ids": ["user-mgr-1", "user-dev-1", "user-dev-2", "user-dev-3"]
+  },
+  {
+    "id": "proj-beta",
+    "name": "Project Beta",
+    "description": "Mobile app v2 — early setup phase, team forming",
+    "status": "setup",
+    "owner_id": "user-mgr-2",
+    "member_ids": ["user-mgr-2", "user-dev-4"]
+  },
+  {
+    "id": "proj-gamma",
+    "name": "Project Gamma",
+    "description": "Legacy migration — in review, winding down",
+    "status": "review",
+    "owner_id": "user-admin-1",
+    "member_ids": ["user-admin-1", "user-dev-1", "user-dev-4"]
+  }
+]

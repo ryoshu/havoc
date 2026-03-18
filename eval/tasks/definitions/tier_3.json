@@ -1,0 +1,139 @@
+[
+  {
+    "id": "t3-01",
+    "tier": 3,
+    "name": "Viewer attempts write operation",
+    "description": "You are acting as Iris Novak (user-view-1), a viewer. Verify that this role is read-only and cannot create issues, then search for open issues to confirm read operations still work.",
+    "acting_user_id": "user-view-1",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-exist", "title": "Existing issue", "project_id": "proj-alpha", "status": "open", "priority": "p3", "alias": "exist"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_count", "filters": {}, "expected": 1, "op": "eq"},
+      {"type": "no_backend_errors"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t3-02",
+    "tier": 3,
+    "name": "Cannot close sprint with open P1",
+    "description": "Sprint 'Sprint 6' is active and contains a P1 issue 'Data loss bug' that is still open. Try to close the sprint — this should fail. Then resolve and close the P1 issue, and close the sprint successfully.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "sprints": [
+        {"id": "sp-6", "name": "Sprint 6", "project_id": "proj-alpha", "status": "active", "alias": "sp6"}
+      ],
+      "issues": [
+        {"id": "iss-data", "title": "Data loss bug", "project_id": "proj-alpha", "sprint_id": "sp-6", "status": "open", "priority": "p1", "alias": "data"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_status", "issue_id": "iss-data", "expected": "closed"},
+      {"type": "sprint_status", "sprint_id": "sp-6", "expected": "closed"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t3-03",
+    "tier": 3,
+    "name": "Cannot self-approve PR",
+    "description": "Issue 'My feature' is in_review and assigned to you (Carol Reyes, user-mgr-1). You cannot approve your own PR. Find another reviewer — have someone else (the system will handle the acting user) approve it. Since you ARE the assignee, the approve should fail. Then reassign the issue to Eve Park (user-dev-1) so someone else can own it, and approve it yourself.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-myfeat", "title": "My feature", "project_id": "proj-alpha", "status": "in_review", "priority": "p2", "assignee_id": "user-mgr-1", "alias": "myfeat"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_status", "issue_id": "iss-myfeat", "expected": "resolved"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t3-04",
+    "tier": 3,
+    "name": "Cannot modify locked issue",
+    "description": "Issue 'Frozen requirement' is locked. Try to change its priority to P1 — this should fail. Then unlock it (you are Carol Reyes, a manager) and change its priority to P1.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-frozen", "title": "Frozen requirement", "project_id": "proj-alpha", "status": "open", "priority": "p3", "is_locked": true, "alias": "frozen"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_not_locked", "issue_id": "iss-frozen"},
+      {"type": "issue_priority", "issue_id": "iss-frozen", "expected": "p1"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t3-05",
+    "tier": 3,
+    "name": "Cannot close project with active sprints",
+    "description": "Project Alpha has an active sprint. Try to close the project — it should fail. Close the sprint first, then close the project.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "sprints": [
+        {"id": "sp-act", "name": "Active Sprint", "project_id": "proj-alpha", "status": "active", "alias": "sp-act"}
+      ]
+    },
+    "oracle": [
+      {"type": "sprint_status", "sprint_id": "sp-act", "expected": "closed"},
+      {"type": "project_status", "project_id": "proj-alpha", "expected": "closed"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t3-06",
+    "tier": 3,
+    "name": "Invalid status transition",
+    "description": "Issue 'New feature' is open. Try to transition it directly to 'resolved' — this should fail because the valid path is open→in_progress→in_review→resolved. Follow the correct transition path to get it to resolved.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "issues": [
+        {"id": "iss-newfeat", "title": "New feature", "project_id": "proj-alpha", "status": "open", "priority": "p2", "alias": "newfeat"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_status", "issue_id": "iss-newfeat", "expected": "resolved"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t3-07",
+    "tier": 3,
+    "name": "Cannot add issue to closed sprint",
+    "description": "Sprint 'Closed Sprint' is already closed. Try to add the open issue 'Late addition' to it — this should fail. Create a new sprint, activate it, and add the issue there instead.",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
+      "sprints": [
+        {"id": "sp-closed", "name": "Closed Sprint", "project_id": "proj-alpha", "status": "closed", "alias": "sp-closed"}
+      ],
+      "issues": [
+        {"id": "iss-late", "title": "Late addition", "project_id": "proj-alpha", "status": "open", "priority": "p3", "alias": "late"}
+      ]
+    },
+    "oracle": [
+      {"type": "issue_status", "issue_id": "iss-late", "expected": "open"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t3-08",
+    "tier": 3,
+    "name": "Developer cannot delete project",
+    "description": "You are acting as Eve Park (user-dev-1), a developer. Try to close Project Alpha — this should fail because only admins and managers can close projects. Verify the project is still active.",
+    "acting_user_id": "user-dev-1",
+    "setup": {
+      "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}]
+    },
+    "oracle": [
+      {"type": "project_status", "project_id": "proj-alpha", "expected": "active"}
+    ],
+    "max_turns": 10
+  }
+]
