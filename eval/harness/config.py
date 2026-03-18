@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class ModelConfig(BaseModel):
-    name: str  # display name, e.g. "qwen3.5:9b"
+    name: str  # display name, e.g. "GPT-4o (OpenAI)"
     model: str  # API model ID
     api_base: str  # OpenAI-compatible endpoint
     api_key: str  # from env var

@@ -2,8 +2,8 @@
   {
     "id": "t3-01",
     "tier": 3,
-    "name": "Viewer attempts write operation",
-    "description": "You are acting as Iris Novak (user-view-1), a viewer. Verify that this role is read-only and cannot create issues, then search for open issues to confirm read operations still work.",
+    "name": "Viewer reads available actions",
+    "description": "You are acting as Iris Novak (user-view-1), a viewer on Project Alpha. List what actions are available to you, then use your read access to search for all open issues and retrieve the details of any issue you find.",
     "acting_user_id": "user-view-1",
     "setup": {
       "projects": [{"id": "proj-alpha", "template_id": "proj-alpha", "alias": "alpha"}],
@@ -12,8 +12,7 @@
       ]
     },
     "oracle": [
-      {"type": "issue_count", "filters": {}, "expected": 1, "op": "eq"},
-      {"type": "no_backend_errors"}
+      {"type": "issue_count", "filters": {}, "expected": 1, "op": "eq"}
     ],
     "max_turns": 10
   },

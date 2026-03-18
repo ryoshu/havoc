@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+_RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
+_DEFAULT_CHARTS = str(_RESULTS_DIR / "charts")
+
 
 def try_import_plotting():
     """Import matplotlib and seaborn, return (plt, sns) or raise."""
@@ -19,22 +22,32 @@ def try_import_plotting():
 
 
 # Consistent model ordering and colors
-MODEL_ORDER = ["claude-opus", "claude-sonnet", "gpt-5.4", "GLM-5", "Qwen2.5-72B", "qwen3.5:9b"]
+MODEL_ORDER = [
+    "GPT-4o (OpenAI)",
+    "GLM-5 (DeepInfra)",
+    "DeepSeek V3.2 (DeepInfra)",
+    "Claude Haiku 4.5 (Anthropic)",
+    "Llama 4 Scout 17B (DeepInfra)",
+    "Nemotron 3 Nano 30B-A3B (DeepInfra)",
+    "Qwen3 32B (DeepInfra)",
+]
 MODEL_LABELS = {
-    "claude-opus": "Claude Opus 4.6",
-    "claude-sonnet": "Claude Sonnet 4",
-    "gpt-5.4": "GPT-5.4",
-    "GLM-5": "GLM-5",
-    "Qwen2.5-72B": "Qwen2.5-72B",
-    "qwen3.5:9b": "Qwen3.5-9B",
+    "GPT-4o (OpenAI)": "GPT-4o",
+    "GLM-5 (DeepInfra)": "GLM-5",
+    "DeepSeek V3.2 (DeepInfra)": "DeepSeek V3.2",
+    "Claude Haiku 4.5 (Anthropic)": "Claude Haiku 4.5",
+    "Llama 4 Scout 17B (DeepInfra)": "Llama 4 Scout 17B",
+    "Nemotron 3 Nano 30B-A3B (DeepInfra)": "Nemotron 3 Nano 30B-A3B",
+    "Qwen3 32B (DeepInfra)": "Qwen3 32B",
 }
 MODEL_COLORS = {
-    "claude-opus": "#bc8cff",
-    "claude-sonnet": "#8b5cf6",
-    "gpt-5.4": "#58a6ff",
-    "GLM-5": "#3fb950",
-    "Qwen2.5-72B": "#d29922",
-    "qwen3.5:9b": "#f85149",
+    "GPT-4o (OpenAI)": "#0ea5e9",
+    "GLM-5 (DeepInfra)": "#16a34a",
+    "DeepSeek V3.2 (DeepInfra)": "#2563eb",
+    "Claude Haiku 4.5 (Anthropic)": "#f59e0b",
+    "Llama 4 Scout 17B (DeepInfra)": "#9333ea",
+    "Nemotron 3 Nano 30B-A3B (DeepInfra)": "#dc2626",
+    "Qwen3 32B (DeepInfra)": "#0891b2",
 }
 MODE_COLORS = {"gas": "#58a6ff", "trad-15": "#f85149", "trad-30": "#d29922", "trad-60": "#bc8cff"}
 TOOL_COUNT_MAP = {"gas": 3, "trad-15": 15, "trad-30": 30, "trad-60": 60}
@@ -46,6 +59,22 @@ def _style_ax(ax, title, xlabel, ylabel):
     ax.set_ylabel(ylabel, fontsize=11)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
+
+
+def _weighted_invalid_by(df, group_cols: list[str]):
+    """Compute weighted invalid rate: sum(invalid) / sum(invalid + valid)."""
+    grouped = (
+        df.groupby(group_cols)
+        .agg(
+            invalid_action_count=("invalid_action_count", "sum"),
+            valid_action_count=("valid_action_count", "sum"),
+        )
+        .reset_index()
+    )
+    denom = grouped["invalid_action_count"] + grouped["valid_action_count"]
+    grouped["inv_rate"] = grouped["invalid_action_count"] / denom.where(denom != 0, 1)
+    grouped.loc[denom == 0, "inv_rate"] = 0.0
+    return grouped
 
 
 def plot_scaling_oracle_pass(df, output_path: str = "scaling_oracle_pass.png"):
@@ -94,9 +123,7 @@ def plot_scaling_invalid_action(df, output_path: str = "scaling_invalid_action.p
     df["tool_count"] = df["mode"].map(TOOL_COUNT_MAP)
     df = df.dropna(subset=["tool_count"])
 
-    grouped = df.groupby(["model_name", "tool_count"]).agg(
-        inv_rate=("invalid_action_rate", "mean"),
-    ).reset_index()
+    grouped = _weighted_invalid_by(df, ["model_name", "tool_count"])
 
     fig, ax = plt.subplots(figsize=(10, 6))
     for model in MODEL_ORDER:
@@ -287,9 +314,7 @@ def plot_invalid_action_rate(df, output_path: str = "invalid_action_rate.png"):
     plt, sns = try_import_plotting()
     import numpy as np
 
-    grouped = df.groupby(["model_name", "mode"]).agg(
-        inv_rate=("invalid_action_rate", "mean"),
-    ).reset_index()
+    grouped = _weighted_invalid_by(df, ["model_name", "mode"])
 
     modes = ["gas", "trad-15", "trad-30", "trad-60"]
     models_present = [m for m in MODEL_ORDER if m in grouped["model_name"].values]
@@ -330,7 +355,7 @@ def plot_token_scaling(df, output_path="token_scaling.png"):
     return plot_token_cost(df, output_path)
 
 
-def generate_all_charts(df, output_dir: str = "eval_charts"):
+def generate_all_charts(df, output_dir: str = _DEFAULT_CHARTS):
     """Generate all charts to a directory."""
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)

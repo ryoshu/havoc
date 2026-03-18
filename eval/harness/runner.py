@@ -16,8 +16,8 @@ from eval.tasks.seeder import seed_task
 
 from .agent import EvalAgent
 from .config import EvalConfig, MatrixConfig
-from .metrics import EvalMetrics
-from .results_db import ResultsDB
+from .metrics import EvalMetrics, TurnDetail
+from .results_db import ResultsDB, _DEFAULT_DB
 
 
 def load_tasks(tiers: list[int] | None = None) -> list[TaskDefinition]:
@@ -89,7 +89,7 @@ def run_suite(config: EvalConfig, tasks: list[TaskDefinition]) -> list[EvalMetri
 
 def run_matrix(
     matrix: MatrixConfig,
-    results_db_path: str = "eval_results.db",
+    results_db_path: str = _DEFAULT_DB,
 ) -> ResultsDB:
     """Run the full eval matrix: models x modes x tasks."""
     tasks = load_tasks(matrix.task_tiers)
@@ -133,5 +133,24 @@ def run_matrix(
                         db.save_run(metrics)
                     except Exception as e:
                         print(f"ERROR: {e}")
+                        # Persist hard failures so matrix coverage and failure rate
+                        # are auditable instead of silently dropped.
+                        failed = EvalMetrics(
+                            task_id=task.id,
+                            task_tier=task.tier,
+                            mode="gas" if eval_mode == "gas" else f"trad-{tool_level}",
+                            model_name=model.name,
+                            total_turns=1,
+                            invalid_action_count=1,
+                            task_completed=False,
+                            oracle_passed=False,
+                            turns=[TurnDetail(
+                                turn_number=1,
+                                was_valid=False,
+                                error_message=f"Runner exception: {e}",
+                            )],
+                            oracle_details=[{"error": str(e)}],
+                        )
+                        db.save_run(failed)
 
     return db

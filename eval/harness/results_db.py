@@ -6,6 +6,10 @@ import json
 import sqlite3
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
+
+_RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
+_DEFAULT_DB = str(_RESULTS_DIR / "eval_results.db")
 
 from .metrics import EvalMetrics
 
@@ -31,7 +35,8 @@ CREATE TABLE IF NOT EXISTS runs (
     invalid_action_rate REAL NOT NULL DEFAULT 0.0,
     turns_json TEXT NOT NULL DEFAULT '[]',
     oracle_details_json TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT ''
 );
 """
 
@@ -39,9 +44,10 @@ CREATE TABLE IF NOT EXISTS runs (
 class ResultsDB:
     """SQLite store for eval results."""
 
-    def __init__(self, db_path: str = "eval_results.db"):
-        self.conn = sqlite3.connect(db_path)
+    def __init__(self, db_path: str = _DEFAULT_DB):
+        self.conn = sqlite3.connect(db_path, timeout=30)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.executescript(RESULTS_SCHEMA)
 
     def close(self):
@@ -95,7 +101,8 @@ class ResultsDB:
         rows = self.conn.execute("""
             SELECT mode,
                    COUNT(*) as run_count,
-                   AVG(invalid_action_rate) as avg_invalid_rate,
+                   SUM(invalid_action_count) as invalid_count,
+                   SUM(valid_action_count) as valid_count,
                    AVG(total_turns) as avg_turns,
                    AVG(total_tokens_in + total_tokens_out) as avg_tokens,
                    SUM(oracle_passed) as oracle_pass_count,
@@ -108,7 +115,11 @@ class ResultsDB:
         return {
             r["mode"]: {
                 "run_count": r["run_count"],
-                "avg_invalid_rate": r["avg_invalid_rate"],
+                # Weighted invalid rate across all calls in the mode.
+                "avg_invalid_rate": (
+                    r["invalid_count"] / (r["invalid_count"] + r["valid_count"])
+                    if (r["invalid_count"] + r["valid_count"]) else 0
+                ),
                 "avg_turns": r["avg_turns"],
                 "avg_tokens": r["avg_tokens"],
                 "oracle_pass_rate": r["oracle_pass_count"] / r["run_count"] if r["run_count"] else 0,

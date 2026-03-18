@@ -1,13 +1,13 @@
 """CLI entry point for the GAS eval framework.
 
 Usage:
-    python -m eval.cli run --mode gas --model qwen3.5:9b --tiers 1 3
-    python -m eval.cli run --mode trad-15 --model qwen3.5:9b --tiers 1
-    python -m eval.cli matrix --models qwen3.5:9b --modes gas trad-15 trad-30 --tiers 1 3
-    python -m eval.cli summary --db eval_results.db
-    python -m eval.cli charts --db eval_results.db
-    python -m eval.cli list-tasks
-    python -m eval.cli list-models
+    python -m eval run --mode gas --model gpt-4o --tiers 1 3
+    python -m eval run --mode trad-15 --model glm-5 --tiers 1
+    python -m eval matrix --models gpt-4o glm-5 --modes gas trad-15 trad-30 --tiers 1 3
+    python -m eval summary
+    python -m eval charts
+    python -m eval list-tasks
+    python -m eval list-models
 """
 
 from __future__ import annotations
@@ -15,6 +15,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
+
+# All results default to eval/results/ relative to this package.
+_EVAL_DIR = Path(__file__).resolve().parent
+_RESULTS_DIR = _EVAL_DIR / "results"
+_DEFAULT_DB = str(_RESULTS_DIR / "eval_results.db")
+_DEFAULT_CHARTS = str(_RESULTS_DIR / "charts")
 
 from eval.harness.config import EvalConfig, MatrixConfig
 from eval.harness.providers import get_available_models, get_model_by_name, print_available_models
@@ -47,6 +54,10 @@ def cmd_run(args):
 
     tiers = [int(t) for t in args.tiers] if args.tiers else None
     tasks = load_tasks(tiers)
+
+    if args.tasks:
+        task_ids = set(args.tasks)
+        tasks = [t for t in tasks if t.id in task_ids]
 
     if not tasks:
         print("No tasks found for specified tiers.", file=sys.stderr)
@@ -179,30 +190,31 @@ def main():
     # run
     p_run = sub.add_parser("run", help="Run eval suite with a single config")
     p_run.add_argument("--mode", default="gas", help="gas, trad-15, trad-30, trad-60")
-    p_run.add_argument("--model", default="qwen3.5:9b", help="Model name")
+    p_run.add_argument("--model", default="gpt-4o", help="Model name or alias")
     p_run.add_argument("--tiers", nargs="+", default=None, help="Task tiers to run")
+    p_run.add_argument("--tasks", nargs="+", default=None, help="Specific task IDs to run")
     p_run.add_argument("--user", default="user-mgr-1", help="Acting user ID")
-    p_run.add_argument("--db", default="eval_results.db", help="Results DB path")
+    p_run.add_argument("--db", default=_DEFAULT_DB, help="Results DB path")
     p_run.set_defaults(func=cmd_run)
 
     # matrix
     p_matrix = sub.add_parser("matrix", help="Run full eval matrix")
-    p_matrix.add_argument("--models", nargs="+", default=["qwen3.5:9b"])
+    p_matrix.add_argument("--models", nargs="+", default=["gpt-4o"])
     p_matrix.add_argument("--modes", nargs="+", default=["gas", "trad-15"])
     p_matrix.add_argument("--tiers", nargs="+", default=None)
     p_matrix.add_argument("--runs", type=int, default=1, help="Runs per cell")
-    p_matrix.add_argument("--db", default="eval_results.db")
+    p_matrix.add_argument("--db", default=_DEFAULT_DB)
     p_matrix.set_defaults(func=cmd_matrix)
 
     # summary
     p_summary = sub.add_parser("summary", help="Print results summary")
-    p_summary.add_argument("--db", default="eval_results.db")
+    p_summary.add_argument("--db", default=_DEFAULT_DB)
     p_summary.set_defaults(func=cmd_summary)
 
     # charts
     p_charts = sub.add_parser("charts", help="Generate charts")
-    p_charts.add_argument("--db", default="eval_results.db")
-    p_charts.add_argument("--output", default="eval_charts")
+    p_charts.add_argument("--db", default=_DEFAULT_DB)
+    p_charts.add_argument("--output", default=_DEFAULT_CHARTS)
     p_charts.set_defaults(func=cmd_charts)
 
     # list-tasks
