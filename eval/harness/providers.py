@@ -16,10 +16,6 @@ DEEPINFRA_MODELS: tuple[tuple[str, str], ...] = (
     ("GLM-5 (DeepInfra)", os.environ.get("DEEPINFRA_MODEL_GLM_5", "zai-org/GLM-5")),
     ("DeepSeek V3.2 (DeepInfra)", os.environ.get("DEEPINFRA_MODEL_DEEPSEEK_V3_2", "deepseek-ai/DeepSeek-V3.2")),
     (
-        "Llama 4 Scout 17B (DeepInfra)",
-        os.environ.get("DEEPINFRA_MODEL_LLAMA_4_SCOUT_17B", "meta-llama/Llama-4-Scout-17B-16E-Instruct"),
-    ),
-    (
         "Nemotron 3 Nano 30B-A3B (DeepInfra)",
         os.environ.get("DEEPINFRA_MODEL_NEMOTRON_3_NANO_30B_A3B", "nvidia/Nemotron-3-Nano-30B-A3B-Instruct"),
     ),
@@ -40,7 +36,6 @@ NAME_ALIASES = {
     "glm-5": "GLM-5 (DeepInfra)",
     "deepseek-v3.2": "DeepSeek V3.2 (DeepInfra)",
     "claude-haiku-4.5": "Claude Haiku 4.5 (Anthropic)",
-    "llama-4-scout-17b": "Llama 4 Scout 17B (DeepInfra)",
     "nemotron-3-nano-30b-a3b": "Nemotron 3 Nano 30B-A3B (DeepInfra)",
     "qwen3-32b": "Qwen3 32B (DeepInfra)",
 }

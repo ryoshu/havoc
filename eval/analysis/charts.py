@@ -27,7 +27,6 @@ MODEL_ORDER = [
     "GLM-5 (DeepInfra)",
     "DeepSeek V3.2 (DeepInfra)",
     "Claude Haiku 4.5 (Anthropic)",
-    "Llama 4 Scout 17B (DeepInfra)",
     "Nemotron 3 Nano 30B-A3B (DeepInfra)",
     "Qwen3 32B (DeepInfra)",
 ]
@@ -36,7 +35,6 @@ MODEL_LABELS = {
     "GLM-5 (DeepInfra)": "GLM-5",
     "DeepSeek V3.2 (DeepInfra)": "DeepSeek V3.2",
     "Claude Haiku 4.5 (Anthropic)": "Claude Haiku 4.5",
-    "Llama 4 Scout 17B (DeepInfra)": "Llama 4 Scout 17B",
     "Nemotron 3 Nano 30B-A3B (DeepInfra)": "Nemotron 3 Nano 30B-A3B",
     "Qwen3 32B (DeepInfra)": "Qwen3 32B",
 }
@@ -45,7 +43,6 @@ MODEL_COLORS = {
     "GLM-5 (DeepInfra)": "#16a34a",
     "DeepSeek V3.2 (DeepInfra)": "#2563eb",
     "Claude Haiku 4.5 (Anthropic)": "#f59e0b",
-    "Llama 4 Scout 17B (DeepInfra)": "#9333ea",
     "Nemotron 3 Nano 30B-A3B (DeepInfra)": "#dc2626",
     "Qwen3 32B (DeepInfra)": "#0891b2",
 }
