@@ -7,6 +7,7 @@ import json
 from eval.backend.context import EvalContext
 from eval.backend.domain import DomainError, ProjectEngine
 from eval.backend.models import (
+    Affordance,
     DecisionRecord,
     IssueStatus,
     Priority,
@@ -14,6 +15,132 @@ from eval.backend.models import (
 )
 
 from .affordances import compute_affordances
+
+
+def _compact_affordances(affordances: list[Affordance]) -> list[dict]:
+    """Compact affordances by grouping per action type.
+
+    Instead of N per-entity entries with repeated schemas, produces one entry
+    per action type with a ``targets`` list of applicable entity IDs and a
+    shared ``params`` dict for non-const parameters.
+
+    Singleton affordances (only one instance of an action) are emitted inline
+    without a ``targets`` wrapper.
+    """
+    from collections import OrderedDict
+
+    groups: OrderedDict[str, list[Affordance]] = OrderedDict()
+    for a in affordances:
+        groups.setdefault(a.action, []).append(a)
+
+    result: list[dict] = []
+    for action, items in groups.items():
+        if len(items) == 1:
+            # Singleton — emit inline (no batching overhead)
+            a = items[0]
+            entry: dict = {"action": a.action, "description": a.description}
+            if a.schema_:
+                entry["params"] = _simplify_schema(a.schema_)
+            if a.constraints:
+                entry["constraints"] = a.constraints
+            result.append(entry)
+            continue
+
+        # Multiple instances — batch by action type.
+        # Separate const params (vary per entity) from shared params (same across all).
+        const_keys: list[str] = []
+        shared_params: dict = {}
+        sample = items[0].schema_
+
+        for key, spec in sample.items():
+            if isinstance(spec, dict) and "const" in spec:
+                const_keys.append(key)
+            else:
+                shared_params[key] = _simplify_param(spec)
+
+        entry = {"action": action}
+
+        # Build compact targets list
+        targets: list[dict] = []
+        for a in items:
+            target: dict = {}
+            for ck in const_keys:
+                target[ck] = a.schema_[ck]["const"]
+            # Include per-entity description as label
+            target["_desc"] = a.description
+            # Per-entity enum overrides (e.g., transition_issue where valid
+            # new_status differs per issue)
+            for key, spec in a.schema_.items():
+                if key in const_keys:
+                    continue
+                if isinstance(spec, dict) and "enum" in spec:
+                    shared_val = sample.get(key, {})
+                    if isinstance(shared_val, dict) and spec.get("enum") != shared_val.get("enum"):
+                        target[key] = spec["enum"]
+            if a.constraints:
+                target["constraints"] = a.constraints
+            targets.append(target)
+
+        # Merge targets sharing the same primary entity key.
+        # e.g., two transition_issue entries for the same issue_id with
+        # different new_status values collapse into one target with a list.
+        if len(const_keys) > 1:
+            primary = const_keys[0]  # e.g., issue_id
+            merged: OrderedDict[str, dict] = OrderedDict()
+            for t in targets:
+                pk = t[primary]
+                if pk not in merged:
+                    merged[pk] = dict(t)
+                else:
+                    # Merge the non-primary const values into lists
+                    existing = merged[pk]
+                    for ck in const_keys[1:]:
+                        old_val = existing.get(ck)
+                        new_val = t.get(ck)
+                        if old_val is None:
+                            existing[ck] = new_val
+                        elif isinstance(old_val, list):
+                            existing[ck].append(new_val)
+                        else:
+                            existing[ck] = [old_val, new_val]
+                    # Merge descriptions
+                    if "_desc" in t:
+                        old_desc = existing.get("_desc", "")
+                        if isinstance(old_desc, list):
+                            old_desc.append(t["_desc"])
+                        else:
+                            existing["_desc"] = [old_desc, t["_desc"]]
+            targets = list(merged.values())
+
+        entry["targets"] = targets
+        if shared_params:
+            entry["params"] = shared_params
+        result.append(entry)
+
+    return result
+
+
+def _simplify_schema(schema: dict) -> dict:
+    """Simplify a parameter schema by stripping redundant JSON Schema wrappers."""
+    out = {}
+    for key, spec in schema.items():
+        out[key] = _simplify_param(spec)
+    return out
+
+
+def _simplify_param(spec) -> str | list | dict:
+    """Collapse ``{"type": "string", "const": "x"}`` → ``"x"`` etc."""
+    if not isinstance(spec, dict):
+        return spec
+    if "const" in spec:
+        return spec["const"]
+    if "enum" in spec:
+        return spec["enum"]
+    if spec.get("type") == "object" and "properties" in spec:
+        return {k: _simplify_param(v) for k, v in spec["properties"].items()}
+    if spec.get("type") == "string":
+        return "string"
+    return spec
 
 
 class EvalRuntime:
@@ -34,14 +161,9 @@ class EvalRuntime:
         return session_id or self.default_session_id
 
     def _format(self, data, affordances) -> dict:
-        aff_list = [
-            {"action": a.action, "description": a.description,
-             "schema": a.schema_, "constraints": a.constraints}
-            for a in affordances
-        ]
         if hasattr(data, "model_dump"):
             data = data.model_dump()
-        return {"data": data, "affordances": aff_list}
+        return {"data": data, "affordances": _compact_affordances(affordances)}
 
     # --- get ---
 
@@ -239,11 +361,7 @@ class EvalRuntime:
             affs = compute_affordances(self.ctx, sid)
             return json.dumps({
                 "error": str(e),
-                "affordances": [
-                    {"action": a.action, "description": a.description,
-                     "schema": a.schema_, "constraints": a.constraints}
-                    for a in affs
-                ],
+                "affordances": _compact_affordances(affs),
             }, indent=2)
         except Exception as e:
             decision = DecisionRecord(
@@ -262,11 +380,7 @@ class EvalRuntime:
             affs = compute_affordances(self.ctx, sid)
             return json.dumps({
                 "error": f"Runtime error: {e}",
-                "affordances": [
-                    {"action": a.action, "description": a.description,
-                     "schema": a.schema_, "constraints": a.constraints}
-                    for a in affs
-                ],
+                "affordances": _compact_affordances(affs),
             }, indent=2)
 
     def _dispatch(self, session_id, action, params, user):
