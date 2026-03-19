@@ -36,9 +36,16 @@ CREATE TABLE IF NOT EXISTS runs (
     turns_json TEXT NOT NULL DEFAULT '[]',
     oracle_details_json TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
-    source TEXT NOT NULL DEFAULT ''
+    source TEXT NOT NULL DEFAULT '',
+    excluded INTEGER NOT NULL DEFAULT 0,
+    batch TEXT NOT NULL DEFAULT ''
 );
 """
+
+_MIGRATIONS = [
+    "ALTER TABLE runs ADD COLUMN excluded INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE runs ADD COLUMN batch TEXT NOT NULL DEFAULT ''",
+]
 
 
 class ResultsDB:
@@ -49,11 +56,21 @@ class ResultsDB:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.executescript(RESULTS_SCHEMA)
+        self._migrate()
+
+    def _migrate(self):
+        """Apply schema migrations idempotently."""
+        for sql in _MIGRATIONS:
+            try:
+                self.conn.execute(sql)
+                self.conn.commit()
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
     def close(self):
         self.conn.close()
 
-    def save_run(self, metrics: EvalMetrics) -> str:
+    def save_run(self, metrics: EvalMetrics, batch: str = "") -> str:
         run_id = f"run-{uuid.uuid4().hex[:8]}"
         now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
@@ -65,8 +82,8 @@ class ResultsDB:
                 redundant_calls, affordance_utilization,
                 task_completed, oracle_passed, elapsed_seconds,
                 invalid_action_rate, turns_json, oracle_details_json,
-                created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                created_at, batch)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 run_id, metrics.task_id, metrics.task_tier,
                 metrics.mode, metrics.model_name,
@@ -79,22 +96,57 @@ class ResultsDB:
                 metrics.elapsed_seconds, metrics.invalid_action_rate,
                 json.dumps([t.model_dump() for t in metrics.turns]),
                 json.dumps(metrics.oracle_details),
-                now,
+                now, batch,
             ),
         )
         self.conn.commit()
         return run_id
 
-    def get_all_runs(self) -> list[dict]:
-        rows = self.conn.execute("SELECT * FROM runs ORDER BY created_at").fetchall()
+    def get_batches(self) -> list[dict]:
+        """List distinct batches with run counts."""
+        rows = self.conn.execute("""
+            SELECT batch, COUNT(*) as n, MIN(created_at) as earliest,
+                   MAX(created_at) as latest, SUM(excluded) as excluded_count
+            FROM runs WHERE batch != ''
+            GROUP BY batch ORDER BY earliest
+        """).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_all_runs(self, include_excluded: bool = False, batch: str | None = None) -> list[dict]:
+        clauses = []
+        params: list = []
+        if not include_excluded:
+            clauses.append("excluded = 0")
+        if batch is not None:
+            clauses.append("batch = ?")
+            params.append(batch)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = self.conn.execute(
+            f"SELECT * FROM runs {where} ORDER BY created_at", params
+        ).fetchall()
         return [dict(r) for r in rows]
 
     def get_runs_by_mode(self, mode: str) -> list[dict]:
         rows = self.conn.execute(
-            "SELECT * FROM runs WHERE mode = ? ORDER BY created_at",
+            "SELECT * FROM runs WHERE mode = ? AND excluded = 0 ORDER BY created_at",
             (mode,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def exclude_runs(self, model_name: str, mode: str | None = None, reason: str = "") -> int:
+        """Mark runs as excluded. Returns count of affected rows."""
+        if mode:
+            cur = self.conn.execute(
+                "UPDATE runs SET excluded = 1 WHERE model_name = ? AND mode = ?",
+                (model_name, mode),
+            )
+        else:
+            cur = self.conn.execute(
+                "UPDATE runs SET excluded = 1 WHERE model_name = ?",
+                (model_name,),
+            )
+        self.conn.commit()
+        return cur.rowcount
 
     def get_summary(self) -> dict:
         """Aggregate summary across all runs, grouped by mode."""
@@ -109,6 +161,7 @@ class ResultsDB:
                    SUM(task_completed) as task_complete_count,
                    AVG(elapsed_seconds) as avg_time
             FROM runs
+            WHERE excluded = 0
             GROUP BY mode
             ORDER BY mode
         """).fetchall()

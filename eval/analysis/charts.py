@@ -23,8 +23,15 @@ def try_import_plotting():
         )
 
 
-MODE_COLORS = {"gas": "#58a6ff", "trad-15": "#f85149", "trad-30": "#d29922", "trad-60": "#bc8cff"}
-TOOL_COUNT_MAP = {"gas": 3, "trad-15": 15, "trad-30": 30, "trad-60": 60}
+MODE_COLORS = {
+    "gas": "#58a6ff", "trad-15": "#f85149", "trad-30": "#d29922",
+    "trad-60": "#bc8cff", "trad-60-poly": "#e879f9",
+    "trad-120d": "#f97316", "trad-240d": "#ef4444", "trad-480d": "#dc2626",
+}
+TOOL_COUNT_MAP = {
+    "gas": 3, "trad-15": 15, "trad-30": 30, "trad-60": 60, "trad-60-poly": 60,
+    "trad-120d": 120, "trad-240d": 240, "trad-480d": 480,
+}
 
 
 def _style_ax(ax, title, xlabel, ylabel):
@@ -76,8 +83,12 @@ def plot_scaling_oracle_pass(df, output_path: str = "scaling_oracle_pass.png"):
             label=MODEL_LABELS.get(model, model),
         )
 
-    ax.set_xticks([3, 15, 30, 60])
-    ax.set_xticklabels(["3 (GAS)", "15", "30", "60"])
+    all_x = sorted(grouped["tool_count"].unique())
+    ax.set_xscale("log", base=2)
+    ax.set_xticks(all_x)
+    ax.set_xticklabels([f"{int(x)}" if x != 3 else "3 (GAS)" for x in all_x])
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x)}" if x != 3 else "3 (GAS)"))
+    ax.xaxis.set_minor_formatter(plt.NullFormatter())
     ax.set_ylim(0, 1.05)
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f"{y:.0%}"))
     _style_ax(ax, "Task Completion vs Tool Count", "Tool Count", "Oracle Pass Rate")
@@ -112,8 +123,12 @@ def plot_scaling_invalid_action(df, output_path: str = "scaling_invalid_action.p
             label=MODEL_LABELS.get(model, model),
         )
 
-    ax.set_xticks([3, 15, 30, 60])
-    ax.set_xticklabels(["3 (GAS)", "15", "30", "60"])
+    all_x = sorted(grouped["tool_count"].unique())
+    ax.set_xscale("log", base=2)
+    ax.set_xticks(all_x)
+    ax.set_xticklabels([f"{int(x)}" if x != 3 else "3 (GAS)" for x in all_x])
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x)}" if x != 3 else "3 (GAS)"))
+    ax.xaxis.set_minor_formatter(plt.NullFormatter())
     ax.set_ylim(0, 1.0)
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f"{y:.0%}"))
     _style_ax(ax, "Invalid Action Rate vs Tool Count", "Tool Count", "Invalid Action Rate")
@@ -213,7 +228,9 @@ def plot_token_cost(df, output_path: str = "token_cost.png"):
         avg_tokens=("total_tokens", "mean"),
     ).reset_index()
 
-    modes = ["gas", "trad-15", "trad-30", "trad-60"]
+    modes = ["gas", "trad-15", "trad-30", "trad-60", "trad-60-poly", "trad-120d", "trad-240d", "trad-480d"]
+    # Only include modes that have data
+    modes = [m for m in modes if m in grouped["mode"].values]
     models_present = [m for m in MODEL_ORDER if m in grouped["model_name"].values]
     n_models = len(models_present)
     n_modes = len(modes)
@@ -252,7 +269,9 @@ def plot_oracle_pass_rate(df, output_path: str = "oracle_pass_rate.png"):
         pass_rate=("oracle_passed", "mean"),
     ).reset_index()
 
-    modes = ["gas", "trad-15", "trad-30", "trad-60"]
+    modes = ["gas", "trad-15", "trad-30", "trad-60", "trad-60-poly", "trad-120d", "trad-240d", "trad-480d"]
+    # Only include modes that have data
+    modes = [m for m in modes if m in grouped["mode"].values]
     models_present = [m for m in MODEL_ORDER if m in grouped["model_name"].values]
     n_models = len(models_present)
     n_modes = len(modes)
@@ -290,7 +309,9 @@ def plot_invalid_action_rate(df, output_path: str = "invalid_action_rate.png"):
 
     grouped = _weighted_invalid_by(df, ["model_name", "mode"])
 
-    modes = ["gas", "trad-15", "trad-30", "trad-60"]
+    modes = ["gas", "trad-15", "trad-30", "trad-60", "trad-60-poly", "trad-120d", "trad-240d", "trad-480d"]
+    # Only include modes that have data
+    modes = [m for m in modes if m in grouped["mode"].values]
     models_present = [m for m in MODEL_ORDER if m in grouped["model_name"].values]
     n_models = len(models_present)
     n_modes = len(modes)

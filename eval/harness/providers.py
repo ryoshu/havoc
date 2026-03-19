@@ -71,7 +71,7 @@ MODEL_CATALOG: list[ModelCatalogEntry] = [
         color="#16a34a",
         provider="deepinfra",
         aliases=["glm-5"],
-        legacy_names=["GLM-5"],
+        legacy_names=[],  # Old "GLM-5" runs were collected under buggy harness — keep separate
     ),
     ModelCatalogEntry(
         name="DeepSeek V3.2 (DeepInfra)",

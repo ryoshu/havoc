@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 
-from openai import APITimeoutError, DefaultHttpxClient, InternalServerError, OpenAI
+from openai import APITimeoutError, DefaultHttpxClient, InternalServerError, OpenAI, RateLimitError
 
 try:
     import certifi
@@ -170,10 +170,14 @@ class EvalAgent:
         """Return True if the tool is read-only/information gathering."""
         if self.is_gas:
             return tool_name in {"get", "search"}
+        # Resolve poly names to canonical before checking prefixes
+        resolved = tool_name
+        if self.trad_runtime and self.trad_runtime.name_map:
+            resolved = self.trad_runtime.name_map.get(tool_name, tool_name)
         return (
-            tool_name.startswith("get_")
-            or tool_name.startswith("search_")
-            or tool_name.startswith("list_")
+            resolved.startswith("get_")
+            or resolved.startswith("search_")
+            or resolved.startswith("list_")
         )
 
     @staticmethod
@@ -515,10 +519,22 @@ class EvalAgent:
 
         return _Response(_Choice(msg), usage)
 
+    @staticmethod
+    def _parse_retry_after(exc) -> float | None:
+        """Extract retry-after hint from a rate-limit error message."""
+        msg = str(exc)
+        # OpenAI: "Please try again in 432ms" or "in 1.3s"
+        import re
+        m = re.search(r"try again in ([\d.]+)(ms|s)", msg)
+        if m:
+            val = float(m.group(1))
+            return val / 1000 if m.group(2) == "ms" else val
+        return None
+
     def _call_with_retry(self, messages, tools, extra_kwargs):
-        """Call LLM with retry logic."""
-        retries = max(1, self.config.max_retries)
-        for attempt in range(retries):
+        """Call LLM with retry logic. Respects rate-limit Retry-After hints."""
+        max_attempts = max(1, self.config.max_retries) + 3  # extra headroom for 429s
+        for attempt in range(max_attempts):
             try:
                 if self.is_anthropic:
                     return self._call_anthropic(messages, tools)
@@ -529,12 +545,18 @@ class EvalAgent:
                     tool_choice="auto",
                     **extra_kwargs,
                 )
+            except RateLimitError as e:
+                if attempt == max_attempts - 1:
+                    raise
+                wait = self._parse_retry_after(e) or (2 ** attempt)
+                wait = max(wait, 1.0) + 0.5  # pad slightly
+                time.sleep(wait)
             except (APITimeoutError, InternalServerError) as e:
-                if attempt == retries - 1:
+                if attempt == max_attempts - 1:
                     raise
                 time.sleep(2 ** attempt)
             except Exception as e:
-                if self.is_anthropic and attempt < retries - 1:
+                if self.is_anthropic and attempt < max_attempts - 1:
                     time.sleep(2 ** attempt)
                     continue
                 raise

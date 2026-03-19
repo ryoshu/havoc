@@ -18,18 +18,26 @@ from eval.backend.models import (
 from .tools_15 import TOOLS_15
 from .tools_30 import TOOLS_30
 from .tools_60 import TOOLS_60
+from .tools_60_poly import POLY_TO_CANONICAL, TOOLS_60_POLY
+from .tools_distractor import TOOLS_120D, TOOLS_240D, TOOLS_480D
 
-TOOL_LEVELS = {15: TOOLS_15, 30: TOOLS_30, 60: TOOLS_60}
+TOOL_LEVELS: dict[int | str, list[dict]] = {
+    15: TOOLS_15, 30: TOOLS_30, 60: TOOLS_60, "60-poly": TOOLS_60_POLY,
+    "120d": TOOLS_120D, "240d": TOOLS_240D, "480d": TOOLS_480D,
+}
 
 
 class TradRuntime:
     """Traditional runtime — one tool per operation, no affordances."""
 
-    def __init__(self, db_path: str = ":memory:", tool_level: int = 15):
+    def __init__(self, db_path: str = ":memory:", tool_level: int | str = 15):
         self.ctx = EvalContext(db_path=db_path)
         self.engine = ProjectEngine()
         self.tool_level = tool_level
         self.tools = TOOL_LEVELS[tool_level]
+        self.name_map: dict[str, str] | None = (
+            POLY_TO_CANONICAL if tool_level == "60-poly" else None
+        )
         self.default_session_id: str = ""
 
     def create_session(self, acting_user_id: str) -> str:
@@ -83,8 +91,11 @@ class TradRuntime:
             self.ctx.db.record_decision(decision)
             return json.dumps({"error": f"Unknown tool: {tool_name}"})
 
+        # Resolve poly name → canonical for dispatch, keep original for records
+        dispatch_name = self.name_map[tool_name] if self.name_map and tool_name in self.name_map else tool_name
+
         try:
-            result, events = self._dispatch(sid, tool_name, params, user)
+            result, events = self._dispatch(sid, dispatch_name, params, user)
             decision = DecisionRecord(
                 session_id=sid, actor_id=user.id, actor_name=user.name,
                 action=tool_name, params=params, was_valid=True,

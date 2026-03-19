@@ -15,10 +15,25 @@ class ModelConfig(BaseModel):
     is_anthropic: bool = False
 
 
+def parse_mode(mode_str: str) -> tuple[str, int | str]:
+    """Parse a CLI mode string into (eval_mode, tool_level).
+
+    Examples: "gas" → ("gas", 3), "trad-15" → ("trad", 15),
+              "trad-60-poly" → ("trad", "60-poly").
+    """
+    if mode_str == "gas":
+        return "gas", 3
+    prefix, _, rest = mode_str.partition("-")
+    try:
+        return "trad", int(rest)
+    except ValueError:
+        return "trad", rest  # e.g. "60-poly"
+
+
 class EvalConfig(BaseModel):
     """Configuration for a single eval run."""
     mode: str  # "gas" or "trad"
-    tool_level: int = 3  # 3 for GAS, 15/30/60 for trad
+    tool_level: int | str = 3  # 3 for GAS, 15/30/60/"60-poly" for trad
     model: ModelConfig
     acting_user_id: str = "user-mgr-1"  # default: Carol Reyes (manager)
     max_retries: int = 3

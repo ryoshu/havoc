@@ -23,7 +23,7 @@ _RESULTS_DIR = _EVAL_DIR / "results"
 _DEFAULT_DB = str(_RESULTS_DIR / "eval_results.db")
 _DEFAULT_CHARTS = str(_RESULTS_DIR / "charts")
 
-from eval.harness.config import EvalConfig, MatrixConfig
+from eval.harness.config import EvalConfig, MatrixConfig, parse_mode
 from eval.harness.providers import get_available_models, get_model_by_name, print_available_models
 from eval.harness.results_db import ResultsDB
 from eval.harness.runner import load_tasks, run_matrix, run_suite
@@ -38,12 +38,7 @@ def cmd_run(args):
         sys.exit(1)
 
     # Parse mode
-    if args.mode == "gas":
-        eval_mode = "gas"
-        tool_level = 3
-    else:
-        eval_mode = "trad"
-        tool_level = int(args.mode.split("-")[1])
+    eval_mode, tool_level = parse_mode(args.mode)
 
     config = EvalConfig(
         mode=eval_mode,
@@ -70,9 +65,10 @@ def cmd_run(args):
     results = run_suite(config, tasks)
 
     # Save results
+    batch = args.batch or ""
     db = ResultsDB(args.db)
     for r in results:
-        db.save_run(r)
+        db.save_run(r, batch=batch)
     db.close()
 
     # Print summary
@@ -111,7 +107,7 @@ def cmd_matrix(args):
     print(f"Matrix: {len(models)} models x {len(matrix.modes)} modes x {len(load_tasks(matrix.task_tiers))} tasks x {matrix.runs_per_cell} runs")
     print()
 
-    db = run_matrix(matrix, args.db)
+    db = run_matrix(matrix, args.db, batch=args.batch or "")
     summary = db.get_summary()
     db.close()
 
@@ -189,12 +185,13 @@ def main():
 
     # run
     p_run = sub.add_parser("run", help="Run eval suite with a single config")
-    p_run.add_argument("--mode", default="gas", help="gas, trad-15, trad-30, trad-60")
+    p_run.add_argument("--mode", default="gas", help="gas, trad-15, trad-30, trad-60, trad-60-poly, trad-120d, trad-240d, trad-480d")
     p_run.add_argument("--model", default="gpt-4o", help="Model name or alias")
     p_run.add_argument("--tiers", nargs="+", default=None, help="Task tiers to run")
     p_run.add_argument("--tasks", nargs="+", default=None, help="Specific task IDs to run")
     p_run.add_argument("--user", default="user-mgr-1", help="Acting user ID")
     p_run.add_argument("--db", default=_DEFAULT_DB, help="Results DB path")
+    p_run.add_argument("--batch", default="", help="Batch label for this run (e.g. 'glm5-rerun-v2')")
     p_run.set_defaults(func=cmd_run)
 
     # matrix
@@ -204,6 +201,7 @@ def main():
     p_matrix.add_argument("--tiers", nargs="+", default=None)
     p_matrix.add_argument("--runs", type=int, default=1, help="Runs per cell")
     p_matrix.add_argument("--db", default=_DEFAULT_DB)
+    p_matrix.add_argument("--batch", default="", help="Batch label for this run")
     p_matrix.set_defaults(func=cmd_matrix)
 
     # summary

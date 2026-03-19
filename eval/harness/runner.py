@@ -15,7 +15,7 @@ from eval.tasks.schema import TaskDefinition
 from eval.tasks.seeder import seed_task
 
 from .agent import EvalAgent
-from .config import EvalConfig, MatrixConfig
+from .config import EvalConfig, MatrixConfig, parse_mode
 from .metrics import EvalMetrics, TurnDetail
 from .results_db import ResultsDB, _DEFAULT_DB
 
@@ -90,6 +90,7 @@ def run_suite(config: EvalConfig, tasks: list[TaskDefinition]) -> list[EvalMetri
 def run_matrix(
     matrix: MatrixConfig,
     results_db_path: str = _DEFAULT_DB,
+    batch: str = "",
 ) -> ResultsDB:
     """Run the full eval matrix: models x modes x tasks."""
     tasks = load_tasks(matrix.task_tiers)
@@ -101,12 +102,7 @@ def run_matrix(
     for model in matrix.models:
         for mode in matrix.modes:
             # Parse mode
-            if mode == "gas":
-                eval_mode = "gas"
-                tool_level = 3
-            else:
-                eval_mode = "trad"
-                tool_level = int(mode.split("-")[1])
+            eval_mode, tool_level = parse_mode(mode)
 
             config = EvalConfig(
                 mode=eval_mode,
@@ -130,7 +126,7 @@ def run_matrix(
                         metrics = run_single(config, task)
                         status = "PASS" if metrics.oracle_passed else "FAIL"
                         print(f"{status} ({metrics.total_turns}t, {metrics.invalid_action_count}inv, {metrics.elapsed_seconds:.1f}s)")
-                        db.save_run(metrics)
+                        db.save_run(metrics, batch=batch)
                     except Exception as e:
                         print(f"ERROR: {e}")
                         # Persist hard failures so matrix coverage and failure rate
@@ -151,6 +147,6 @@ def run_matrix(
                             )],
                             oracle_details=[{"error": str(e)}],
                         )
-                        db.save_run(failed)
+                        db.save_run(failed, batch=batch)
 
     return db
