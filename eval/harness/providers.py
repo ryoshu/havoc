@@ -45,6 +45,16 @@ MODEL_CATALOG: list[ModelCatalogEntry] = [
         aliases=["gpt-4o"],
     ),
     ModelCatalogEntry(
+        name="GPT-5.4 (OpenAI)",
+        model_id=os.environ.get("OPENAI_MODEL_GPT_5_4", "gpt-5.4"),
+        label="GPT-5.4",
+        color="#6366f1",
+        provider="openai",
+        tier="frontier",
+        aliases=["gpt-5.4"],
+        legacy_names=["gpt-5.4"],
+    ),
+    ModelCatalogEntry(
         name="Claude Haiku 4.5 (Anthropic)",
         model_id=os.environ.get("ANTHROPIC_MODEL_HAIKU_4_5", "claude-haiku-4-5"),
         label="Claude Haiku 4.5",
@@ -70,14 +80,6 @@ MODEL_CATALOG: list[ModelCatalogEntry] = [
         color="#2563eb",
         provider="deepinfra",
         aliases=["deepseek-v3.2"],
-    ),
-    ModelCatalogEntry(
-        name="Nemotron 3 Nano 30B-A3B (DeepInfra)",
-        model_id=os.environ.get("DEEPINFRA_MODEL_NEMOTRON_3_NANO_30B_A3B", "nvidia/Nemotron-3-Nano-30B-A3B-Instruct"),
-        label="Nemotron 3 Nano",
-        color="#dc2626",
-        provider="deepinfra",
-        aliases=["nemotron-3-nano-30b-a3b"],
     ),
     ModelCatalogEntry(
         name="Qwen3 32B (DeepInfra)",
