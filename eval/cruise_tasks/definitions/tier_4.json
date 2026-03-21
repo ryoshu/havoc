@@ -1,0 +1,124 @@
+[
+  {
+    "id": "t4-01",
+    "tier": 4,
+    "name": "Full cruise lifecycle",
+    "description": "As admin Maria Santos (user-admin-1): Create 2 bookings on Mediterranean Dream (1 Interior, 1 Balcony). Add a passenger to each, confirm both, create and capture payments ($899 and $1499), pay both bookings, board the cruise, embark both bookings, then sail the cruise.",
+    "acting_user_id": "user-admin-1",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}]
+    },
+    "oracle": [
+      {"type": "cruise_status", "cruise_id": "cruise-med", "expected": "sailing"},
+      {"type": "booking_count", "filters": {"status": "embarked", "cruise_id": "cruise-med"}, "expected": 2}
+    ],
+    "max_turns": 40
+  },
+  {
+    "id": "t4-02",
+    "tier": 4,
+    "name": "Multi-booking coordination",
+    "description": "Create 3 bookings on Mediterranean Dream across 2 cabin types: 2 Interior bookings and 1 Balcony booking. Add 1 passenger to each Interior booking and 2 passengers to the Balcony booking. Confirm all 3 bookings. All passport numbers must be unique.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}]
+    },
+    "oracle": [
+      {"type": "booking_count", "filters": {"status": "confirmed", "cruise_id": "cruise-med"}, "expected": 3},
+      {"type": "booking_count", "filters": {"cabin_type_id": "cabin-med-interior", "cruise_id": "cruise-med"}, "expected": 2, "op": "gte"},
+      {"type": "booking_count", "filters": {"cabin_type_id": "cabin-med-balcony", "cruise_id": "cruise-med"}, "expected": 1, "op": "gte"}
+    ],
+    "max_turns": 30
+  },
+  {
+    "id": "t4-03",
+    "tier": 4,
+    "name": "Adversarial constraint gauntlet",
+    "description": "Run a series of operations that test constraint enforcement: (1) Try to confirm booking 'bk-g1' with no passengers — should fail, add passenger then confirm. (2) Try to pay booking 'bk-g1' without a captured payment — should fail, create/authorize/capture payment then pay. (3) Try to embark 'bk-g1' when cruise is still scheduled — should fail (cruise must be boarding). You are admin (user-admin-1).",
+    "acting_user_id": "user-admin-1",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-g1", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "held", "passenger_count": 0, "alias": "g1"}]
+    },
+    "oracle": [
+      {"type": "booking_status", "booking_id": "bk-g1", "expected": "paid"},
+      {"type": "payment_exists", "booking_id": "bk-g1", "status": "captured"}
+    ],
+    "max_turns": 25
+  },
+  {
+    "id": "t4-04",
+    "tier": 4,
+    "name": "Mixed cancellation and rebooking",
+    "description": "Cancel booking 'bk-old' (Interior cabin, paid), refund its payment 'pay-old'. Then create a new booking for a Suite cabin (cabin-med-suite) on the same cruise, add the same passenger 'Rebook Guest' (passport: RBK11111) to the new booking, and confirm it.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-old", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "paid", "passenger_count": 1, "alias": "bkold"}],
+      "passengers": [{"booking_id": "bk-old", "name": "Rebook Guest", "passport_number": "RBK11111", "alias": "px-old"}],
+      "payments": [{"id": "pay-old", "booking_id": "bk-old", "amount": 899.00, "status": "captured", "method": "credit_card", "alias": "payold"}]
+    },
+    "oracle": [
+      {"type": "booking_status", "booking_id": "bk-old", "expected": "cancelled"},
+      {"type": "payment_status", "payment_id": "pay-old", "expected": "refunded"},
+      {"type": "booking_exists", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-suite", "status": "confirmed"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t4-05",
+    "tier": 4,
+    "name": "Embarkation day",
+    "description": "As admin Maria Santos (user-admin-1): The Mediterranean Dream is boarding. Embark the 2 paid bookings ('bk-emb1', 'bk-emb2'). Booking 'bk-emb3' is confirmed but not yet paid — create a $899.00 credit_card payment, authorize, capture, pay it, then embark it too.",
+    "acting_user_id": "user-admin-1",
+    "setup": {
+      "cruises": [{"id": "cruise-med", "name": "Mediterranean Dream", "ship": "MS Celestia", "departure_date": "2026-04-15", "status": "boarding", "alias": "med"}],
+      "bookings": [
+        {"id": "bk-emb1", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "paid", "passenger_count": 1, "alias": "emb1"},
+        {"id": "bk-emb2", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-balcony", "status": "paid", "passenger_count": 2, "alias": "emb2"},
+        {"id": "bk-emb3", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "confirmed", "passenger_count": 1, "alias": "emb3"}
+      ],
+      "passengers": [
+        {"booking_id": "bk-emb1", "name": "Emb Guest 1", "passport_number": "EMB00001"},
+        {"booking_id": "bk-emb2", "name": "Emb Guest 2", "passport_number": "EMB00002"},
+        {"booking_id": "bk-emb2", "name": "Emb Guest 3", "passport_number": "EMB00003"},
+        {"booking_id": "bk-emb3", "name": "Emb Guest 4", "passport_number": "EMB00004"}
+      ]
+    },
+    "oracle": [
+      {"type": "booking_status", "booking_id": "bk-emb1", "expected": "embarked"},
+      {"type": "booking_status", "booking_id": "bk-emb2", "expected": "embarked"},
+      {"type": "booking_status", "booking_id": "bk-emb3", "expected": "embarked"},
+      {"type": "payment_exists", "booking_id": "bk-emb3", "status": "captured"}
+    ],
+    "max_turns": 25
+  },
+  {
+    "id": "t4-06",
+    "tier": 4,
+    "name": "Revenue reconciliation",
+    "description": "Verify all payments for the Mediterranean Dream cruise: there should be 2 captured payments and 1 refunded payment. Search for all payments across all bookings on cruise-med and verify the totals: captured total should be $2398.00 (2x $899 + $1499 captured, $899 refunded). Report the revenue summary.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [
+        {"id": "bk-rev1", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "paid", "passenger_count": 1, "alias": "rev1"},
+        {"id": "bk-rev2", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-balcony", "status": "paid", "passenger_count": 1, "alias": "rev2"},
+        {"id": "bk-rev3", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "cancelled", "passenger_count": 1, "alias": "rev3"}
+      ],
+      "passengers": [
+        {"booking_id": "bk-rev1", "name": "Rev Guest 1", "passport_number": "REV00001"},
+        {"booking_id": "bk-rev2", "name": "Rev Guest 2", "passport_number": "REV00002"},
+        {"booking_id": "bk-rev3", "name": "Rev Guest 3", "passport_number": "REV00003"}
+      ],
+      "payments": [
+        {"booking_id": "bk-rev1", "amount": 899.00, "status": "captured", "method": "credit_card", "alias": "pay-r1"},
+        {"booking_id": "bk-rev2", "amount": 1499.00, "status": "captured", "method": "credit_card", "alias": "pay-r2"},
+        {"booking_id": "bk-rev3", "amount": 899.00, "status": "refunded", "method": "credit_card", "alias": "pay-r3"}
+      ]
+    },
+    "oracle": [
+      {"type": "payment_count", "filters": {"status": "captured"}, "expected": 2},
+      {"type": "payment_count", "filters": {"status": "refunded"}, "expected": 1},
+      {"type": "no_backend_errors"}
+    ],
+    "max_turns": 15
+  }
+]

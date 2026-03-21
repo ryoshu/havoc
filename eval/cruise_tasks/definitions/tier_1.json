@@ -1,0 +1,126 @@
+[
+  {
+    "id": "t1-01",
+    "tier": 1,
+    "name": "Create a booking",
+    "description": "Create a new booking on the Mediterranean Dream cruise (cruise-med) for an Interior cabin (cabin-med-interior).",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}]
+    },
+    "oracle": [
+      {"type": "booking_exists", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior"},
+      {"type": "booking_count", "filters": {"cruise_id": "cruise-med"}, "expected": 1, "op": "gte"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-02",
+    "tier": 1,
+    "name": "Add a passenger",
+    "description": "Add a passenger named 'John Smith' with passport number 'US12345678' and emergency contact 'Jane Smith +1-555-0100' to booking 'bk-001'.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-001", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "held", "alias": "booking1"}]
+    },
+    "oracle": [
+      {"type": "passenger_exists", "booking_id": "bk-001", "passport_number": "US12345678"},
+      {"type": "passenger_count", "booking_id": "bk-001", "expected": 1, "op": "gte"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-03",
+    "tier": 1,
+    "name": "Process and capture a payment",
+    "description": "Create a payment of $899.00 via credit_card for booking 'bk-pay', then authorize it, then capture it.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-pay", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "confirmed", "passenger_count": 1, "alias": "bkpay"}],
+      "passengers": [{"booking_id": "bk-pay", "name": "Test Passenger", "passport_number": "XX000001", "alias": "px1"}]
+    },
+    "oracle": [
+      {"type": "payment_exists", "booking_id": "bk-pay", "status": "captured"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t1-04",
+    "tier": 1,
+    "name": "Cancel a held booking",
+    "description": "Cancel booking 'bk-cancel' which is currently in 'held' status.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-cancel", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-balcony", "status": "held", "alias": "bkcancel"}]
+    },
+    "oracle": [
+      {"type": "booking_status", "booking_id": "bk-cancel", "expected": "cancelled"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-05",
+    "tier": 1,
+    "name": "Search bookings by status",
+    "description": "Find all confirmed bookings on the Mediterranean Dream cruise. There should be at least 2.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [
+        {"id": "bk-s1", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "confirmed", "passenger_count": 1, "alias": "s1"},
+        {"id": "bk-s2", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-balcony", "status": "confirmed", "passenger_count": 1, "alias": "s2"},
+        {"id": "bk-s3", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "held", "alias": "s3"}
+      ]
+    },
+    "oracle": [
+      {"type": "booking_count", "filters": {"status": "confirmed", "cruise_id": "cruise-med"}, "expected": 2, "op": "gte"},
+      {"type": "no_backend_errors"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-06",
+    "tier": 1,
+    "name": "Confirm a booking",
+    "description": "Confirm booking 'bk-conf' which already has a passenger added.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-conf", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "held", "passenger_count": 1, "alias": "bkconf"}],
+      "passengers": [{"booking_id": "bk-conf", "name": "Alice Johnson", "passport_number": "UK99887766", "alias": "px-conf"}]
+    },
+    "oracle": [
+      {"type": "booking_status", "booking_id": "bk-conf", "expected": "confirmed"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-07",
+    "tier": 1,
+    "name": "Check cabin availability",
+    "description": "Check the cabin availability for the Mediterranean Dream cruise (cruise-med). Report back the available cabin types and their remaining capacity.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [
+        {"id": "bk-av1", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-suite", "status": "confirmed", "passenger_count": 1, "alias": "av1"}
+      ]
+    },
+    "oracle": [
+      {"type": "no_backend_errors"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-08",
+    "tier": 1,
+    "name": "Refund a captured payment",
+    "description": "Refund the captured payment 'pay-refund' for booking 'bk-refund'.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-refund", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "confirmed", "passenger_count": 1, "alias": "bkrefund"}],
+      "passengers": [{"booking_id": "bk-refund", "name": "Bob Wilson", "passport_number": "CA11223344", "alias": "px-ref"}],
+      "payments": [{"id": "pay-refund", "booking_id": "bk-refund", "amount": 899.00, "status": "captured", "method": "credit_card", "alias": "payref"}]
+    },
+    "oracle": [
+      {"type": "payment_status", "payment_id": "pay-refund", "expected": "refunded"}
+    ],
+    "max_turns": 10
+  }
+]

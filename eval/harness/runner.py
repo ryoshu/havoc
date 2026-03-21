@@ -15,14 +15,17 @@ from eval.tasks.schema import TaskDefinition
 from eval.tasks.seeder import seed_task
 
 from .agent import EvalAgent
-from .config import EvalConfig, MatrixConfig, parse_mode
+from .config import DOMAIN_DEFAULT_USER, EvalConfig, MatrixConfig, parse_mode
 from .metrics import EvalMetrics, TurnDetail
 from .results_db import ResultsDB, _DEFAULT_DB
 
 
-def load_tasks(tiers: list[int] | None = None) -> list[TaskDefinition]:
+def load_tasks(tiers: list[int] | None = None, domain: str = "pm") -> list[TaskDefinition]:
     """Load task definitions from JSON files."""
-    tasks_dir = Path(__file__).parent.parent / "tasks" / "definitions"
+    if domain == "cruise":
+        tasks_dir = Path(__file__).parent.parent / "cruise_tasks" / "definitions"
+    else:
+        tasks_dir = Path(__file__).parent.parent / "tasks" / "definitions"
     tasks = []
     for tier_file in sorted(tasks_dir.glob("tier_*.json")):
         with open(tier_file) as f:
@@ -38,40 +41,62 @@ def run_single(config: EvalConfig, task: TaskDefinition) -> EvalMetrics:
     """Run a single eval: seed → run agent → check oracle → return metrics."""
     acting_user_id = task.acting_user_id or config.acting_user_id
 
-    # Create fresh context and runtime
+    if config.domain == "cruise":
+        return _run_single_cruise(config, task, acting_user_id)
+
+    # --- PM domain (default) ---
     if config.mode == "gas":
         runtime = EvalRuntime()
         session_id = runtime.create_session(acting_user_id=acting_user_id)
         ctx = runtime.ctx
-
-        # Seed task scenario
         id_map = seed_task(ctx, session_id, task.setup)
-
-        # Create and run agent
         agent = EvalAgent(config, gas_runtime=runtime)
         metrics = agent.run(task.description, session_id, max_turns=task.max_turns)
-
     else:
-        # Traditional mode
         tool_level = config.tool_level
         runtime = TradRuntime(tool_level=tool_level)
         session_id = runtime.create_session(acting_user_id=acting_user_id)
         ctx = runtime.ctx
-
-        # Seed task scenario
         id_map = seed_task(ctx, session_id, task.setup)
-
-        # Create and run agent
         agent = EvalAgent(config, trad_runtime=runtime)
         metrics = agent.run(task.description, session_id, max_turns=task.max_turns)
 
-    # Check oracle
     oracle_passed, oracle_details = check_oracle(ctx, session_id, task.oracle, id_map=id_map)
     metrics.task_id = task.id
     metrics.task_tier = task.tier
     metrics.oracle_passed = oracle_passed
     metrics.oracle_details = oracle_details
+    return metrics
 
+
+def _run_single_cruise(config: EvalConfig, task: TaskDefinition, acting_user_id: str) -> EvalMetrics:
+    """Run a single cruise domain eval."""
+    from eval.cruise_gas_server.server import CruiseGasRuntime
+    from eval.cruise_trad_server.server import CruiseTradRuntime
+    from eval.cruise_tasks.seeder import seed_cruise_task
+    from eval.cruise_tasks.oracle import check_cruise_oracle
+
+    if config.mode == "gas":
+        runtime = CruiseGasRuntime()
+        session_id = runtime.create_session(acting_user_id=acting_user_id)
+        ctx = runtime.ctx
+        id_map = seed_cruise_task(ctx, session_id, task.setup)
+        agent = EvalAgent(config, gas_runtime=runtime)
+        metrics = agent.run(task.description, session_id, max_turns=task.max_turns)
+    else:
+        tool_level = config.tool_level
+        runtime = CruiseTradRuntime(tool_level=tool_level)
+        session_id = runtime.create_session(acting_user_id=acting_user_id)
+        ctx = runtime.ctx
+        id_map = seed_cruise_task(ctx, session_id, task.setup)
+        agent = EvalAgent(config, trad_runtime=runtime)
+        metrics = agent.run(task.description, session_id, max_turns=task.max_turns)
+
+    oracle_passed, oracle_details = check_cruise_oracle(ctx, session_id, task.oracle, id_map=id_map)
+    metrics.task_id = task.id
+    metrics.task_tier = task.tier
+    metrics.oracle_passed = oracle_passed
+    metrics.oracle_details = oracle_details
     return metrics
 
 
@@ -93,7 +118,7 @@ def run_matrix(
     batch: str = "",
 ) -> ResultsDB:
     """Run the full eval matrix: models x modes x tasks."""
-    tasks = load_tasks(matrix.task_tiers)
+    tasks = load_tasks(matrix.task_tiers, domain=matrix.domain)
     db = ResultsDB(results_db_path)
 
     total_runs = len(matrix.models) * len(matrix.modes) * len(tasks) * matrix.runs_per_cell
@@ -105,9 +130,11 @@ def run_matrix(
             eval_mode, tool_level = parse_mode(mode)
 
             config = EvalConfig(
+                domain=matrix.domain,
                 mode=eval_mode,
                 tool_level=tool_level,
                 model=model,
+                acting_user_id=DOMAIN_DEFAULT_USER.get(matrix.domain, "user-mgr-1"),
             )
 
             print(f"\n{'='*60}")

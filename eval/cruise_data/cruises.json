@@ -1,0 +1,26 @@
+[
+  {
+    "id": "cruise-med",
+    "name": "Mediterranean Dream",
+    "ship": "MS Celestia",
+    "departure_date": "2026-04-15",
+    "status": "scheduled",
+    "cabin_types": [
+      {"id": "cabin-med-interior", "cruise_id": "cruise-med", "name": "Interior", "capacity": 2, "total_count": 200, "price_per_passenger": 899.00},
+      {"id": "cabin-med-balcony", "cruise_id": "cruise-med", "name": "Balcony", "capacity": 3, "total_count": 100, "price_per_passenger": 1499.00},
+      {"id": "cabin-med-suite", "cruise_id": "cruise-med", "name": "Suite", "capacity": 4, "total_count": 20, "price_per_passenger": 2999.00}
+    ]
+  },
+  {
+    "id": "cruise-carib",
+    "name": "Caribbean Escape",
+    "ship": "MS Aurora",
+    "departure_date": "2026-05-01",
+    "status": "scheduled",
+    "cabin_types": [
+      {"id": "cabin-carib-interior", "cruise_id": "cruise-carib", "name": "Interior", "capacity": 2, "total_count": 150, "price_per_passenger": 749.00},
+      {"id": "cabin-carib-ocean", "cruise_id": "cruise-carib", "name": "Ocean View", "capacity": 3, "total_count": 80, "price_per_passenger": 1199.00},
+      {"id": "cabin-carib-penthouse", "cruise_id": "cruise-carib", "name": "Penthouse", "capacity": 4, "total_count": 10, "price_per_passenger": 3999.00}
+    ]
+  }
+]

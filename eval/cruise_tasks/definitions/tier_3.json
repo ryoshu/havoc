@@ -1,0 +1,139 @@
+[
+  {
+    "id": "t3-01",
+    "tier": 3,
+    "name": "Cannot confirm without passengers",
+    "description": "Try to confirm booking 'bk-nopass' which has no passengers. It should fail. Then add passenger 'Test User' (passport: XX999001) and confirm again.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-nopass", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "held", "passenger_count": 0, "alias": "bknp"}]
+    },
+    "oracle": [
+      {"type": "booking_status", "booking_id": "bk-nopass", "expected": "confirmed"},
+      {"type": "passenger_exists", "booking_id": "bk-nopass", "passport_number": "XX999001"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t3-02",
+    "tier": 3,
+    "name": "Cannot embark unpaid booking",
+    "description": "Try to embark booking 'bk-unpaid' which is confirmed but not paid. It should fail. Then create a $899.00 credit_card payment, authorize it, capture it, mark the booking as paid, and then embark it. You are acting as admin Maria Santos (user-admin-1).",
+    "acting_user_id": "user-admin-1",
+    "setup": {
+      "cruises": [{"id": "cruise-med", "name": "Mediterranean Dream", "ship": "MS Celestia", "departure_date": "2026-04-15", "status": "boarding", "alias": "med"}],
+      "bookings": [{"id": "bk-unpaid", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "confirmed", "passenger_count": 1, "alias": "bkup"}],
+      "passengers": [{"booking_id": "bk-unpaid", "name": "Unpaid Guest", "passport_number": "XX999002", "alias": "px-up"}]
+    },
+    "oracle": [
+      {"type": "booking_status", "booking_id": "bk-unpaid", "expected": "embarked"},
+      {"type": "payment_exists", "booking_id": "bk-unpaid", "status": "captured"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t3-03",
+    "tier": 3,
+    "name": "Duplicate passport detection",
+    "description": "Booking 'bk-dup1' already has passenger 'Existing Guest' with passport 'DUP12345'. Try to add a passenger with the same passport 'DUP12345' to booking 'bk-dup2'. It should fail. Then add the passenger with a different passport 'DUP12346' instead.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [
+        {"id": "bk-dup1", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "held", "passenger_count": 1, "alias": "dup1"},
+        {"id": "bk-dup2", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-balcony", "status": "held", "passenger_count": 0, "alias": "dup2"}
+      ],
+      "passengers": [{"booking_id": "bk-dup1", "name": "Existing Guest", "passport_number": "DUP12345", "alias": "px-dup"}]
+    },
+    "oracle": [
+      {"type": "passenger_exists", "booking_id": "bk-dup2", "passport_number": "DUP12346"},
+      {"type": "passenger_not_exists", "booking_id": "bk-dup2", "passport_number": "DUP12345"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t3-04",
+    "tier": 3,
+    "name": "Cabin capacity exceeded",
+    "description": "Booking 'bk-full' is for an Interior cabin (capacity: 2) and already has 2 passengers. Try to add a third passenger 'Extra Guest' (passport: CAP99999). It should fail because the cabin is full. Then create a new booking for a Balcony cabin (cabin-med-balcony, capacity: 3) and add 'Extra Guest' there instead.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-full", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "held", "passenger_count": 2, "alias": "bkfull"}],
+      "passengers": [
+        {"booking_id": "bk-full", "name": "Guest A", "passport_number": "CAP00001", "alias": "px-a"},
+        {"booking_id": "bk-full", "name": "Guest B", "passport_number": "CAP00002", "alias": "px-b"}
+      ]
+    },
+    "oracle": [
+      {"type": "passenger_count", "booking_id": "bk-full", "expected": 2},
+      {"type": "passenger_exists", "passport_number": "CAP99999"},
+      {"type": "booking_exists", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-balcony"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t3-05",
+    "tier": 3,
+    "name": "Cannot cancel paid booking during boarding",
+    "description": "Try to cancel booking 'bk-latecx' which is paid, but the cruise is already boarding. The cancellation should fail. Verify the booking remains in 'paid' status.",
+    "setup": {
+      "cruises": [{"id": "cruise-med", "name": "Mediterranean Dream", "ship": "MS Celestia", "departure_date": "2026-04-15", "status": "boarding", "alias": "med"}],
+      "bookings": [{"id": "bk-latecx", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "paid", "passenger_count": 1, "alias": "bklcx"}],
+      "passengers": [{"booking_id": "bk-latecx", "name": "Late Cancel", "passport_number": "XX999005", "alias": "px-lcx"}],
+      "payments": [{"booking_id": "bk-latecx", "amount": 899.00, "status": "captured", "method": "credit_card", "alias": "pay-lcx"}]
+    },
+    "oracle": [
+      {"type": "booking_status", "booking_id": "bk-latecx", "expected": "paid"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t3-06",
+    "tier": 3,
+    "name": "Cannot board cruise with held bookings",
+    "description": "Try to transition cruise 'cruise-med' to boarding status. It should fail because there is a held booking. Cancel the held booking 'bk-held', then board the cruise. You are acting as admin Maria Santos (user-admin-1).",
+    "acting_user_id": "user-admin-1",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [
+        {"id": "bk-held", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "held", "passenger_count": 0, "alias": "bkheld"},
+        {"id": "bk-conf2", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-balcony", "status": "confirmed", "passenger_count": 1, "alias": "bkconf2"}
+      ],
+      "passengers": [{"booking_id": "bk-conf2", "name": "Confirmed Guest", "passport_number": "XX999006", "alias": "px-cg"}]
+    },
+    "oracle": [
+      {"type": "cruise_status", "cruise_id": "cruise-med", "expected": "boarding"},
+      {"type": "booking_status", "booking_id": "bk-held", "expected": "cancelled"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t3-07",
+    "tier": 3,
+    "name": "Desk staff cannot create bookings",
+    "description": "As desk staff Tom Rivera (user-desk-1), try to create a booking on the Mediterranean Dream cruise. It should fail because desk staff can only read and check-in. Verify no booking was created.",
+    "acting_user_id": "user-desk-1",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}]
+    },
+    "oracle": [
+      {"type": "booking_count", "filters": {"cruise_id": "cruise-med"}, "expected": 0}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t3-08",
+    "tier": 3,
+    "name": "Cannot refund uncaptured payment",
+    "description": "Try to refund payment 'pay-norefund' which is in 'pending' status. It should fail. Then authorize it, capture it, and refund it.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-noref", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "confirmed", "passenger_count": 1, "alias": "bknr"}],
+      "passengers": [{"booking_id": "bk-noref", "name": "Refund Test", "passport_number": "XX999008", "alias": "px-nr"}],
+      "payments": [{"id": "pay-norefund", "booking_id": "bk-noref", "amount": 899.00, "status": "pending", "method": "credit_card", "alias": "paynr"}]
+    },
+    "oracle": [
+      {"type": "payment_status", "payment_id": "pay-norefund", "expected": "refunded"}
+    ],
+    "max_turns": 15
+  }
+]

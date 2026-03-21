@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GAS Eval — Cross-Domain Results</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Serif&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #08090c;
+    --surface: #111318;
+    --surface-raised: #181b22;
+    --border: #1f2230;
+    --border-accent: #2d3148;
+    --text: #e8eaf0;
+    --text-secondary: #9295a5;
+    --text-dim: #5c5f72;
+    --accent: #7c6aef;
+    --accent-glow: #9384f7;
+    --green: #34d399;
+    --green-dim: #065f46;
+    --red: #f87171;
+    --red-dim: #7f1d1d;
+    --amber: #fbbf24;
+    --amber-dim: #78350f;
+    --cyan: #22d3ee;
+    --pm-color: #60a5fa;
+    --pm-bg: rgba(96, 165, 250, 0.08);
+    --cruise-color: #34d399;
+    --cruise-bg: rgba(52, 211, 153, 0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Subtle grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  .page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 3rem 2.5rem 6rem;
+  }
+
+  /* ── Header ── */
+  .header {
+    margin-bottom: 3rem;
+    position: relative;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: -1.5rem;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--border) 40%, transparent 100%);
+  }
+
+  .header-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.75rem;
+  }
+
+  h1 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 3rem;
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.75rem;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--accent-glow);
+  }
+
+  .subtitle {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 400;
+    max-width: 680px;
+  }
+
+  .domain-badges {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .badge-pm {
+    background: var(--pm-bg);
+    color: var(--pm-color);
+    border: 1px solid rgba(96, 165, 250, 0.15);
+  }
+
+  .badge-cruise {
+    background: var(--cruise-bg);
+    color: var(--cruise-color);
+    border: 1px solid rgba(52, 211, 153, 0.15);
+  }
+
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  /* ── KPI Strip ── */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    margin: 3.5rem 0 3rem;
+  }
+
+  .kpi {
+    background: var(--surface);
+    padding: 1.5rem 1.25rem;
+    text-align: center;
+    position: relative;
+  }
+
+  .kpi:first-child { border-radius: 16px 0 0 16px; }
+  .kpi:last-child { border-radius: 0 16px 16px 0; }
+
+  .kpi-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 2.25rem;
+    font-weight: 500;
+    line-height: 1;
+    margin-bottom: 0.4rem;
+  }
+
+  .kpi-label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+
+  /* ── Sections ── */
+  .section {
+    margin-bottom: 3rem;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .section-number {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    min-width: 2rem;
+  }
+
+  .section-title {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 1.5rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+
+  .section-rule {
+    height: 1px;
+    background: var(--border);
+    margin-bottom: 1.5rem;
+  }
+
+  /* ── Cards & Grid ── */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1.25rem;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    position: relative;
+    transition: border-color 0.3s ease;
+  }
+
+  .card:hover {
+    border-color: var(--border-accent);
+  }
+
+  .card-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .card-label .badge {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.6rem;
+  }
+
+  .chart-container {
+    position: relative;
+    height: 320px;
+  }
+
+  .chart-container.tall {
+    height: 380px;
+  }
+
+  .chart-container.short {
+    height: 260px;
+  }
+
+  .card-wide {
+    grid-column: 1 / -1;
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+
+  thead th {
+    font-family: 'DM Mono', monospace;
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    color: var(--text-dim);
+    font-weight: 500;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid var(--border-accent);
+  }
+
+  td {
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td {
+    background: rgba(255,255,255,0.015);
+  }
+
+  .model-name {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .mode-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  .mode-gas {
+    background: rgba(124, 106, 239, 0.12);
+    color: var(--accent-glow);
+  }
+
+  .mode-trad {
+    background: rgba(251, 191, 36, 0.08);
+    color: var(--amber);
+  }
+
+  .num { text-align: right; }
+
+  .val-pass { color: var(--green); font-weight: 700; }
+  .val-warn { color: var(--amber); font-weight: 600; }
+  .val-fail { color: var(--red); font-weight: 600; }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-text {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 1000px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .kpi-strip { grid-template-columns: repeat(3, 1fr); }
+    h1 { font-size: 2.25rem; }
+    .page { padding: 2rem 1.25rem 4rem; }
+  }
+
+  @media (max-width: 600px) {
+    .kpi-strip { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* ── Animations ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .section {
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .section:nth-child(2) { animation-delay: 0.05s; }
+  .section:nth-child(3) { animation-delay: 0.1s; }
+  .section:nth-child(4) { animation-delay: 0.15s; }
+  .section:nth-child(5) { animation-delay: 0.2s; }
+  .section:nth-child(6) { animation-delay: 0.25s; }
+  .section:nth-child(7) { animation-delay: 0.3s; }
+  .section:nth-child(8) { animation-delay: 0.35s; }
+  .section:nth-child(9) { animation-delay: 0.4s; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ════════════════════════════════════════════ HEADER ════════════════════════════════════════════ -->
+<header class="header">
+  <div class="header-eyebrow">Grounded Interaction Architecture</div>
+  <h1>Cross-Domain <em>Eval Results</em></h1>
+  <p class="subtitle">
+    Comparing GAS (3 affordance-driven tools) against traditional N-tool APIs
+    across two structurally distinct domains. 6 frontier models, 960+ eval runs.
+  </p>
+  <div class="domain-badges">
+    <span class="badge badge-pm"><span class="badge-dot"></span>PM — Project Management</span>
+    <span class="badge badge-cruise"><span class="badge-dot"></span>Cruise — Booking &amp; Inventory</span>
+  </div>
+</header>
+
+<!-- ════════════════════════════════════════════ KPIs ════════════════════════════════════════════ -->
+<div class="kpi-strip">
+  <div class="kpi">
+    <div class="kpi-value" style="color:var(--green)">95%</div>
+    <div class="kpi-label">Avg GAS Oracle Pass</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-value" style="color:var(--amber)">53%</div>
+    <div class="kpi-label">Avg trad-15 Pass</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-value" style="color:var(--accent-glow)">9.1%</div>
+    <div class="kpi-label">Avg GAS Invalid Rate</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-value" style="color:var(--text)">960<span style="font-size:1rem;color:var(--text-dim)">+</span></div>
+    <div class="kpi-label">Total Eval Runs</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-value" style="color:var(--cyan)">6</div>
+    <div class="kpi-label">Frontier Models</div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ §1 ORACLE PASS RATE ════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">01</span>
+    <h2 class="section-title">Oracle Pass Rate</h2>
+  </div>
+  <div class="section-rule"></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-label"><span class="badge badge-pm"><span class="badge-dot"></span>PM</span> Pass rate by mode</div>
+      <div class="chart-container"><canvas id="pmPassRate"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-label"><span class="badge badge-cruise"><span class="badge-dot"></span>Cruise</span> Pass rate by mode</div>
+      <div class="chart-container"><canvas id="cruisePassRate"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ §2 INVALID ACTION RATE ════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">02</span>
+    <h2 class="section-title">Invalid Action Rate</h2>
+  </div>
+  <div class="section-rule"></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-label"><span class="badge badge-pm"><span class="badge-dot"></span>PM</span> Invalid rate by mode</div>
+      <div class="chart-container"><canvas id="pmInvalidRate"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-label"><span class="badge badge-cruise"><span class="badge-dot"></span>Cruise</span> Invalid rate by mode</div>
+      <div class="chart-container"><canvas id="cruiseInvalidRate"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ §3 CROSS-DOMAIN ════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">03</span>
+    <h2 class="section-title">Cross-Domain GAS Comparison</h2>
+  </div>
+  <div class="section-rule"></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-label">GAS oracle pass — PM vs Cruise</div>
+      <div class="chart-container"><canvas id="crossDomainPass"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-label">GAS invalid rate — PM vs Cruise</div>
+      <div class="chart-container"><canvas id="crossDomainInvalid"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ §4 TIER HEATMAP ════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">04</span>
+    <h2 class="section-title">GAS Pass Rate by Task Tier</h2>
+  </div>
+  <div class="section-rule"></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-label"><span class="badge badge-pm"><span class="badge-dot"></span>PM</span> Tier breakdown (GAS only)</div>
+      <div class="chart-container short"><canvas id="pmTierRadar"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-label"><span class="badge badge-cruise"><span class="badge-dot"></span>Cruise</span> Tier breakdown (GAS only)</div>
+      <div class="chart-container short"><canvas id="cruiseTierRadar"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ §5 TOKEN EFFICIENCY ════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">05</span>
+    <h2 class="section-title">Token Efficiency</h2>
+  </div>
+  <div class="section-rule"></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-label"><span class="badge badge-pm"><span class="badge-dot"></span>PM</span> Avg tokens per task</div>
+      <div class="chart-container"><canvas id="pmTokens"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-label"><span class="badge badge-cruise"><span class="badge-dot"></span>Cruise</span> Avg tokens per task</div>
+      <div class="chart-container"><canvas id="cruiseTokens"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ §6 GAS ADVANTAGE ════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">06</span>
+    <h2 class="section-title">GAS Advantage Delta</h2>
+  </div>
+  <div class="section-rule"></div>
+  <div class="card" style="max-width:900px">
+    <div class="card-label">Pass rate delta: GAS minus trad-15 (percentage points)</div>
+    <div class="chart-container tall"><canvas id="gasDelta"></canvas></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ §7 TABLES ════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-number">07</span>
+    <h2 class="section-title">Full Results</h2>
+  </div>
+  <div class="section-rule"></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-label"><span class="badge badge-pm"><span class="badge-dot"></span>PM</span> All configurations</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Model</th><th>Mode</th><th class="num">Runs</th><th class="num">Pass%</th><th class="num">Inv%</th><th class="num">Tokens</th></tr></thead>
+          <tbody id="pmTable"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-label"><span class="badge badge-cruise"><span class="badge-dot"></span>Cruise</span> All configurations</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Model</th><th>Mode</th><th class="num">Runs</th><th class="num">Pass%</th><th class="num">Inv%</th><th class="num">Tokens</th></tr></thead>
+          <tbody id="cruiseTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ FOOTER ════════════════════════════════════════════ -->
+<footer class="footer">
+  <span class="footer-text">GIA — Grounded Interaction Architecture</span>
+  <span class="footer-text">Generated 2026-03-21</span>
+</footer>
+
+</div><!-- .page -->
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// DATA
+// ════════════════════════════════════════════════════════════════
+
+const PM_MODELS = ['GPT-4o', 'GPT-5.4', 'Haiku 4.5', 'GLM-5', 'DeepSeek V3.2', 'Qwen3 32B'];
+const CRUISE_MODELS = ['GPT-4o', 'Haiku 4.5', 'DeepSeek V3.2', 'Qwen3 32B'];
+const SHARED_MODELS = ['GPT-4o', 'Haiku 4.5', 'DeepSeek V3.2', 'Qwen3 32B'];
+
+const pm = {
+  'GPT-4o':        { gas:{p:90,i:12.5,t:8539,r:30},   t15:{p:50,i:37.1,t:6333,r:30},   t30:{p:27,i:79.6,t:2309,r:30},   t60:{p:90,i:8.1,t:17704,r:30} },
+  'GPT-5.4':       { gas:{p:96,i:7.1,t:19910,r:116},  t15:{p:62,i:26.3,t:11752,r:90},  t30:{p:58,i:32.5,t:13466,r:90},  t60:{p:93,i:6.8,t:18608,r:90} },
+  'Haiku 4.5':     { gas:{p:97,i:4.3,t:22036,r:30},   t15:{p:53,i:31.1,t:22064,r:30},  t30:{p:57,i:27.7,t:21845,r:30},  t60:{p:90,i:9.6,t:35940,r:30} },
+  'GLM-5':         { gas:{p:93,i:7.5,t:17899,r:30},   t15:{p:63,i:25.8,t:19787,r:30},  t30:{p:70,i:19.4,t:35000,r:30},  t60:{p:97,i:5.5,t:32787,r:30} },
+  'DeepSeek V3.2': { gas:{p:90,i:11.0,t:28587,r:30},  t15:{p:75,i:12.2,t:46269,r:20},  t30:{p:75,i:12.7,t:55776,r:20},  t60:{p:90,i:5.2,t:68689,r:20} },
+  'Qwen3 32B':     { gas:{p:90,i:7.2,t:18207,r:30},   t15:{p:40,i:30.3,t:19476,r:30},  t30:{p:33,i:50.5,t:21712,r:30},  t60:{p:57,i:37.1,t:38951,r:30} },
+};
+
+const cruise = {
+  'GPT-4o':        { gas:{p:100,i:10.7,t:9415,r:30},  t15:{p:43,i:44.1,t:12912,r:30},  t30:{p:93,i:12.2,t:11108,r:30},  t60:{p:87,i:12.2,t:14488,r:30} },
+  'Haiku 4.5':     { gas:{p:93,i:11.5,t:21101,r:30},  t15:{p:53,i:34.4,t:12303,r:30},  t30:{p:90,i:12.1,t:19313,r:30},  t60:{p:90,i:10.7,t:31633,r:30} },
+  'DeepSeek V3.2': { gas:{p:100,i:8.5,t:21176,r:30},  t15:{p:53,i:24.4,t:28224,r:30},  t30:{p:93,i:8.2,t:33901,r:30},   t60:{p:87,i:8.4,t:52781,r:30} },
+  'Qwen3 32B':     { gas:{p:93,i:12.0,t:15591,r:30},  t15:{p:50,i:47.7,t:10368,r:30},  t30:{p:83,i:16.5,t:19370,r:30},  t60:{p:80,i:18.6,t:35468,r:30} },
+};
+
+// Tier data (GAS only)
+const pmTier = {
+  'GPT-4o':        [87.5, 100, 100, 50],
+  'GPT-5.4':       [100, 100, 80.8, 100],
+  'Haiku 4.5':     [100, 100, 100, 75],
+  'GLM-5':         [87.5, 100, 87.5, 100],
+  'DeepSeek V3.2': [87.5, 100, 87.5, 75],
+  'Qwen3 32B':     [100, 100, 87.5, 50],
+};
+
+const cruiseTier = {
+  'GPT-4o':        [100, 100, 100, 100],
+  'Haiku 4.5':     [100, 100, 100, 66.7],
+  'DeepSeek V3.2': [100, 100, 100, 100],
+  'Qwen3 32B':     [100, 100, 100, 66.7],
+};
+
+// ════════════════════════════════════════════════════════════════
+// CHART DEFAULTS
+// ════════════════════════════════════════════════════════════════
+
+const FONT = "'Plus Jakarta Sans', system-ui, sans-serif";
+const MONO = "'DM Mono', monospace";
+
+Chart.defaults.color = '#5c5f72';
+Chart.defaults.borderColor = '#1f2230';
+Chart.defaults.font.family = FONT;
+Chart.defaults.font.size = 11;
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.pointStyleWidth = 10;
+Chart.defaults.plugins.legend.labels.padding = 16;
+Chart.defaults.plugins.legend.labels.font = { family: MONO, size: 10 };
+Chart.defaults.elements.bar.borderRadius = 3;
+Chart.defaults.elements.bar.borderSkipped = false;
+
+const MC = {
+  gas:     '#7c6aef',
+  't15':   '#f87171',
+  't30':   '#fbbf24',
+  't60':   '#34d399',
+};
+
+const MCA = {
+  gas:     '#7c6aefcc',
+  't15':   '#f87171cc',
+  't30':   '#fbbf24cc',
+  't60':   '#34d399cc',
+};
+
+function pct(v) { return v + '%'; }
+function kTok(v) { return v + 'k'; }
+
+const barOpts = (max, fmt) => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  scales: {
+    x: { grid: { display: false } },
+    y: { beginAtZero: true, max, ticks: { callback: fmt, font: { family: MONO, size: 10 } }, grid: { color: '#1f223066' } },
+  },
+  plugins: {
+    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + '%' }, titleFont: { family: MONO }, bodyFont: { family: FONT } },
+  },
+});
+
+const barOptsTokens = {
+  responsive: true,
+  maintainAspectRatio: false,
+  scales: {
+    x: { grid: { display: false } },
+    y: { beginAtZero: true, ticks: { callback: kTok, font: { family: MONO, size: 10 } }, grid: { color: '#1f223066' } },
+  },
+  plugins: {
+    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + 'k tokens' }, titleFont: { family: MONO }, bodyFont: { family: FONT } },
+  },
+};
+
+function modeDatasets(data, models) {
+  return [
+    { label: 'GAS',     data: models.map(m => data[m].gas.p), backgroundColor: MCA.gas },
+    { label: 'trad-15', data: models.map(m => data[m].t15.p), backgroundColor: MCA['t15'] },
+    { label: 'trad-30', data: models.map(m => data[m].t30.p), backgroundColor: MCA['t30'] },
+    { label: 'trad-60', data: models.map(m => data[m].t60.p), backgroundColor: MCA['t60'] },
+  ];
+}
+
+function modeInvDatasets(data, models) {
+  return [
+    { label: 'GAS',     data: models.map(m => data[m].gas.i), backgroundColor: MCA.gas },
+    { label: 'trad-15', data: models.map(m => data[m].t15.i), backgroundColor: MCA['t15'] },
+    { label: 'trad-30', data: models.map(m => data[m].t30.i), backgroundColor: MCA['t30'] },
+    { label: 'trad-60', data: models.map(m => data[m].t60.i), backgroundColor: MCA['t60'] },
+  ];
+}
+
+function modeTokDatasets(data, models) {
+  return [
+    { label: 'GAS',     data: models.map(m => Math.round(data[m].gas.t / 1000)), backgroundColor: MCA.gas },
+    { label: 'trad-15', data: models.map(m => Math.round(data[m].t15.t / 1000)), backgroundColor: MCA['t15'] },
+    { label: 'trad-30', data: models.map(m => Math.round(data[m].t30.t / 1000)), backgroundColor: MCA['t30'] },
+    { label: 'trad-60', data: models.map(m => Math.round(data[m].t60.t / 1000)), backgroundColor: MCA['t60'] },
+  ];
+}
+
+// ════════════════════════════════════════════════════════════════
+// §1 ORACLE PASS RATE
+// ════════════════════════════════════════════════════════════════
+
+new Chart(document.getElementById('pmPassRate'), {
+  type: 'bar',
+  data: { labels: PM_MODELS, datasets: modeDatasets(pm, PM_MODELS) },
+  options: barOpts(100, pct),
+});
+
+new Chart(document.getElementById('cruisePassRate'), {
+  type: 'bar',
+  data: { labels: CRUISE_MODELS, datasets: modeDatasets(cruise, CRUISE_MODELS) },
+  options: barOpts(100, pct),
+});
+
+// ════════════════════════════════════════════════════════════════
+// §2 INVALID ACTION RATE
+// ════════════════════════════════════════════════════════════════
+
+new Chart(document.getElementById('pmInvalidRate'), {
+  type: 'bar',
+  data: { labels: PM_MODELS, datasets: modeInvDatasets(pm, PM_MODELS) },
+  options: barOpts(100, pct),
+});
+
+new Chart(document.getElementById('cruiseInvalidRate'), {
+  type: 'bar',
+  data: { labels: CRUISE_MODELS, datasets: modeInvDatasets(cruise, CRUISE_MODELS) },
+  options: barOpts(100, pct),
+});
+
+// ════════════════════════════════════════════════════════════════
+// §3 CROSS-DOMAIN GAS
+// ════════════════════════════════════════════════════════════════
+
+new Chart(document.getElementById('crossDomainPass'), {
+  type: 'bar',
+  data: {
+    labels: SHARED_MODELS,
+    datasets: [
+      { label: 'PM (GAS)',     data: SHARED_MODELS.map(m => pm[m].gas.p),     backgroundColor: '#60a5facc' },
+      { label: 'Cruise (GAS)', data: SHARED_MODELS.map(m => cruise[m].gas.p), backgroundColor: '#34d399cc' },
+    ]
+  },
+  options: barOpts(100, pct),
+});
+
+new Chart(document.getElementById('crossDomainInvalid'), {
+  type: 'bar',
+  data: {
+    labels: SHARED_MODELS,
+    datasets: [
+      { label: 'PM (GAS)',     data: SHARED_MODELS.map(m => pm[m].gas.i),     backgroundColor: '#60a5facc' },
+      { label: 'Cruise (GAS)', data: SHARED_MODELS.map(m => cruise[m].gas.i), backgroundColor: '#34d399cc' },
+    ]
+  },
+  options: barOpts(50, pct),
+});
+
+// ════════════════════════════════════════════════════════════════
+// §4 TIER RADAR
+// ════════════════════════════════════════════════════════════════
+
+const tierLabels = ['T1 — Single Action', 'T2 — Multi-Step', 'T3 — Constraint', 'T4 — Complex'];
+
+const radarColors = {
+  'GPT-4o':        { bg: 'rgba(96,165,250,0.08)',  border: '#60a5fa' },
+  'GPT-5.4':       { bg: 'rgba(124,106,239,0.08)', border: '#9384f7' },
+  'Haiku 4.5':     { bg: 'rgba(251,191,36,0.08)',  border: '#fbbf24' },
+  'GLM-5':         { bg: 'rgba(52,211,153,0.08)',   border: '#34d399' },
+  'DeepSeek V3.2': { bg: 'rgba(34,211,238,0.08)',   border: '#22d3ee' },
+  'Qwen3 32B':     { bg: 'rgba(248,113,113,0.08)',  border: '#f87171' },
+};
+
+const radarOpts = {
+  responsive: true,
+  maintainAspectRatio: false,
+  scales: {
+    r: {
+      beginAtZero: true,
+      max: 100,
+      ticks: { display: false },
+      grid: { color: '#1f2230' },
+      angleLines: { color: '#1f2230' },
+      pointLabels: { font: { family: MONO, size: 9 }, color: '#5c5f72' },
+    }
+  },
+  plugins: {
+    legend: { position: 'bottom', labels: { font: { family: MONO, size: 9 }, padding: 10 } },
+    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + '%' } },
+  },
+};
+
+new Chart(document.getElementById('pmTierRadar'), {
+  type: 'radar',
+  data: {
+    labels: tierLabels,
+    datasets: PM_MODELS.map(m => ({
+      label: m,
+      data: pmTier[m],
+      backgroundColor: radarColors[m].bg,
+      borderColor: radarColors[m].border,
+      borderWidth: 1.5,
+      pointRadius: 3,
+      pointBackgroundColor: radarColors[m].border,
+    }))
+  },
+  options: radarOpts,
+});
+
+new Chart(document.getElementById('cruiseTierRadar'), {
+  type: 'radar',
+  data: {
+    labels: tierLabels,
+    datasets: CRUISE_MODELS.map(m => ({
+      label: m,
+      data: cruiseTier[m],
+      backgroundColor: radarColors[m].bg,
+      borderColor: radarColors[m].border,
+      borderWidth: 1.5,
+      pointRadius: 3,
+      pointBackgroundColor: radarColors[m].border,
+    }))
+  },
+  options: radarOpts,
+});
+
+// ════════════════════════════════════════════════════════════════
+// §5 TOKEN EFFICIENCY
+// ════════════════════════════════════════════════════════════════
+
+new Chart(document.getElementById('pmTokens'), {
+  type: 'bar',
+  data: { labels: PM_MODELS, datasets: modeTokDatasets(pm, PM_MODELS) },
+  options: barOptsTokens,
+});
+
+new Chart(document.getElementById('cruiseTokens'), {
+  type: 'bar',
+  data: { labels: CRUISE_MODELS, datasets: modeTokDatasets(cruise, CRUISE_MODELS) },
+  options: barOptsTokens,
+});
+
+// ════════════════════════════════════════════════════════════════
+// §6 GAS ADVANTAGE DELTA
+// ════════════════════════════════════════════════════════════════
+
+const deltaLabels = [];
+const deltaValues = [];
+const deltaColors = [];
+
+for (const m of SHARED_MODELS) {
+  const dPM = pm[m].gas.p - pm[m].t15.p;
+  deltaLabels.push(m + '  ·  PM');
+  deltaValues.push(dPM);
+  deltaColors.push('#60a5facc');
+
+  const dCr = cruise[m].gas.p - cruise[m].t15.p;
+  deltaLabels.push(m + '  ·  Cruise');
+  deltaValues.push(dCr);
+  deltaColors.push('#34d399cc');
+}
+
+new Chart(document.getElementById('gasDelta'), {
+  type: 'bar',
+  data: {
+    labels: deltaLabels,
+    datasets: [{
+      label: 'GAS advantage (pp)',
+      data: deltaValues,
+      backgroundColor: deltaColors,
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: {
+        ticks: { callback: v => (v > 0 ? '+' : '') + v + 'pp', font: { family: MONO, size: 10 } },
+        grid: { color: '#1f223066' },
+      },
+      y: {
+        grid: { display: false },
+        ticks: { font: { family: MONO, size: 10 } },
+      }
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => (ctx.raw > 0 ? '+' : '') + ctx.raw + ' percentage points' } },
+    }
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// §7 TABLES
+// ════════════════════════════════════════════════════════════════
+
+function passClass(v) { return v >= 90 ? 'val-pass' : v >= 60 ? 'val-warn' : 'val-fail'; }
+function invClass(v) { return v <= 12 ? 'val-pass' : v <= 30 ? 'val-warn' : 'val-fail'; }
+
+function modeTag(m) {
+  return m === 'gas'
+    ? '<span class="mode-tag mode-gas">GAS</span>'
+    : '<span class="mode-tag mode-trad">' + m + '</span>';
+}
+
+function renderTable(el, data, models) {
+  let html = '';
+  for (const m of models) {
+    const d = data[m];
+    const rows = [
+      { mode: 'gas',     ...d.gas },
+      { mode: 'trad-15', ...d.t15 },
+      { mode: 'trad-30', ...d.t30 },
+      { mode: 'trad-60', ...d.t60 },
+    ];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      html += '<tr>';
+      html += '<td>' + (i === 0 ? '<span class="model-name">' + m + '</span>' : '') + '</td>';
+      html += '<td>' + modeTag(r.mode) + '</td>';
+      html += '<td class="num">' + r.r + '</td>';
+      html += '<td class="num ' + passClass(r.p) + '">' + r.p + '%</td>';
+      html += '<td class="num ' + invClass(r.i) + '">' + r.i + '%</td>';
+      html += '<td class="num">' + (r.t / 1000).toFixed(1) + 'k</td>';
+      html += '</tr>';
+    }
+  }
+  el.innerHTML = html;
+}
+
+renderTable(document.getElementById('pmTable'), pm, PM_MODELS);
+renderTable(document.getElementById('cruiseTable'), cruise, CRUISE_MODELS);
+
+</script>
+</body>
+</html>

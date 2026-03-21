@@ -20,7 +20,7 @@ except ImportError:  # pragma: no cover
 from eval.gas_server.server import EvalRuntime
 from eval.trad_server.server import TradRuntime
 
-from .config import EvalConfig
+from .config import EvalConfig, DOMAIN_DEFAULT_USER
 from .metrics import EvalMetrics, TurnDetail
 
 SYSTEM_PROMPT = """\
@@ -48,6 +48,39 @@ You have multiple specialized tools for different operations.
 - Read the tool descriptions carefully to understand what each tool does.
 - Pay attention to constraints mentioned in tool descriptions.
 - Some operations require certain preconditions (e.g., issue must be in specific status).
+"""
+
+# --- Cruise domain prompts ---
+
+CRUISE_SYSTEM_PROMPT = """\
+You are a cruise booking assistant. You have access to tools for managing \
+cruise bookings, passengers, and payments. Complete the task described by the user.
+
+Rules:
+- Use the tools provided to accomplish the task.
+- Read the tool results carefully and use the information to decide your next action.
+- If a tool call fails, read the error message and adjust your approach.
+- When the task is complete, respond with "TASK COMPLETE" in your message.
+- Be efficient: take the most direct path to completing the task.
+- Bookings go through: held → confirmed → paid → embarked.
+- Payments go through: pending → authorized → captured (then optionally refunded).
+- A booking must have at least one passenger before it can be confirmed.
+- A booking must have a captured payment before it can be marked as paid.
+"""
+
+CRUISE_GAS_ADDENDUM = """
+You have 3 tools: get, search, and act.
+- Every response includes an "affordances" array showing valid actions for the current state.
+- Use the affordances to discover what actions are available.
+- The "act" tool executes actions listed in the affordances.
+- Copy action names and parameter values exactly from the affordances.
+"""
+
+CRUISE_TRAD_ADDENDUM = """
+You have multiple specialized tools for different operations.
+- Read the tool descriptions carefully to understand what each tool does.
+- Pay attention to constraints mentioned in tool descriptions.
+- Bookings, payments, and cruise status have specific lifecycle constraints.
 """
 
 
@@ -90,16 +123,27 @@ class EvalAgent:
     def _get_tools(self) -> list[dict]:
         """Get tool definitions for the agent."""
         if self.is_gas:
+            is_cruise = self.config.domain == "cruise"
+            if is_cruise:
+                get_types = ["cruise", "booking", "passenger", "payment", "user", "session"]
+                search_types = ["cruises", "bookings", "passengers", "payments", "users"]
+                get_desc = "Retrieve a resource by type and ID. Returns data + available affordances. resource_type: cruise, booking, passenger, payment, user, session."
+                search_desc = "Search resources. Returns results + affordances. resource_type: cruises, bookings, passengers, payments, users. filters: JSON string."
+            else:
+                get_types = ["issue", "project", "sprint", "user", "comment", "session"]
+                search_types = ["issues", "projects", "sprints", "users", "comments"]
+                get_desc = "Retrieve a resource by type and ID. Returns data + available affordances. resource_type: issue, project, sprint, user, comment, session."
+                search_desc = "Search resources. Returns results + affordances. resource_type: issues, projects, sprints, users, comments. filters: JSON string."
             return [
                 {
                     "type": "function",
                     "function": {
                         "name": "get",
-                        "description": "Retrieve a resource by type and ID. Returns data + available affordances. resource_type: issue, project, sprint, user, comment, session.",
+                        "description": get_desc,
                         "parameters": {
                             "type": "object",
                             "properties": {
-                                "resource_type": {"type": "string", "enum": ["issue", "project", "sprint", "user", "comment", "session"]},
+                                "resource_type": {"type": "string", "enum": get_types},
                                 "id": {"type": "string", "description": "Resource ID"},
                             },
                             "required": ["resource_type"],
@@ -110,11 +154,11 @@ class EvalAgent:
                     "type": "function",
                     "function": {
                         "name": "search",
-                        "description": "Search resources. Returns results + affordances. resource_type: issues, projects, sprints, users, comments. filters: JSON string.",
+                        "description": search_desc,
                         "parameters": {
                             "type": "object",
                             "properties": {
-                                "resource_type": {"type": "string", "enum": ["issues", "projects", "sprints", "users", "comments"]},
+                                "resource_type": {"type": "string", "enum": search_types},
                                 "filters": {"type": "string", "description": "JSON filter string"},
                             },
                             "required": ["resource_type"],
@@ -225,8 +269,13 @@ class EvalAgent:
             model_name=self.config.model.name,
         )
 
-        system = SYSTEM_PROMPT
-        system += GAS_SYSTEM_ADDENDUM if self.is_gas else TRAD_SYSTEM_ADDENDUM
+        is_cruise = self.config.domain == "cruise"
+        if is_cruise:
+            system = CRUISE_SYSTEM_PROMPT
+            system += CRUISE_GAS_ADDENDUM if self.is_gas else CRUISE_TRAD_ADDENDUM
+        else:
+            system = SYSTEM_PROMPT
+            system += GAS_SYSTEM_ADDENDUM if self.is_gas else TRAD_SYSTEM_ADDENDUM
 
         messages = [
             {"role": "system", "content": system},

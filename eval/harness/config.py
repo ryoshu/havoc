@@ -32,16 +32,25 @@ def parse_mode(mode_str: str) -> tuple[str, int | str]:
 
 class EvalConfig(BaseModel):
     """Configuration for a single eval run."""
+    domain: str = "pm"  # "pm" or "cruise"
     mode: str  # "gas" or "trad"
     tool_level: int | str = 3  # 3 for GAS, 15/30/60/"60-poly" for trad
     model: ModelConfig
-    acting_user_id: str = "user-mgr-1"  # default: Carol Reyes (manager)
+    acting_user_id: str = "user-mgr-1"  # default: Carol Reyes (manager) for PM
     max_retries: int = 3
     timeout_seconds: float = 300.0
 
 
+# Default acting user per domain
+DOMAIN_DEFAULT_USER: dict[str, str] = {
+    "pm": "user-mgr-1",      # Carol Reyes (manager)
+    "cruise": "user-agent-1",  # Sophie Chen (agent)
+}
+
+
 class MatrixConfig(BaseModel):
     """Configuration for a full eval matrix run."""
+    domain: str = "pm"  # "pm" or "cruise"
     models: list[ModelConfig] = Field(default_factory=list)
     modes: list[str] = Field(default_factory=lambda: ["gas", "trad-15"])
     task_tiers: list[int] = Field(default_factory=lambda: [1, 3])

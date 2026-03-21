@@ -1,0 +1,10 @@
+[
+  {"id": "user-admin-1", "name": "Maria Santos", "email": "maria@cruiseline.com", "role": "admin"},
+  {"id": "user-admin-2", "name": "James Wright", "email": "james@cruiseline.com", "role": "admin"},
+  {"id": "user-agent-1", "name": "Sophie Chen", "email": "sophie@cruiseline.com", "role": "agent"},
+  {"id": "user-agent-2", "name": "Raj Patel", "email": "raj@cruiseline.com", "role": "agent"},
+  {"id": "user-agent-3", "name": "Nina Kowalski", "email": "nina@cruiseline.com", "role": "agent"},
+  {"id": "user-desk-1", "name": "Tom Rivera", "email": "tom@cruiseline.com", "role": "desk"},
+  {"id": "user-desk-2", "name": "Lisa Yamamoto", "email": "lisa@cruiseline.com", "role": "desk"},
+  {"id": "user-view-1", "name": "Omar Hassan", "email": "omar@cruiseline.com", "role": "viewer"}
+]

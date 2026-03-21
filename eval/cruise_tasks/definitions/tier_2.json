@@ -1,0 +1,136 @@
+[
+  {
+    "id": "t2-01",
+    "tier": 2,
+    "name": "Full booking workflow",
+    "description": "Complete a full booking workflow on the Mediterranean Dream cruise: create a booking for a Balcony cabin, add passenger 'Emma Davis' (passport: AU55667788, emergency: 'Mark Davis +61-555-0200'), confirm the booking, create a $1499.00 credit_card payment, authorize it, capture it, then mark the booking as paid.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}]
+    },
+    "oracle": [
+      {"type": "booking_exists", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-balcony", "status": "paid"},
+      {"type": "passenger_exists", "passport_number": "AU55667788"}
+    ],
+    "max_turns": 25
+  },
+  {
+    "id": "t2-02",
+    "tier": 2,
+    "name": "Payment lifecycle",
+    "description": "Process the full payment lifecycle for booking 'bk-paylife': create a $899.00 credit_card payment, authorize it, then capture it.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-paylife", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "confirmed", "passenger_count": 1, "alias": "bkpl"}],
+      "passengers": [{"booking_id": "bk-paylife", "name": "Test User", "passport_number": "XX000002", "alias": "px-pl"}]
+    },
+    "oracle": [
+      {"type": "payment_exists", "booking_id": "bk-paylife", "status": "captured"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t2-03",
+    "tier": 2,
+    "name": "Passenger management",
+    "description": "Add two passengers to booking 'bk-pax': 'Liam Brown' (passport: IE33445566, emergency: 'Nora Brown +353-555-0300') and 'Mia Brown' (passport: IE33445567, emergency: 'Nora Brown +353-555-0300'). Then update Mia's emergency contact to 'Liam Brown +353-555-0301'.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-pax", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-balcony", "status": "held", "alias": "bkpax"}]
+    },
+    "oracle": [
+      {"type": "passenger_exists", "booking_id": "bk-pax", "passport_number": "IE33445566"},
+      {"type": "passenger_exists", "booking_id": "bk-pax", "passport_number": "IE33445567"},
+      {"type": "passenger_count", "booking_id": "bk-pax", "expected": 2}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t2-04",
+    "tier": 2,
+    "name": "Booking modification",
+    "description": "Booking 'bk-mod' is currently held for an Interior cabin. Cancel it and create a new booking for a Balcony cabin (cabin-med-balcony) on the same cruise, then add passenger 'Noah Wilson' (passport: NZ77889900) to the new booking.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-mod", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "held", "alias": "bkmod"}]
+    },
+    "oracle": [
+      {"type": "booking_status", "booking_id": "bk-mod", "expected": "cancelled"},
+      {"type": "booking_exists", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-balcony"},
+      {"type": "passenger_exists", "passport_number": "NZ77889900"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t2-05",
+    "tier": 2,
+    "name": "Group booking",
+    "description": "Create a Suite booking on the Mediterranean Dream, add 3 passengers: 'Ava Martinez' (passport: MX11111111), 'Carlos Martinez' (passport: MX22222222), and 'Sofia Martinez' (passport: MX33333333). All emergency contacts should be 'Family +52-555-0400'. Then confirm the booking.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}]
+    },
+    "oracle": [
+      {"type": "booking_exists", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-suite", "status": "confirmed"},
+      {"type": "passenger_exists", "passport_number": "MX11111111"},
+      {"type": "passenger_exists", "passport_number": "MX22222222"},
+      {"type": "passenger_exists", "passport_number": "MX33333333"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t2-06",
+    "tier": 2,
+    "name": "Cancellation with refund",
+    "description": "Cancel booking 'bk-canref' which is in 'paid' status, then refund its captured payment 'pay-canref'.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [{"id": "bk-canref", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "paid", "passenger_count": 1, "alias": "bkcr"}],
+      "passengers": [{"booking_id": "bk-canref", "name": "Cancel Test", "passport_number": "XX000003", "alias": "px-cr"}],
+      "payments": [{"id": "pay-canref", "booking_id": "bk-canref", "amount": 899.00, "status": "captured", "method": "credit_card", "alias": "paycr"}]
+    },
+    "oracle": [
+      {"type": "booking_status", "booking_id": "bk-canref", "expected": "cancelled"},
+      {"type": "payment_status", "payment_id": "pay-canref", "expected": "refunded"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t2-07",
+    "tier": 2,
+    "name": "Check-in workflow",
+    "description": "The Mediterranean Dream is now boarding. Find booking 'bk-checkin' which is paid, and embark it. You are acting as desk staff Tom Rivera (user-desk-1).",
+    "acting_user_id": "user-desk-1",
+    "setup": {
+      "cruises": [{"id": "cruise-med", "name": "Mediterranean Dream", "ship": "MS Celestia", "departure_date": "2026-04-15", "status": "boarding", "alias": "med"}],
+      "bookings": [{"id": "bk-checkin", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "paid", "passenger_count": 1, "alias": "bkci"}],
+      "passengers": [{"booking_id": "bk-checkin", "name": "Checkin Guest", "passport_number": "XX000004", "alias": "px-ci"}]
+    },
+    "oracle": [
+      {"type": "booking_status", "booking_id": "bk-checkin", "expected": "embarked"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t2-08",
+    "tier": 2,
+    "name": "Cruise manifest preparation",
+    "description": "Search for all paid bookings on the Mediterranean Dream cruise (cruise-med) and verify there are at least 2. Report the total number of passengers across those bookings.",
+    "setup": {
+      "cruises": [{"template_id": "cruise-med", "alias": "med"}],
+      "bookings": [
+        {"id": "bk-m1", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "paid", "passenger_count": 2, "alias": "m1"},
+        {"id": "bk-m2", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-balcony", "status": "paid", "passenger_count": 1, "alias": "m2"},
+        {"id": "bk-m3", "cruise_id": "cruise-med", "cabin_type_id": "cabin-med-interior", "status": "held", "passenger_count": 0, "alias": "m3"}
+      ],
+      "passengers": [
+        {"booking_id": "bk-m1", "name": "Guest One", "passport_number": "XX000010"},
+        {"booking_id": "bk-m1", "name": "Guest Two", "passport_number": "XX000011"},
+        {"booking_id": "bk-m2", "name": "Guest Three", "passport_number": "XX000012"}
+      ]
+    },
+    "oracle": [
+      {"type": "booking_count", "filters": {"status": "paid", "cruise_id": "cruise-med"}, "expected": 2, "op": "gte"},
+      {"type": "no_backend_errors"}
+    ],
+    "max_turns": 10
+  }
+]
