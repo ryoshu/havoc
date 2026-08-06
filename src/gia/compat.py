@@ -42,10 +42,6 @@ class JsonGameRuntimeAdapter:
         """Compatibility name for callers that explicitly provision a session."""
         return self.session_id
 
-    @property
-    def _pending_rolls(self) -> dict[str, dict]:
-        return self.runtime._pending_rolls
-
     def create_session(self) -> str:
         """Provision a session for a CLI/playthrough entry point.
 

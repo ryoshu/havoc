@@ -45,7 +45,6 @@ class GameRuntime:
     def __init__(self, db_path: str = ":memory:"):
         self.ctx = GameContext(db_path=db_path)
         self.engine = HavocEngine()
-        self._pending_rolls: dict[str, dict] = {}
 
     def create_session(self) -> ResourceResponse:
         """Create an isolated game session and return its initial state."""
@@ -287,70 +286,15 @@ class GameRuntime:
                     "current_revision": session_before.state_revision,
                 },
             )
-        if not self.ctx.db.claim_session_revision(sid, expected_revision):
-            current = self.ctx.get_session(sid)
-            current_revision = current.state_revision if current else None
-            raise StaleStateError(
-                f"Session {sid} changed while the action was being validated.",
-                details={
-                    "session_id": sid,
-                    "expected_revision": expected_revision,
-                    "current_revision": current_revision,
-                },
-            )
-
-        # Snapshot state before action after claiming the revision.
-        phase_before = session_before.phase.value
-        actor_id = (
-            session_before.active_character_id or "system"
-            if session_before else "system"
-        )
-        actor_name = ""
-        if actor_id != "system":
-            actor_char = self.ctx.db.get_character(actor_id)
-            actor_name = actor_char.name if actor_char else ""
-
-        affordances_snapshot = [
-            {
-                "id": a.id,
-                "action": a.action,
-                "description": a.description,
-                "schema": a.schema_,
-                "constraints": a.constraints,
-            }
-            for a in pre_affordances
-        ]
-        affordances_not_taken = [
-            a.action for a in pre_affordances if a.action != action
-        ]
-
         try:
-            result, events = self._dispatch_action(sid, action, parsed)
-
-            # Snapshot phase after
-            session_after = self.ctx.get_session(sid)
-            phase_after = session_after.phase.value if session_after else phase_before
-
-            # Build result summary
-            result_data = result if isinstance(result, dict) else {}
-            result_summary = result_data.get("message", "")[:200]
-
-            # Record the decision
-            decision = DecisionRecord(
-                session_id=sid,
-                actor_id=actor_id,
-                actor_name=actor_name,
-                action=action,
-                params=parsed,
-                affordances_snapshot=affordances_snapshot,
-                affordances_not_taken=list(set(affordances_not_taken)),
-                result_summary=result_summary,
-                events=[e.model_dump() for e in events],
-                phase_before=phase_before,
-                phase_after=phase_after,
+            result, events = self._dispatch_and_record(
+                sid,
+                action,
+                parsed,
+                expected_revision,
+                session_before,
+                pre_affordances,
             )
-            self.ctx.db.record_decision(decision)
-
             affordances = compute_affordances(self.ctx, sid)
             return self._format_action_response(result, affordances, events, sid)
         except KeyError as error:
@@ -359,6 +303,70 @@ class GameRuntime:
                 f"Missing required action parameter: {missing}.",
                 details={"action": action, "parameter": missing},
             ) from error
+
+    def _dispatch_and_record(
+        self,
+        session_id: str,
+        action: str,
+        params: dict,
+        expected_revision: int,
+        session_before,
+        pre_affordances: list,
+    ):
+        """Atomically claim a revision, mutate state, and record the decision."""
+        with self.ctx.db.transaction():
+            if not self.ctx.db.claim_session_revision(session_id, expected_revision):
+                current = self.ctx.get_session(session_id)
+                current_revision = current.state_revision if current else None
+                raise StaleStateError(
+                    f"Session {session_id} changed while the action was being validated.",
+                    details={
+                        "session_id": session_id,
+                        "expected_revision": expected_revision,
+                        "current_revision": current_revision,
+                    },
+                )
+
+            phase_before = session_before.phase.value
+            actor_id = session_before.active_character_id or "system"
+            actor_name = ""
+            if actor_id != "system":
+                actor_char = self.ctx.db.get_character(actor_id)
+                actor_name = actor_char.name if actor_char else ""
+
+            affordances_snapshot = [
+                {
+                    "id": a.id,
+                    "action": a.action,
+                    "description": a.description,
+                    "schema": a.schema_,
+                    "constraints": a.constraints,
+                }
+                for a in pre_affordances
+            ]
+            affordances_not_taken = [
+                a.action for a in pre_affordances if a.action != action
+            ]
+
+            result, events = self._dispatch_action(session_id, action, params)
+            session_after = self.ctx.get_session(session_id)
+            phase_after = session_after.phase.value if session_after else phase_before
+            result_data = result if isinstance(result, dict) else {}
+            decision = DecisionRecord(
+                session_id=session_id,
+                actor_id=actor_id,
+                actor_name=actor_name,
+                action=action,
+                params=params,
+                affordances_snapshot=affordances_snapshot,
+                affordances_not_taken=list(set(affordances_not_taken)),
+                result_summary=result_data.get("message", "")[:200],
+                events=[e.model_dump() for e in events],
+                phase_before=phase_before,
+                phase_after=phase_after,
+            )
+            self.ctx.db.record_decision(decision)
+            return result, events
 
     def _dispatch_action(self, session_id: str, action: str, params: dict):
         """Route action to appropriate domain method."""
@@ -580,11 +588,7 @@ class GameRuntime:
             roll.character_id = active_char.id
             roll.scene_id = scene.id
 
-            self._pending_rolls[session_id] = {
-                "roll": roll,
-                "player_kept": player_kept,
-                "gm_kept": gm_kept,
-            }
+            ctx.db.save_pending_roll(session_id, roll, player_kept, gm_kept)
 
             ctx.db.update_character(active_char)
 
@@ -617,7 +621,7 @@ class GameRuntime:
             if not scene:
                 raise DomainError("No active scene.")
 
-            pending = self._pending_rolls.get(session_id)
+            pending = ctx.db.get_pending_roll(session_id)
             if not pending:
                 raise DomainError("No pending roll to allocate.")
 
@@ -647,7 +651,7 @@ class GameRuntime:
             ctx.db.update_character(active_char)
             ctx.db.update_scene(scene)
 
-            del self._pending_rolls[session_id]
+            ctx.db.delete_pending_roll(session_id)
 
             if engine.check_scene_complete(scene):
                 scene.completed = True
@@ -712,13 +716,12 @@ class GameRuntime:
             if not active_char:
                 raise DomainError("No active character.")
 
-            pending = self._pending_rolls.get(session_id)
+            pending = ctx.db.get_pending_roll(session_id)
             if not pending:
                 raise DomainError("No pending roll for flashback.")
 
             new_roll, new_kept = engine.use_flashback(active_char, pending["roll"])
-            self._pending_rolls[session_id]["roll"] = new_roll
-            self._pending_rolls[session_id]["player_kept"] = new_kept
+            ctx.db.save_pending_roll(session_id, new_roll, new_kept, pending["gm_kept"])
 
             ctx.db.update_character(active_char)
 
@@ -860,7 +863,6 @@ _default = GameRuntime()
 _legacy = JsonGameRuntimeAdapter(_default)
 ctx = _default.ctx
 engine = _default.engine
-_pending_rolls = _default._pending_rolls
 
 
 # --- Tools ---

@@ -8,6 +8,8 @@ behavioral baseline.
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import pytest
 
@@ -279,3 +281,59 @@ def test_json_adapter_preserves_legacy_success_and_error_payloads(runtime):
     assert {item["sector"] for item in success["data"]} == {3}
     assert "Malformed JSON in params" in failure["error"]
     assert "select_character" in _actions(failure)
+
+
+def test_pending_roll_survives_runtime_restart(tmp_path: Path):
+    db_path = str(tmp_path / "restart.db")
+    first = GameRuntime(db_path=db_path)
+    session_id = first.create_session().data["id"]
+    try:
+        _act_for_session(first, session_id, "select_character", {"template_id": "iryna"})
+        _act_for_session(first, session_id, "start_mission")
+        scene = first.ctx.get_active_scene(session_id)
+        assert scene and scene.active_threats
+        _act_for_session(first, session_id, "engage_threat", {"threat_name": scene.active_threats[0].name})
+        built = _act_for_session(first, session_id, "build_dice_pool", {"stat": "brawl"})
+        assert built.data["player_kept"] or built.data["gm_kept"]
+        revision = first.ctx.get_session(session_id).state_revision
+        assert first.ctx.db.get_pending_roll(session_id) is not None
+    finally:
+        first.ctx.db.close()
+
+    second = GameRuntime(db_path=db_path)
+    try:
+        pending = second.ctx.db.get_pending_roll(session_id)
+        assert pending is not None
+        allocation = {key: [] for key in ("objective", "threat", "defense", "feed", "special")}
+        allocation["objective"] = pending["player_kept"]
+        result = second.act(
+            "allocate_dice",
+            {"allocations": allocation},
+            session_id=session_id,
+            expected_revision=revision,
+        )
+        assert result.data["message"]
+        assert second.ctx.db.get_pending_roll(session_id) is None
+    finally:
+        second.ctx.db.close()
+
+
+def test_concurrent_actions_share_one_revision(runtime):
+    revision = runtime.get("session", session_id=runtime.session_id).state_revision
+
+    def invoke():
+        try:
+            runtime.act(
+                "select_character",
+                {"template_id": "iryna"},
+                session_id=runtime.session_id,
+                expected_revision=revision,
+            )
+            return "ok"
+        except StaleStateError:
+            return "stale"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(lambda _: invoke(), range(2)))
+
+    assert sorted(outcomes) == ["ok", "stale"]

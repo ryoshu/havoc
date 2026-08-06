@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
+from collections.abc import Iterator
 
 from .models import (
     CharacterState,
@@ -90,6 +93,14 @@ CREATE TABLE IF NOT EXISTS decision_records (
     llm_narration TEXT NOT NULL DEFAULT '',
     llm_turn_context TEXT NOT NULL DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS pending_rolls (
+    session_id TEXT PRIMARY KEY REFERENCES game_sessions(id),
+    roll_json TEXT NOT NULL,
+    player_kept_json TEXT NOT NULL DEFAULT '[]',
+    gm_kept_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -101,8 +112,16 @@ class GameDB:
     """SQLite persistence for mutable game state."""
 
     def __init__(self, db_path: str = ":memory:"):
-        self.conn = sqlite3.connect(db_path)
+        self.db_path = db_path
+        self._lock = threading.RLock()
+        self._transaction_depth = 0
+        self.conn = sqlite3.connect(
+            db_path,
+            check_same_thread=False,
+            timeout=30.0,
+        )
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA busy_timeout = 30000")
         self.conn.executescript(SCHEMA)
         self._ensure_session_revision_column()
 
@@ -116,10 +135,40 @@ class GameDB:
             self.conn.execute(
                 "ALTER TABLE game_sessions ADD COLUMN state_revision INTEGER NOT NULL DEFAULT 0"
             )
-            self.conn.commit()
+            self._commit()
 
     def close(self):
-        self.conn.close()
+        with self._lock:
+            self.conn.close()
+
+    def _commit(self) -> None:
+        if self._transaction_depth == 0:
+            self.conn.commit()
+
+    @contextmanager
+    def transaction(self) -> Iterator[None]:
+        """Run a state transition atomically on this connection.
+
+        A re-entrant lock serializes callers sharing one runtime connection;
+        ``BEGIN IMMEDIATE`` prevents another SQLite writer from interleaving
+        between revision validation and decision persistence.
+        """
+        with self._lock:
+            outermost = self._transaction_depth == 0
+            if outermost:
+                self.conn.execute("BEGIN IMMEDIATE")
+            self._transaction_depth += 1
+            try:
+                yield
+            except Exception:
+                if outermost:
+                    self.conn.rollback()
+                raise
+            else:
+                if outermost:
+                    self.conn.commit()
+            finally:
+                self._transaction_depth -= 1
 
     # --- Sessions ---
 
@@ -130,7 +179,7 @@ class GameDB:
             "INSERT INTO game_sessions (id, phase, created_at) VALUES (?, ?, ?)",
             (sid, GamePhase.setup.value, now),
         )
-        self.conn.commit()
+        self._commit()
         return GameSession(id=sid, phase=GamePhase.setup, created_at=now)
 
     def get_session(self, session_id: str) -> GameSession | None:
@@ -166,7 +215,7 @@ class GameDB:
                 session.id,
             ),
         )
-        self.conn.commit()
+        self._commit()
 
     def claim_session_revision(self, session_id: str, expected_revision: int) -> bool:
         """Atomically claim a revision for one mutating operation."""
@@ -176,7 +225,7 @@ class GameDB:
                WHERE id = ? AND state_revision = ?""",
             (session_id, expected_revision),
         )
-        self.conn.commit()
+        self._commit()
         return cursor.rowcount == 1
 
     # --- Character States ---
@@ -199,7 +248,7 @@ class GameDB:
                 cs.current_location_id,
             ),
         )
-        self.conn.commit()
+        self._commit()
         return cs
 
     def get_character(self, char_id: str) -> CharacterState | None:
@@ -232,7 +281,7 @@ class GameDB:
                 cs.current_location_id, cs.id,
             ),
         )
-        self.conn.commit()
+        self._commit()
 
     def _row_to_character(self, row: sqlite3.Row) -> CharacterState:
         return CharacterState(
@@ -272,7 +321,7 @@ class GameDB:
                 0,
             ),
         )
-        self.conn.commit()
+        self._commit()
         return scene
 
     def get_scene(self, scene_id: str) -> SceneState | None:
@@ -304,7 +353,7 @@ class GameDB:
                 scene.id,
             ),
         )
-        self.conn.commit()
+        self._commit()
 
     def _row_to_scene(self, row: sqlite3.Row) -> SceneState:
         return SceneState(
@@ -341,7 +390,7 @@ class GameDB:
                 roll.timestamp,
             ),
         )
-        self.conn.commit()
+        self._commit()
         return roll
 
     def get_session_rolls(self, session_id: str) -> list[DiceRoll]:
@@ -350,6 +399,56 @@ class GameDB:
             (session_id,),
         ).fetchall()
         return [self._row_to_roll(r) for r in rows]
+
+    # --- Pending Rolls ---
+
+    def save_pending_roll(
+        self,
+        session_id: str,
+        roll: DiceRoll,
+        player_kept: list[int],
+        gm_kept: list[int],
+    ) -> None:
+        """Persist the roll that must survive between build and allocation."""
+        now = datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            """INSERT INTO pending_rolls
+               (session_id, roll_json, player_kept_json, gm_kept_json, created_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(session_id) DO UPDATE SET
+                   roll_json=excluded.roll_json,
+                   player_kept_json=excluded.player_kept_json,
+                   gm_kept_json=excluded.gm_kept_json,
+                   created_at=excluded.created_at""",
+            (
+                session_id,
+                json.dumps(roll.model_dump(mode="json")),
+                json.dumps(player_kept),
+                json.dumps(gm_kept),
+                now,
+            ),
+        )
+        self._commit()
+
+    def get_pending_roll(self, session_id: str) -> dict | None:
+        row = self.conn.execute(
+            "SELECT * FROM pending_rolls WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "roll": DiceRoll.model_validate(json.loads(row["roll_json"])),
+            "player_kept": json.loads(row["player_kept_json"]),
+            "gm_kept": json.loads(row["gm_kept_json"]),
+        }
+
+    def delete_pending_roll(self, session_id: str) -> None:
+        self.conn.execute(
+            "DELETE FROM pending_rolls WHERE session_id = ?",
+            (session_id,),
+        )
+        self._commit()
 
     # --- Decision Records ---
 
@@ -379,7 +478,7 @@ class GameDB:
                 decision.llm_turn_context,
             ),
         )
-        self.conn.commit()
+        self._commit()
         return decision
 
     def update_last_decision_llm_context(
