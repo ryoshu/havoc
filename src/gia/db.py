@@ -141,6 +141,11 @@ class GameDB:
         with self._lock:
             self.conn.close()
 
+    @property
+    def connection_lock(self) -> threading.RLock:
+        """Lock shared by runtime operations using this SQLite connection."""
+        return self._lock
+
     def _commit(self) -> None:
         if self._transaction_depth == 0:
             self.conn.commit()

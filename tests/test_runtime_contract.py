@@ -324,7 +324,7 @@ def test_concurrent_actions_share_one_revision(runtime):
     def invoke():
         try:
             runtime.act(
-                "select_character",
+                "view_character_template",
                 {"template_id": "iryna"},
                 session_id=runtime.session_id,
                 expected_revision=revision,

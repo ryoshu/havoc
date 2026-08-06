@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 
 from .affordances import compute_affordances, validate_parameters
 from .compat import JsonGameRuntimeAdapter
@@ -215,6 +217,24 @@ class GameRuntime:
         )
 
     def act(
+        self,
+        action: str,
+        params: Mapping[str, Any] | None = None,
+        session_id: str = "",
+        expected_revision: int | None = None,
+        affordance_id: str | None = None,
+    ) -> ActionResponse:
+        """Execute one state transition under the runtime connection lock."""
+        with self.ctx.db.connection_lock:
+            return self._act_impl(
+                action,
+                params,
+                session_id,
+                expected_revision,
+                affordance_id,
+            )
+
+    def _act_impl(
         self,
         action: str,
         params: Mapping[str, Any] | None = None,
@@ -867,7 +887,18 @@ engine = _default.engine
 
 # --- Tools ---
 
-mcp = FastMCP("gia-eat-the-reich")
+mcp = MCPServer(
+    name="gia-eat-the-reich",
+    title="GIA — EAT THE REICH",
+    description="Affordance-driven TTRPG backend for the EAT THE REICH campaign.",
+    instructions=(
+        "Create a session before stateful requests. Pass the returned session_id "
+        "on every get, search, and act call that reads or mutates game state. "
+        "Use only actions advertised in affordances and include expected_revision "
+        "for mutations."
+    ),
+    version="0.2.0",
+)
 
 
 @mcp.tool()
@@ -916,4 +947,24 @@ def act(
 
 
 if __name__ == "__main__":
-    mcp.run()
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    if transport == "streamable-http":
+        host = os.environ.get("MCP_HOST", "127.0.0.1")
+        port = int(os.environ.get("MCP_PORT", "8000"))
+        allowed_hosts = [
+            item.strip()
+            for item in os.environ.get(
+                "MCP_ALLOWED_HOSTS",
+                f"{host},localhost,127.0.0.1",
+            ).split(",")
+            if item.strip()
+        ]
+        mcp.run(
+            "streamable-http",
+            host=host,
+            port=port,
+            stateless_http=True,
+            transport_security=TransportSecuritySettings(allowed_hosts=allowed_hosts),
+        )
+    else:
+        mcp.run("stdio")

@@ -17,3 +17,15 @@ This is appropriate for a local server or a single worker. A multi-worker
 deployment should provide one database connection per worker and coordinate
 access through SQLite's locking, or migrate the persistence layer to a shared
 transactional database before scaling horizontally.
+
+## MCP transports
+
+The default server entry point uses stdio:
+
+```bash
+uv run python -m src.gia.server
+```
+
+For a stateless Streamable HTTP endpoint, set `MCP_TRANSPORT=streamable-http`.
+`MCP_HOST`, `MCP_PORT`, and `MCP_ALLOWED_HOSTS` control binding and host
+validation; the default endpoint is `http://127.0.0.1:8000/mcp`.
