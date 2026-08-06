@@ -18,11 +18,13 @@ class ModelConfig(BaseModel):
 def parse_mode(mode_str: str) -> tuple[str, int | str]:
     """Parse a CLI mode string into (eval_mode, tool_level).
 
-    Examples: "gas" → ("gas", 3), "trad-15" → ("trad", 15),
+    Examples: "gas" → ("gas-advisory", 3), "gas-enforced" → ("gas-enforced", 3),
               "trad-60-poly" → ("trad", "60-poly").
     """
-    if mode_str == "gas":
-        return "gas", 3
+    if mode_str in {"gas", "gas-advisory"}:
+        return "gas-advisory", 3
+    if mode_str == "gas-enforced":
+        return "gas-enforced", 3
     prefix, _, rest = mode_str.partition("-")
     try:
         return "trad", int(rest)
@@ -53,6 +55,6 @@ class MatrixConfig(BaseModel):
     """Configuration for a full eval matrix run."""
     domain: str = "pm"  # "pm", "cruise", or "auto"
     models: list[ModelConfig] = Field(default_factory=list)
-    modes: list[str] = Field(default_factory=lambda: ["gas", "trad-15"])
+    modes: list[str] = Field(default_factory=lambda: ["gas-advisory", "trad-15"])
     task_tiers: list[int] = Field(default_factory=lambda: [1, 3])
     runs_per_cell: int = 1  # repeat count for statistical significance

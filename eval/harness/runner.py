@@ -49,8 +49,8 @@ def run_single(config: EvalConfig, task: TaskDefinition) -> EvalMetrics:
         return _run_single_auto(config, task, acting_user_id)
 
     # --- PM domain (default) ---
-    if config.mode == "gas":
-        runtime = EvalRuntime()
+    if config.mode in {"gas-advisory", "gas-enforced"}:
+        runtime = EvalRuntime(mode=config.mode)
         session_id = runtime.create_session(acting_user_id=acting_user_id)
         ctx = runtime.ctx
         id_map = seed_task(ctx, session_id, task.setup)
@@ -80,8 +80,8 @@ def _run_single_cruise(config: EvalConfig, task: TaskDefinition, acting_user_id:
     from eval.cruise_tasks.seeder import seed_cruise_task
     from eval.cruise_tasks.oracle import check_cruise_oracle
 
-    if config.mode == "gas":
-        runtime = CruiseGasRuntime()
+    if config.mode in {"gas-advisory", "gas-enforced"}:
+        runtime = CruiseGasRuntime(mode=config.mode)
         session_id = runtime.create_session(acting_user_id=acting_user_id)
         ctx = runtime.ctx
         id_map = seed_cruise_task(ctx, session_id, task.setup)
@@ -111,8 +111,8 @@ def _run_single_auto(config: EvalConfig, task: TaskDefinition, acting_user_id: s
     from eval.auto_tasks.seeder import seed_auto_task
     from eval.auto_tasks.oracle import check_auto_oracle
 
-    if config.mode == "gas":
-        runtime = AutoGasRuntime()
+    if config.mode in {"gas-advisory", "gas-enforced"}:
+        runtime = AutoGasRuntime(mode=config.mode)
         session_id = runtime.create_session(acting_user_id=acting_user_id)
         ctx = runtime.ctx
         id_map = seed_auto_task(ctx, session_id, task.setup)
@@ -196,7 +196,7 @@ def run_matrix(
                         failed = EvalMetrics(
                             task_id=task.id,
                             task_tier=task.tier,
-                            mode="gas" if eval_mode == "gas" else f"trad-{tool_level}",
+                            mode=mode if eval_mode in {"gas-advisory", "gas-enforced"} else f"trad-{tool_level}",
                             model_name=model.name,
                             total_turns=1,
                             invalid_action_count=1,

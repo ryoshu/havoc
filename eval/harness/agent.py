@@ -43,6 +43,14 @@ You have 3 tools: get, search, and act.
 - Copy action names and parameter values exactly from the affordances.
 """
 
+GAS_ENFORCED_ADDENDUM = """
+This is gas-enforced mode. Every stateful response includes state_revision.
+Pass that exact revision as expected_revision on every act call, and send
+params as an object. The server rejects unavailable actions, invalid
+parameters, and stale revisions; treat those errors as measurements, not as
+successful tool calls.
+"""
+
 TRAD_SYSTEM_ADDENDUM = """
 You have multiple specialized tools for different operations.
 - Read the tool descriptions carefully to understand what each tool does.
@@ -134,7 +142,8 @@ class EvalAgent:
         self.gas_runtime = gas_runtime
         self.trad_runtime = trad_runtime
         self.is_anthropic = config.model.is_anthropic
-        self.is_gas = config.mode == "gas"
+        self.is_gas = config.mode in {"gas-advisory", "gas-enforced"}
+        self.is_gas_enforced = config.mode == "gas-enforced"
 
         if self.is_anthropic:
             if anthropic_sdk is None:
@@ -176,7 +185,7 @@ class EvalAgent:
                 search_types = ["issues", "projects", "sprints", "users", "comments"]
                 get_desc = "Retrieve a resource by type and ID. Returns data + available affordances. resource_type: issue, project, sprint, user, comment, session."
                 search_desc = "Search resources. Returns results + affordances. resource_type: issues, projects, sprints, users, comments. filters: JSON string."
-            return [
+            tools = [
                 {
                     "type": "function",
                     "function": {
@@ -223,6 +232,20 @@ class EvalAgent:
                     },
                 },
             ]
+            if self.is_gas_enforced:
+                # Enforced mode sends typed mappings and an optimistic
+                # concurrency revision instead of JSON strings.
+                for tool in tools:
+                    function = tool["function"]
+                    if function["name"] == "search":
+                        props = function["parameters"]["properties"]
+                        props["filters"] = {"type": "object", "additionalProperties": True}
+                    elif function["name"] == "act":
+                        props = function["parameters"]["properties"]
+                        props["params"] = {"type": "object", "additionalProperties": True}
+                        props["expected_revision"] = {"type": "integer", "minimum": 0}
+                        function["parameters"]["required"] = ["action", "expected_revision"]
+            return tools
         else:
             return self.trad_runtime.get_tool_definitions()
 
@@ -230,18 +253,42 @@ class EvalAgent:
         """Execute a tool call against the appropriate runtime."""
         if self.is_gas:
             if tool_name == "get":
+                if self.is_gas_enforced:
+                    result = self.gas_runtime.get_enforced(
+                        args.get("resource_type", ""), args.get("id", ""), session_id=session_id
+                    )
+                    return json.dumps(result.model_dump(mode="json", by_alias=True))
                 return self.gas_runtime.get(
                     args.get("resource_type", ""),
                     args.get("id", ""),
                     session_id,
                 )
             elif tool_name == "search":
+                if self.is_gas_enforced:
+                    result = self.gas_runtime.search_enforced(
+                        args.get("resource_type", ""), args.get("filters", {}), session_id=session_id
+                    )
+                    return json.dumps(result.model_dump(mode="json", by_alias=True))
                 return self.gas_runtime.search(
                     args.get("resource_type", ""),
                     args.get("filters", "{}"),
                     session_id,
                 )
             elif tool_name == "act":
+                if self.is_gas_enforced:
+                    raw_params = args.get("params", {})
+                    if isinstance(raw_params, str):
+                        try:
+                            raw_params = json.loads(raw_params)
+                        except json.JSONDecodeError:
+                            raw_params = {}
+                    result = self.gas_runtime.act_enforced(
+                        args.get("action", ""),
+                        raw_params,
+                        session_id=session_id,
+                        expected_revision=args.get("expected_revision"),
+                    )
+                    return json.dumps(result.model_dump(mode="json", by_alias=True))
                 return self.gas_runtime.act(
                     args.get("action", ""),
                     args.get("params", "{}"),
@@ -321,6 +368,8 @@ class EvalAgent:
         else:
             system = SYSTEM_PROMPT
             system += GAS_SYSTEM_ADDENDUM if self.is_gas else TRAD_SYSTEM_ADDENDUM
+        if self.is_gas_enforced:
+            system += GAS_ENFORCED_ADDENDUM
 
         messages = [
             {"role": "system", "content": system},

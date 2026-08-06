@@ -16,6 +16,7 @@ from eval.backend.domain import DomainError
 from eval.backend.models import Affordance, DecisionRecord
 
 from .affordances import compute_auto_affordances
+from eval.gas_server.contracts import EnforcedGasMixin
 
 
 def _compact_affordances(affordances: list[Affordance]) -> list[dict]:
@@ -143,13 +144,18 @@ def _simplify_param(spec) -> str | list | dict:
     return spec
 
 
-class AutoGasRuntime:
+class AutoGasRuntime(EnforcedGasMixin):
     """Encapsulates auto dealership eval state for a single runtime instance."""
 
-    def __init__(self, db_path: str = ":memory:"):
+    def __init__(self, db_path: str = ":memory:", mode: str = "gas-advisory"):
         self.ctx = AutoContext(db_path=db_path)
         self.engine = AutoEngine()
+        self.mode = mode
+        self._contract_revisions: dict[str, int] = {}
         self.default_session_id: str = ""
+
+    def _contract_affordances(self, session_id: str):
+        return compute_auto_affordances(self.ctx, session_id)
 
     def create_session(self, acting_user_id: str) -> str:
         session = self.ctx.db.create_session(acting_user_id=acting_user_id)

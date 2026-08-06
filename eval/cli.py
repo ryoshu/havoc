@@ -1,9 +1,9 @@
 """CLI entry point for the GAS eval framework.
 
 Usage:
-    python -m eval run --mode gas --model gpt-4o --tiers 1 3
+    python -m eval run --mode gas-advisory --model gpt-4o --tiers 1 3
     python -m eval run --mode trad-15 --model glm-5 --tiers 1
-    python -m eval matrix --models gpt-4o glm-5 --modes gas trad-15 trad-30 --tiers 1 3
+    python -m eval matrix --models gpt-4o glm-5 --modes gas-advisory gas-enforced trad-15 trad-30 --tiers 1 3
     python -m eval summary
     python -m eval charts
     python -m eval list-tasks
@@ -208,7 +208,7 @@ def main():
     p_matrix = sub.add_parser("matrix", help="Run full eval matrix")
     p_matrix.add_argument("--domain", default="pm", choices=["pm", "cruise", "auto"], help="Eval domain")
     p_matrix.add_argument("--models", nargs="+", default=["gpt-4o"])
-    p_matrix.add_argument("--modes", nargs="+", default=["gas", "trad-15"])
+    p_matrix.add_argument("--modes", nargs="+", default=["gas-advisory", "trad-15"])
     p_matrix.add_argument("--tiers", nargs="+", default=None)
     p_matrix.add_argument("--runs", type=int, default=1, help="Runs per cell")
     p_matrix.add_argument("--db", default=_DEFAULT_DB)

@@ -11,6 +11,13 @@ from pathlib import Path
 _RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 _DEFAULT_DB = str(_RESULTS_DIR / "eval_results.db")
 
+MODE_ALIASES = {"gas": "gas-advisory"}
+
+
+def canonical_mode(mode: str) -> str:
+    """Keep historical ``gas`` rows comparable with the advisory label."""
+    return MODE_ALIASES.get(mode, mode)
+
 from .metrics import EvalMetrics
 
 RESULTS_SCHEMA = """\
@@ -86,7 +93,7 @@ class ResultsDB:
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 run_id, metrics.task_id, metrics.task_tier,
-                metrics.mode, metrics.model_name,
+                canonical_mode(metrics.mode), metrics.model_name,
                 metrics.total_turns, metrics.total_tokens_in,
                 metrics.total_tokens_out, metrics.invalid_action_count,
                 metrics.valid_action_count, metrics.error_recovery_turns,
@@ -127,18 +134,24 @@ class ResultsDB:
         return [dict(r) for r in rows]
 
     def get_runs_by_mode(self, mode: str) -> list[dict]:
+        stored_modes = [stored for stored, canonical in MODE_ALIASES.items() if canonical == mode]
+        stored_modes.append(mode)
+        placeholders = ", ".join("?" for _ in stored_modes)
         rows = self.conn.execute(
-            "SELECT * FROM runs WHERE mode = ? AND excluded = 0 ORDER BY created_at",
-            (mode,),
+            f"SELECT * FROM runs WHERE mode IN ({placeholders}) AND excluded = 0 ORDER BY created_at",
+            stored_modes,
         ).fetchall()
         return [dict(r) for r in rows]
 
     def exclude_runs(self, model_name: str, mode: str | None = None, reason: str = "") -> int:
         """Mark runs as excluded. Returns count of affected rows."""
         if mode:
+            stored_modes = [stored for stored, canonical in MODE_ALIASES.items() if canonical_mode(mode) == canonical]
+            stored_modes.append(mode)
+            placeholders = ", ".join("?" for _ in stored_modes)
             cur = self.conn.execute(
-                "UPDATE runs SET excluded = 1 WHERE model_name = ? AND mode = ?",
-                (model_name, mode),
+                f"UPDATE runs SET excluded = 1 WHERE model_name = ? AND mode IN ({placeholders})",
+                [model_name, *stored_modes],
             )
         else:
             cur = self.conn.execute(
@@ -151,7 +164,7 @@ class ResultsDB:
     def get_summary(self) -> dict:
         """Aggregate summary across all runs, grouped by mode."""
         rows = self.conn.execute("""
-            SELECT mode,
+            SELECT CASE WHEN mode = 'gas' THEN 'gas-advisory' ELSE mode END AS mode,
                    COUNT(*) as run_count,
                    SUM(invalid_action_count) as invalid_count,
                    SUM(valid_action_count) as valid_count,
