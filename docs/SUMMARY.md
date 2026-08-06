@@ -1,5 +1,14 @@
 # GIA: Grounded Interaction Architecture
 
+> **This document describes the current (1.x) implementation.** GIA/GAS 2.0
+> is in progress — see `docs/GIA-GAS-2.0-IMPLEMENTATION-PLAN.md` for the
+> target architecture and `docs/adr/` for the architectural decisions being
+> held constant across that migration. Some claims below (e.g. "3 tools"
+> as the architecture rather than one interface choice, and the reasoning
+> traces described as causal) are narrowed or reframed by that plan. This
+> file stays as-is until the 2.0 cutover (PR 13) rewrites it; it is not
+> being kept in sync with the migration in the meantime.
+
 ## The Problem
 
 LLM agents operating in stateful domains — workflows, games, business processes — face a fundamental grounding problem. The standard approach gives the model a bag of tools, a system prompt with rules, and hopes it picks the right one. Invariants are enforced by instruction ("don't call X until Y is done"). This fails gracefully: the LLM tries anyway, the system catches it sometimes, and audit trails are unreliable.
