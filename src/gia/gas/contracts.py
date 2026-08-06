@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..capabilities import Capability, Link
+from ..capabilities import BindingTemplate, Capability, Link
 from ..models import DomainEvent
 
 
@@ -23,6 +23,8 @@ class GetRequest(BaseModel):
     resource_uri: str
     view: str | None = None
     at_revision: int | None = None
+    cursor: str | None = None
+    limit: int | None = None
 
     @field_validator("resource_uri")
     @classmethod
@@ -31,13 +33,22 @@ class GetRequest(BaseModel):
             raise ValueError("resource_uri must be a non-empty URI.")
         return value.strip()
 
+    @field_validator("limit")
+    @classmethod
+    def _limit_is_positive(cls, value: int | None) -> int | None:
+        if value is not None and (isinstance(value, bool) or value <= 0):
+            raise ValueError("limit must be a positive integer.")
+        return value
+
 
 class SearchRequest(BaseModel):
     """GAS resource search request.
 
     ``cursor`` and ``limit`` are part of the public shape now so clients do
     not need another contract migration when bounded discovery lands in PR 8.
-    PR 7 keeps the result complete and does not issue cursors yet.
+    A response may declare ``complete=false`` and return a continuation
+    cursor when the target collection or local command set exceeds the
+    renderer's payload budget.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -68,6 +79,9 @@ class ActRequest(BaseModel):
     ``session_id`` is an execution-scope transport field for this local
     runtime.  It is not an authorization input: the server-derived request
     context and the capability's scope still have to agree.
+
+    ``scope`` is an optional renderer hint for resource-local or collection
+    capabilities. The reference monitor still re-projects the capability.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -77,6 +91,7 @@ class ActRequest(BaseModel):
     input: dict[str, Any]
     idempotency_key: str
     session_id: str = ""
+    scope: str | None = None
 
     @field_validator("capability_id", "idempotency_key")
     @classmethod
@@ -101,6 +116,24 @@ class GasResourceResponse(BaseModel):
     data: Any
     links: list[Link] = Field(default_factory=list)
     commands: list[Capability] = Field(default_factory=list)
+    binding_templates: list[BindingTemplate] = Field(default_factory=list)
+    subject: str
+    scope: str
+    state_revision: int
+    policy_version: str
+    complete: bool = True
+    next_cursor: str | None = None
+
+
+class WhyNotResponse(BaseModel):
+    """Read-only diagnostic; it deliberately contains no executable commands."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    data: dict[str, Any]
+    links: list[Link] = Field(default_factory=list)
+    commands: list[Capability] = Field(default_factory=list)
+    binding_templates: list[BindingTemplate] = Field(default_factory=list)
     subject: str
     scope: str
     state_revision: int

@@ -15,11 +15,12 @@ from .adapters import (
     capability_set_from_affordances,
 )
 from .ids import canonical_json, compute_binding_key, compute_capability_id
-from .models import Capability, CapabilitySet, EffectMetadata, Link, ResourceRef
+from .models import BindingTemplate, Capability, CapabilitySet, EffectMetadata, Link, ResourceRef
 
 __all__ = [
     "Capability",
     "CapabilitySet",
+    "BindingTemplate",
     "EffectMetadata",
     "Link",
     "ResourceRef",

@@ -67,6 +67,12 @@ class StaleStateError(DomainError):
     code = "stale_state"
 
 
+class StaleViewError(DomainError):
+    """Raised when a continuation cursor no longer matches its view."""
+
+    code = "stale_view"
+
+
 class IdempotencyConflictError(DomainError):
     """Raised when an idempotency key is reused with a different action/params.
 
