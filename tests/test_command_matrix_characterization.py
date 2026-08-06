@@ -102,10 +102,23 @@ def test_matrix_actions_match_the_action_name_literal():
 
 
 @pytest.mark.parametrize(
-    "entry", COMMAND_MATRIX, ids=[entry["action"] for entry in COMMAND_MATRIX]
+    "entry",
+    [e for e in COMMAND_MATRIX if e["action"] != "heal"],
+    ids=[e["action"] for e in COMMAND_MATRIX if e["action"] != "heal"],
 )
 def test_every_matrix_action_is_projected_in_affordances_py(entry):
     assert f'action="{entry["action"]}"' in AFFORDANCES_SRC
+
+
+def test_heal_is_migrated_onto_the_command_policy_kernel():
+    """PR 3 of the GIA/GAS 2.0 plan gives `heal` one owned definition
+    (src/gia/commands/heal.py) instead of a projector branch here and a
+    dispatcher branch in server.py. This intentionally diverges from the
+    PR 1 baseline the same way Gap A/B document `wait_for_rescue`'s gap:
+    the literal is gone from affordances.py on purpose, not by omission."""
+    assert 'action="heal"' not in AFFORDANCES_SRC
+    assert "commands.kernel" in AFFORDANCES_SRC
+    assert "commands.kernel" in SERVER_SRC
 
 
 @pytest.mark.parametrize(

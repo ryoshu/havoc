@@ -778,15 +778,11 @@ class GameRuntime:
 
         # --- Between Scenes Actions ---
         elif action == "heal":
-            char_id = params["character_id"]
-            category = params["category"]
-            char = ctx.db.get_character(char_id)
-            if not char:
-                raise DomainError(f"Character {char_id} not found.")
-
-            event = engine.heal_injury(char, category)
-            ctx.db.update_character(char)
-            return {"message": f"Healed {char.name}'s injury in category {category}."}, [event] if event else []
+            # Migrated onto the command-policy kernel (PR 3); see
+            # src/gia/commands/heal.py for the shared applicable/validate/execute
+            # definition this delegates to.
+            from .commands.kernel import dispatch as kernel_dispatch
+            return kernel_dispatch(ctx, session, action, params)
 
         elif action == "choose_next_location":
             location_id = params["location_id"]

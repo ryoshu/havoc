@@ -298,23 +298,6 @@ def compute_affordances(
 
     # --- Between Scenes ---
     if phase == GamePhase.between_scenes:
-        # Healing
-        for char in alive_chars:
-            if char.blood >= 3:
-                injured_cats = [
-                    inj.category for inj in char.injuries
-                    if inj.minor_marked or inj.major_marked
-                ]
-                if injured_cats:
-                    affordances.append(Affordance(
-                        action="heal",
-                        description=f"Heal {char.name} (costs 3 Blood, has {char.blood})",
-                        schema={
-                            "character_id": {"type": "string", "const": char.id},
-                            "category": {"type": "string", "enum": injured_cats},
-                        },
-                    ))
-
         # Blood sharing
         for char in alive_chars:
             if char.blood > 0:
@@ -365,5 +348,11 @@ def compute_affordances(
             description="View the mission epilogue",
             schema={},
         ))
+
+    # Commands migrated onto the command-policy kernel (PR 3) self-gate on
+    # phase inside their own Command.applicable, so they are projected
+    # unconditionally here rather than duplicating a phase check.
+    from .commands.kernel import project_affordances as _project_kernel_affordances
+    affordances.extend(_project_kernel_affordances(ctx, session))
 
     return finalize_affordances(affordances)
