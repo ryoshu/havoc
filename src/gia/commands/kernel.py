@@ -20,10 +20,17 @@ advertised as executable when it isn't.
 
 from __future__ import annotations
 
+from ..capabilities import (
+    Capability,
+    CapabilitySet,
+    capability_from_binding,
+    compute_binding_key,
+)
 from ..context import GameContext
-from ..domain import DomainError, DomainEvent
+from ..domain import DomainError, DomainEvent, ScopeMismatchError
 from ..models import Affordance, GameSession
-from .base import Actor, Command, Snapshot
+from ..policy import Actor, DEFAULT_REQUEST_CONTEXT, RequestContext, Scope
+from .base import Command, Snapshot
 from .blood import ShareBloodCommand
 from .common import ViewCharacterSheetCommand, ViewSceneCommand
 from .completion import ChooseNextLocationCommand, TriggerLastStandCommand, ViewEpilogueCommand
@@ -65,29 +72,163 @@ for _command in (
     registry.register(_command)
 del _command
 
-# There is no authenticated identity yet (PR 6); this mirrors the
-# `DEFAULT_SUBJECT` placeholder `capabilities.adapters` already uses.
-DEFAULT_ACTOR = Actor(subject="system")
+# The legacy action adapter uses this explicit compatibility context. New
+# projection/execution callers should pass the server-derived context.
+DEFAULT_ACTOR = DEFAULT_REQUEST_CONTEXT.actor
 
 
-def project_affordances(ctx: GameContext, session: GameSession) -> list[Affordance]:
-    """Render every registered command's current bindings as legacy Affordances."""
+def _request_context(request_context: RequestContext | None) -> RequestContext:
+    return request_context or DEFAULT_REQUEST_CONTEXT
+
+
+def session_scope(
+    session: GameSession,
+    request_context: RequestContext,
+    *,
+    requested_scope: Scope | None = None,
+) -> Scope:
+    """Resolve and validate the tenant-qualified scope for a session.
+
+    Failures intentionally do not include the session's tenant or resource
+    details. This is the cross-tenant non-existence guarantee from ADR-0002.
+    """
+    if session.tenant_id != request_context.tenant_id:
+        raise ScopeMismatchError("The requested scope is not available.")
+    scope = requested_scope or request_context.scope
+    if scope is None:
+        return Scope.session(request_context.tenant_id, session.id)
+    if scope.tenant_id != request_context.tenant_id or not scope.contains_session(session.id):
+        raise ScopeMismatchError("The requested scope is not available.")
+    return scope
+
+
+def _policy_allows(
+    ctx: GameContext,
+    request_context: RequestContext,
+    scope: Scope,
+    command: Command,
+    binding,
+    snapshot: Snapshot,
+) -> bool:
+    return bool(
+        ctx.policy_provider.allows(
+            actor=request_context.actor,
+            request=request_context,
+            scope=scope,
+            command=command.name,
+            binding=binding,
+            snapshot=snapshot,
+        )
+    )
+
+
+def project_bindings(
+    ctx: GameContext,
+    session: GameSession,
+    request_context: RequestContext | None = None,
+    *,
+    scope: Scope | None = None,
+) -> list[tuple[Command, object]]:
+    """Project policy-filtered bindings for an authenticated request."""
+    request = _request_context(request_context)
+    resolved_scope = session_scope(session, request, requested_scope=scope)
     snapshot = Snapshot(ctx=ctx, session=session)
-    affordances: list[Affordance] = []
+    projected: list[tuple[Command, object]] = []
     for command in registry:
-        for binding in command.applicable(snapshot, DEFAULT_ACTOR):
-            affordances.append(
-                Affordance(
-                    action=binding.command,
-                    description=binding.title,
-                    schema_=normalize_schema(binding.input_schema),
-                    constraints=binding.constraints,
-                )
+        for binding in command.applicable(snapshot, request.actor):
+            if _policy_allows(ctx, request, resolved_scope, command, binding, snapshot):
+                projected.append((command, binding))
+    return projected
+
+
+def project_capability_set(
+    ctx: GameContext,
+    session: GameSession,
+    request_context: RequestContext | None = None,
+    *,
+    scope: Scope | None = None,
+) -> CapabilitySet:
+    """Build the contextual capability IR for one authenticated session."""
+    request = _request_context(request_context)
+    resolved_scope = session_scope(session, request, requested_scope=scope)
+    policy_version = ctx.policy_provider.version
+    return CapabilitySet(
+        subject=request.subject,
+        scope=resolved_scope.key,
+        state_revision=session.state_revision,
+        policy_version=policy_version,
+        complete=True,
+        commands=[
+            capability_from_binding(
+                binding,
+                effects=command.effects,
+                input_schema=normalize_schema(binding.input_schema),
+                subject=request.subject,
+                scope=resolved_scope.key,
+                state_revision=session.state_revision,
+                policy_version=policy_version,
             )
+            for command, binding in project_bindings(
+                ctx, session, request, scope=resolved_scope
+            )
+        ],
+    )
+
+
+# Descriptive alias for callers that use ``compute_*`` naming alongside the
+# existing legacy ``compute_affordances`` entry point.
+compute_capability_set = project_capability_set
+
+
+def resolve_capability(
+    ctx: GameContext,
+    session: GameSession,
+    capability_id: str,
+    request_context: RequestContext | None = None,
+) -> tuple[Command, object, Capability] | None:
+    """Resolve a capability ID against current actor, scope, state, and policy."""
+    request = _request_context(request_context)
+    resolved_scope = session_scope(session, request)
+    policy_version = ctx.policy_provider.version
+    for command, binding in project_bindings(ctx, session, request, scope=resolved_scope):
+        capability = capability_from_binding(
+            binding,
+            effects=command.effects,
+            input_schema=normalize_schema(binding.input_schema),
+            subject=request.subject,
+            scope=resolved_scope.key,
+            state_revision=session.state_revision,
+            policy_version=policy_version,
+        )
+        if capability.id == capability_id:
+            return command, binding, capability
+    return None
+
+
+def project_affordances(
+    ctx: GameContext,
+    session: GameSession,
+    request_context: RequestContext | None = None,
+) -> list[Affordance]:
+    """Render policy-filtered bindings as legacy affordances."""
+    affordances: list[Affordance] = []
+    for command, binding in project_bindings(ctx, session, request_context):
+        affordances.append(
+            Affordance(
+                action=binding.command,
+                description=binding.title,
+                schema_=normalize_schema(binding.input_schema),
+                constraints=binding.constraints,
+            )
+        )
     return affordances
 
 
-def compute_affordances(ctx: GameContext, session_id: str) -> list[Affordance]:
+def compute_affordances(
+    ctx: GameContext,
+    session_id: str,
+    request_context: RequestContext | None = None,
+) -> list[Affordance]:
     """Compute available actions for `session_id` based on current game state.
 
     The one remaining call site of `finalize_affordances`/ID assignment;
@@ -97,11 +238,17 @@ def compute_affordances(ctx: GameContext, session_id: str) -> list[Affordance]:
     session = ctx.get_session(session_id)
     if not session:
         return []
-    return finalize_affordances(project_affordances(ctx, session))
+    return finalize_affordances(project_affordances(ctx, session, request_context))
 
 
 def dispatch(
-    ctx: GameContext, session: GameSession, action: str, params: dict
+    ctx: GameContext,
+    session: GameSession,
+    action: str,
+    params: dict,
+    *,
+    request_context: RequestContext | None = None,
+    binding=None,
 ) -> tuple[dict, list[DomainEvent]]:
     """Revalidate `action` against a freshly projected binding and execute it.
 
@@ -112,23 +259,46 @@ def dispatch(
     affordance; an action with no binding that validates is rejected before
     any handler runs.
     """
+    request = _request_context(request_context)
+    resolved_scope = session_scope(session, request)
     command = registry.get(action)
     if command is None:
         raise DomainError(f"Unknown action: {action}")
 
     snapshot = Snapshot(ctx=ctx, session=session)
-    bindings = command.applicable(snapshot, DEFAULT_ACTOR)
+    bindings = [
+        candidate
+        for current_command, candidate in project_bindings(ctx, session, request, scope=resolved_scope)
+        if current_command.name == action
+    ]
+    if binding is not None:
+        expected_key = compute_binding_key(
+            command=binding.command,
+            target=binding.target,
+            input_schema=binding.input_schema,
+            constraints=binding.constraints,
+        )
+        bindings = [
+            candidate
+            for candidate in bindings
+            if compute_binding_key(
+                command=candidate.command,
+                target=candidate.target,
+                input_schema=candidate.input_schema,
+                constraints=candidate.constraints,
+            ) == expected_key
+        ]
     if not bindings:
         raise DomainError(f"{action} is not currently available.")
 
     errors: list[str] = []
     for binding in bindings:
         try:
-            command.validate(snapshot, DEFAULT_ACTOR, binding, params)
+            command.validate(snapshot, request.actor, binding, params)
         except DomainError as error:
             errors.append(str(error))
             continue
-        return command.execute(snapshot, DEFAULT_ACTOR, binding, params)
+        return command.execute(snapshot, request.actor, binding, params)
 
     raise DomainError(
         f"No current binding for {action} accepts params {params!r}: {'; '.join(errors)}"

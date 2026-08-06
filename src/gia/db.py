@@ -26,6 +26,8 @@ from .models import (
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS game_sessions (
     id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT 'default',
+    policy_version TEXT NOT NULL DEFAULT 'policy-v1',
     phase TEXT NOT NULL DEFAULT 'setup',
     state_revision INTEGER NOT NULL DEFAULT 0,
     current_location_id TEXT,
@@ -79,6 +81,10 @@ CREATE TABLE IF NOT EXISTS dice_rolls (
 CREATE TABLE IF NOT EXISTS decision_records (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL REFERENCES game_sessions(id),
+    tenant_id TEXT NOT NULL DEFAULT 'default',
+    scope TEXT NOT NULL DEFAULT '',
+    state_revision INTEGER NOT NULL DEFAULT 0,
+    policy_version TEXT NOT NULL DEFAULT 'policy-v1',
     actor_id TEXT NOT NULL,
     actor_name TEXT NOT NULL DEFAULT '',
     action TEXT NOT NULL,
@@ -111,6 +117,7 @@ CREATE TABLE IF NOT EXISTS idempotency_records (
     result_json TEXT NOT NULL,
     events_json TEXT NOT NULL,
     state_revision INTEGER NOT NULL,
+    policy_version TEXT NOT NULL DEFAULT 'policy-v1',
     created_at TEXT NOT NULL,
     PRIMARY KEY (session_id, actor_id, idempotency_key)
 );
@@ -136,18 +143,43 @@ class GameDB:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA busy_timeout = 30000")
         self.conn.executescript(SCHEMA)
-        self._ensure_session_revision_column()
+        self._ensure_schema_columns()
 
-    def _ensure_session_revision_column(self) -> None:
-        """Add the PR 3 revision column to databases created by older GIA versions."""
-        columns = {
-            row["name"]
-            for row in self.conn.execute("PRAGMA table_info(game_sessions)").fetchall()
+    def _ensure_schema_columns(self) -> None:
+        """Add columns introduced after the first on-disk schema.
+
+        SQLite's ``CREATE TABLE IF NOT EXISTS`` does not evolve an existing
+        database, so PR6 keeps migrations deliberately small and additive.
+        """
+        migrations = {
+            "game_sessions": {
+                "tenant_id": "TEXT NOT NULL DEFAULT 'default'",
+                "policy_version": "TEXT NOT NULL DEFAULT 'policy-v1'",
+                "state_revision": "INTEGER NOT NULL DEFAULT 0",
+            },
+            "decision_records": {
+                "tenant_id": "TEXT NOT NULL DEFAULT 'default'",
+                "scope": "TEXT NOT NULL DEFAULT ''",
+                "state_revision": "INTEGER NOT NULL DEFAULT 0",
+                "policy_version": "TEXT NOT NULL DEFAULT 'policy-v1'",
+            },
+            "idempotency_records": {
+                "policy_version": "TEXT NOT NULL DEFAULT 'policy-v1'",
+            },
         }
-        if "state_revision" not in columns:
-            self.conn.execute(
-                "ALTER TABLE game_sessions ADD COLUMN state_revision INTEGER NOT NULL DEFAULT 0"
-            )
+        changed = False
+        for table, columns_to_add in migrations.items():
+            existing = {
+                row["name"]
+                for row in self.conn.execute(f"PRAGMA table_info({table})").fetchall()
+            }
+            for name, definition in columns_to_add.items():
+                if name not in existing:
+                    self.conn.execute(
+                        f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
+                    )
+                    changed = True
+        if changed:
             self._commit()
 
     def close(self):
@@ -190,15 +222,27 @@ class GameDB:
 
     # --- Sessions ---
 
-    def create_session(self) -> GameSession:
+    def create_session(
+        self,
+        tenant_id: str = "default",
+        policy_version: str = "policy-v1",
+    ) -> GameSession:
         sid = _uid("gs-")
         now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
-            "INSERT INTO game_sessions (id, phase, created_at) VALUES (?, ?, ?)",
-            (sid, GamePhase.setup.value, now),
+            """INSERT INTO game_sessions
+               (id, tenant_id, policy_version, phase, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (sid, tenant_id, policy_version, GamePhase.setup.value, now),
         )
         self._commit()
-        return GameSession(id=sid, phase=GamePhase.setup, created_at=now)
+        return GameSession(
+            id=sid,
+            tenant_id=tenant_id,
+            policy_version=policy_version,
+            phase=GamePhase.setup,
+            created_at=now,
+        )
 
     def get_session(self, session_id: str) -> GameSession | None:
         row = self.conn.execute(
@@ -208,6 +252,8 @@ class GameDB:
             return None
         return GameSession(
             id=row["id"],
+            tenant_id=row["tenant_id"],
+            policy_version=row["policy_version"],
             phase=GamePhase(row["phase"]),
             state_revision=row["state_revision"],
             current_location_id=row["current_location_id"],
@@ -220,10 +266,13 @@ class GameDB:
     def update_session(self, session: GameSession) -> None:
         self.conn.execute(
             """UPDATE game_sessions
-               SET phase=?, state_revision=?, current_location_id=?, active_character_id=?,
+               SET tenant_id=?, policy_version=?, phase=?, state_revision=?,
+                   current_location_id=?, active_character_id=?,
                    round_number=?, scene_number=?
                WHERE id=?""",
             (
+                session.tenant_id,
+                session.policy_version,
                 session.phase.value,
                 session.state_revision,
                 session.current_location_id,
@@ -477,13 +526,16 @@ class GameDB:
             decision.timestamp = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
             """INSERT INTO decision_records
-               (id, session_id, actor_id, actor_name, action, params_json,
+               (id, session_id, tenant_id, scope, state_revision, policy_version,
+                actor_id, actor_name, action, params_json,
                 affordances_snapshot_json, affordances_not_taken_json,
                 result_summary, events_json, phase_before, phase_after, timestamp,
                 llm_narration, llm_turn_context)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                decision.id, decision.session_id, decision.actor_id,
+                decision.id, decision.session_id, decision.tenant_id,
+                decision.scope, decision.state_revision, decision.policy_version,
+                decision.actor_id,
                 decision.actor_name, decision.action,
                 json.dumps(decision.params),
                 json.dumps(decision.affordances_snapshot),
@@ -526,6 +578,10 @@ class GameDB:
         return DecisionRecord(
             id=row["id"],
             session_id=row["session_id"],
+            tenant_id=row["tenant_id"],
+            scope=row["scope"],
+            state_revision=row["state_revision"],
+            policy_version=row["policy_version"],
             actor_id=row["actor_id"],
             actor_name=row["actor_name"],
             action=row["action"],
@@ -560,6 +616,7 @@ class GameDB:
             "result": json.loads(row["result_json"]),
             "events": json.loads(row["events_json"]),
             "state_revision": row["state_revision"],
+            "policy_version": row["policy_version"],
         }
 
     def save_idempotent_result(
@@ -572,6 +629,7 @@ class GameDB:
         result: dict,
         events: list[dict],
         state_revision: int,
+        policy_version: str = "policy-v1",
     ) -> None:
         """Record a committed mutation's result under its idempotency key.
 
@@ -585,12 +643,12 @@ class GameDB:
         self.conn.execute(
             """INSERT INTO idempotency_records
                (session_id, actor_id, idempotency_key, action, params_json,
-                result_json, events_json, state_revision, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                result_json, events_json, state_revision, policy_version, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 session_id, actor_id, idempotency_key, action,
                 json.dumps(params), json.dumps(result), json.dumps(events),
-                state_revision, now,
+                state_revision, policy_version, now,
             ),
         )
         self._commit()

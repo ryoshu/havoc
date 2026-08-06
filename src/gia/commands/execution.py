@@ -33,12 +33,14 @@ from ..domain import (
     IdempotencyConflictError,
     InvalidInputError,
     InvalidParameterError,
+    PolicyChangedError,
     ResourceNotFoundError,
     StaleStateError,
     UnavailableActionError,
 )
 from ..models import DecisionRecord, DomainEvent
-from .kernel import compute_affordances
+from ..policy import RequestContext
+from .kernel import compute_affordances, resolve_capability, session_scope
 from .kernel import dispatch as kernel_dispatch
 from .schema import validate_parameters
 
@@ -51,6 +53,10 @@ def execute(
     expected_revision: int,
     affordance_id: str | None = None,
     idempotency_key: str | None = None,
+    *,
+    request_context: RequestContext | None = None,
+    capability_id: str | None = None,
+    policy_version: str | None = None,
 ) -> tuple[dict, list[DomainEvent]]:
     """Validate, execute, and record one mutating action. The sole entry
     point `GameRuntime.act` (or any other caller) must use to reach a
@@ -61,7 +67,16 @@ def execute(
     """
     with ctx.db.connection_lock:
         return _execute_locked(
-            ctx, session_id, action, params, expected_revision, affordance_id, idempotency_key,
+            ctx,
+            session_id,
+            action,
+            params,
+            expected_revision,
+            affordance_id,
+            idempotency_key,
+            request_context,
+            capability_id,
+            policy_version,
         )
 
 
@@ -73,6 +88,9 @@ def _execute_locked(
     expected_revision: int,
     affordance_id: str | None,
     idempotency_key: str | None,
+    request_context: RequestContext | None,
+    capability_id: str | None,
+    expected_policy_version: str | None,
 ) -> tuple[dict, list[DomainEvent]]:
     session_before = ctx.get_session(session_id)
     if not session_before:
@@ -80,7 +98,29 @@ def _execute_locked(
             f"Session {session_id} not found.",
             details={"resource_type": "session", "id": session_id},
         )
-    actor_id = session_before.active_character_id or "system"
+    # The pre-PR6 action API had no authenticated context. Keep its actor-id
+    # behavior for legacy callers while requiring explicit context for the
+    # capability-ID path.
+    legacy_context = request_context is None
+    request = request_context or RequestContext.system(session_before.tenant_id)
+    scope = session_scope(session_before, request)
+    actor_id = (
+        (session_before.active_character_id or "system")
+        if legacy_context
+        else request.subject
+    )
+    current_policy_version = ctx.policy_provider.version
+    if (
+        expected_policy_version is not None
+        and expected_policy_version != current_policy_version
+    ):
+        raise PolicyChangedError(
+            "The policy version for this request is no longer current.",
+            details={
+                "expected_policy_version": expected_policy_version,
+                "current_policy_version": current_policy_version,
+            },
+        )
 
     if idempotency_key:
         cached = ctx.db.get_idempotent_result(session_id, actor_id, idempotency_key)
@@ -108,7 +148,33 @@ def _execute_locked(
             details={"parameter": "expected_revision"},
         )
 
-    pre_affordances = compute_affordances(ctx, session_id)
+    selected_binding = None
+    if capability_id:
+        resolved = resolve_capability(ctx, session_before, capability_id, request)
+        if resolved is None:
+            # Do not distinguish actor, tenant, state, or policy mismatch;
+            # capability IDs are references and never reveal another scope.
+            raise UnavailableActionError(
+                "Capability is not currently available.",
+                details={"capability_id": capability_id},
+            )
+        command, selected_binding, capability = resolved
+        if action and action != command.name:
+            raise UnavailableActionError(
+                "Capability does not authorize the requested action.",
+                details={"capability_id": capability_id},
+            )
+        action = command.name
+        if capability.policy_version != current_policy_version:
+            raise PolicyChangedError(
+                "The capability was issued under an obsolete policy version.",
+                details={
+                    "expected_policy_version": capability.policy_version,
+                    "current_policy_version": current_policy_version,
+                },
+            )
+
+    pre_affordances = compute_affordances(ctx, session_id, request)
     if affordance_id:
         by_id = [a for a in pre_affordances if a.id == affordance_id]
         if by_id and by_id[0].action != action:
@@ -148,7 +214,15 @@ def _execute_locked(
     try:
         result, events = _claim_and_dispatch(
             ctx, session_id, action, params, expected_revision,
-            session_before, pre_affordances, actor_id, idempotency_key,
+            session_before,
+            pre_affordances,
+            actor_id,
+            idempotency_key,
+            request,
+            scope,
+            capability_id,
+            selected_binding,
+            expected_policy_version,
         )
     except KeyError as error:
         missing = str(error.args[0]) if error.args else "unknown"
@@ -169,6 +243,11 @@ def _claim_and_dispatch(
     pre_affordances: list,
     actor_id: str,
     idempotency_key: str | None,
+    request: RequestContext,
+    scope,
+    capability_id: str | None,
+    selected_binding,
+    expected_policy_version: str | None,
 ) -> tuple[dict, list[DomainEvent]]:
     """Atomically claim a revision, re-resolve and execute the command, and
     record decision provenance (and, if requested, the idempotent result) —
@@ -207,15 +286,65 @@ def _claim_and_dispatch(
         session = ctx.get_session(session_id)
         if not session:
             raise DomainError(f"Session {session_id} not found.")
-        result, events = kernel_dispatch(ctx, session, action, params)
+        current_policy_version = ctx.policy_provider.version
+        if (
+            expected_policy_version is not None
+            and expected_policy_version != current_policy_version
+        ):
+            raise PolicyChangedError(
+                "The policy version for this request is no longer current.",
+                details={
+                    "expected_policy_version": expected_policy_version,
+                    "current_policy_version": current_policy_version,
+                },
+            )
+        if capability_id:
+            # ``claim_session_revision`` advances the revision before the
+            # handler runs. Resolve the advertised reference against the
+            # caller's expected snapshot; the domain state itself has not yet
+            # changed, so this remains an atomic revalidation.
+            capability_snapshot = session.model_copy(
+                update={"state_revision": expected_revision}
+            )
+            resolved = resolve_capability(
+                ctx, capability_snapshot, capability_id, request
+            )
+            if resolved is None:
+                raise UnavailableActionError(
+                    "Capability is not currently available.",
+                    details={"capability_id": capability_id},
+                )
+            command, selected_binding, _capability = resolved
+            if command.name != action:
+                raise UnavailableActionError(
+                    "Capability does not authorize the requested action.",
+                    details={"capability_id": capability_id},
+                )
+        result, events = kernel_dispatch(
+            ctx,
+            session,
+            action,
+            params,
+            request_context=request,
+            binding=selected_binding,
+        )
 
         session_after = ctx.get_session(session_id)
+        if session_after:
+            # A policy change need not mutate game state, but the policy used
+            # for this commit is still persisted for replay/audit.
+            session_after.policy_version = current_policy_version
+            ctx.db.update_session(session_after)
         phase_after = session_after.phase.value if session_after else phase_before
         result_data = result if isinstance(result, dict) else {}
         decision = DecisionRecord(
             session_id=session_id,
+            tenant_id=request.tenant_id,
+            scope=scope.key,
+            state_revision=session_after.state_revision if session_after else expected_revision + 1,
+            policy_version=current_policy_version,
             actor_id=actor_id,
-            actor_name=actor_name,
+            actor_name=(request.subject if request.subject != "system" else actor_name),
             action=action,
             params=params,
             affordances_snapshot=affordances_snapshot,
@@ -237,6 +366,7 @@ def _claim_and_dispatch(
                 result_data,
                 [e.model_dump() for e in events],
                 session_after.state_revision if session_after else expected_revision + 1,
+                current_policy_version,
             )
 
         return result, events

@@ -101,8 +101,18 @@ class JsonGameRuntimeAdapter:
             return self._serialize(operation())
         except DomainError as error:
             sid = self._resolve_session_id(session_id)
-            affordances = compute_affordances(self.ctx, sid) if sid else []
-            session = self.ctx.get_session(sid) if sid else None
+            try:
+                affordances = (
+                    compute_affordances(self.ctx, sid, self.runtime.request_context)
+                    if sid
+                    else []
+                )
+                session = self.ctx.get_session(sid) if sid else None
+            except DomainError:
+                # A tenant/scope mismatch must not be turned into a response
+                # containing affordances from the hidden session.
+                affordances = []
+                session = None
             response = format_error(
                 error,
                 affordances,

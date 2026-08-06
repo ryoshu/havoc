@@ -5,10 +5,9 @@ ADR-0001 requires one owned definition per command: its applicability
 shared contract so a projector and a dispatcher can no longer duplicate a
 command's rules in two places (the `wait_for_rescue` gap ADR-0001 names).
 
-`Actor` and `Snapshot` are intentionally minimal. There is no authenticated
-identity or multi-tenancy yet — PR 6 generalizes `Actor` beyond a single
-system subject, matching the `DEFAULT_SUBJECT` placeholder already used by
-`capabilities.adapters`.
+`Actor` is the authenticated identity supplied by the PR 6 policy context.
+Authentication itself remains a transport concern; the command kernel only
+consumes the immutable actor value it is given.
 """
 
 from __future__ import annotations
@@ -19,19 +18,8 @@ from ..capabilities import EffectMetadata
 from ..context import GameContext
 from ..domain import DomainError, DomainEvent
 from ..models import GameSession
+from ..policy import Actor
 from .schema import normalize_schema, schema_errors
-
-
-class Actor:
-    """The identity a binding is projected for and executed as."""
-
-    __slots__ = ("subject",)
-
-    def __init__(self, subject: str) -> None:
-        self.subject = subject
-
-    def __repr__(self) -> str:
-        return f"Actor(subject={self.subject!r})"
 
 
 class Snapshot:

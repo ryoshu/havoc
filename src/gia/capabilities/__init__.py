@@ -11,6 +11,7 @@ from .adapters import (
     affordance_from_capability,
     affordances_from_capability_set,
     capability_from_affordance,
+    capability_from_binding,
     capability_set_from_affordances,
 )
 from .ids import canonical_json, compute_binding_key, compute_capability_id
@@ -26,6 +27,7 @@ __all__ = [
     "affordances_from_capability_set",
     "canonical_json",
     "capability_from_affordance",
+    "capability_from_binding",
     "capability_set_from_affordances",
     "compute_binding_key",
     "compute_capability_id",

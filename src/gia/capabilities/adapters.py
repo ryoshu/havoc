@@ -5,9 +5,9 @@ from the IR. This module proves that direction is lossless; production call
 sites are not rewired in this PR (the plan's "expand" phase adds the IR
 behind existing responses — PR 3/4 do the rewiring).
 
-There is no actor or policy-versioning system yet (that's PR 6), so
-``DEFAULT_SUBJECT`` and ``DEFAULT_POLICY_VERSION`` are explicit placeholders
-until then.
+The legacy affordance adapter remains available for pre-2.0 callers.  PR6
+also provides a binding adapter so the kernel can project contextual
+capabilities without routing through transport-specific ``Affordance`` ids.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from __future__ import annotations
 from ..models import Affordance
 from .ids import compute_binding_key, compute_capability_id
 from .legacy_effects import effect_metadata_for
-from .models import Capability, CapabilitySet, Link
+from .models import Capability, CapabilitySet, Link, ResourceRef
 
 DEFAULT_SUBJECT = "system"
 DEFAULT_POLICY_VERSION = "unversioned"
@@ -55,6 +55,57 @@ def capability_from_affordance(
         policy_version=policy_version,
         constraints=affordance.constraints,
         legacy_id=affordance.id,
+    )
+
+
+def capability_from_binding(
+    binding,
+    *,
+    effects,
+    input_schema: dict | None = None,
+    subject: str,
+    scope: str,
+    state_revision: int,
+    policy_version: str,
+) -> Capability:
+    """Render one command binding into a contextual capability.
+
+    ``binding`` is intentionally duck-typed to keep the capability package
+    independent of the command kernel module (ADR-0009).
+    """
+    target = (
+        ResourceRef(
+            resource_type=binding.target["resource_type"],
+            id=binding.target["id"],
+        )
+        if binding.target and "resource_type" in binding.target and "id" in binding.target
+        else None
+    )
+    schema = input_schema if input_schema is not None else binding.input_schema
+    binding_key = compute_binding_key(
+        command=binding.command,
+        target=binding.target,
+        input_schema=schema,
+        constraints=binding.constraints,
+    )
+    capability_id = compute_capability_id(
+        command=binding.command,
+        binding=binding_key,
+        subject=subject,
+        scope=scope,
+        state_revision=state_revision,
+        policy_version=policy_version,
+    )
+    return Capability(
+        id=capability_id,
+        command=binding.command,
+        target=target,
+        title=binding.title,
+        input_schema=schema,
+        effects=effects,
+        valid_at_revision=state_revision,
+        policy_version=policy_version,
+        constraints=binding.constraints,
     )
 
 

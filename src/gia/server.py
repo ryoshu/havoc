@@ -13,15 +13,17 @@ from mcp.types import ToolAnnotations
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .commands.execution import execute as execute_action
-from .commands.kernel import compute_affordances
+from .commands.kernel import compute_affordances, project_capability_set
 from .compat import JsonGameRuntimeAdapter
 from .context import ONTOLOGY_PATH, GameContext
 from .domain import (
     HavocEngine,
     InvalidInputError,
     ResourceNotFoundError,
+    ScopeMismatchError,
     UnsupportedOperationError,
 )
+from .policy import PolicyProvider, RequestContext
 from .responses import (
     ActionResponse,
     ResourceResponse,
@@ -37,18 +39,49 @@ class GameRuntime:
     Sessions are created explicitly and are never selected implicitly.
     """
 
-    def __init__(self, db_path: str = ":memory:"):
-        self.ctx = GameContext(db_path=db_path)
+    def __init__(
+        self,
+        db_path: str = ":memory:",
+        *,
+        request_context: RequestContext | None = None,
+        policy_provider: PolicyProvider | None = None,
+    ):
+        self.request_context = request_context or RequestContext.system()
+        self.ctx = GameContext(db_path=db_path, policy_provider=policy_provider)
         self.engine = HavocEngine()
 
     def create_session(self) -> ResourceResponse:
         """Create an isolated game session and return its initial state."""
-        session = self.ctx.db.create_session()
+        session = self.ctx.db.create_session(
+            tenant_id=self.request_context.tenant_id,
+            policy_version=self.ctx.policy_provider.version,
+        )
         return self._format_response(
             session,
-            compute_affordances(self.ctx, session.id),
+            compute_affordances(self.ctx, session.id, self.request_context),
             session.id,
         )
+
+    def _assert_session_scope(self, session_id: str):
+        session = self.ctx.get_session(session_id)
+        if session and session.tenant_id != self.request_context.tenant_id:
+            # Deliberately avoid returning the session's tenant or existence.
+            raise ScopeMismatchError("The requested scope is not available.")
+        return session
+
+    def capability_set(self, session_id: str):
+        """Return the contextual GIA capability IR for this runtime actor."""
+        sid = self._require_session_id(session_id)
+        session = self._assert_session_scope(sid)
+        if not session:
+            raise ResourceNotFoundError(
+                f"Session {sid} not found.",
+                details={"resource_type": "session", "id": sid},
+            )
+        return project_capability_set(self.ctx, session, self.request_context)
+
+    # Explicit name for callers that prefer a getter-shaped API.
+    get_capability_set = capability_set
 
     @staticmethod
     def _require_session_id(session_id: str) -> str:
@@ -114,7 +147,8 @@ class GameRuntime:
                     f"Session {target_id} not found.",
                     details={"resource_type": "session", "id": target_id},
                 )
-            affordances = compute_affordances(self.ctx, target_id)
+            self._assert_session_scope(target_id)
+            affordances = compute_affordances(self.ctx, target_id, self.request_context)
             return self._format_response(session, affordances, target_id)
         if resource_type == "character":
             sid = self._require_session_id(sid)
@@ -125,7 +159,8 @@ class GameRuntime:
                     details={"resource_type": "character", "id": id},
                 )
             sheet = self.ctx.get_character_sheet(id)
-            affordances = compute_affordances(self.ctx, sid)
+            self._assert_session_scope(sid)
+            affordances = compute_affordances(self.ctx, sid, self.request_context)
             return self._format_response(sheet, affordances, sid)
         if resource_type == "character_template":
             template = self.ctx.get_character_template(id)
@@ -151,7 +186,8 @@ class GameRuntime:
                     "No active scene.",
                     details={"resource_type": "scene", "session_id": sid},
                 )
-            affordances = compute_affordances(self.ctx, sid)
+            self._assert_session_scope(sid)
+            affordances = compute_affordances(self.ctx, sid, self.request_context)
             return self._format_response(scene, affordances, sid)
         if resource_type == "enemy":
             enemy = self.ctx.get_enemy_template(id)
@@ -181,7 +217,10 @@ class GameRuntime:
         if resource_type == "characters":
             templates = self.ctx.get_all_character_templates()
             results = [{"id": t.id, "name": t.name, "description": t.description[:100]} for t in templates]
-            affordances = compute_affordances(self.ctx, self._require_session_id(sid)) if sid else []
+            affordances = compute_affordances(
+                self.ctx, self._require_session_id(sid),
+                self.request_context,
+            ) if sid else []
             return self._format_response(results, affordances, sid or None)
         if resource_type == "locations":
             locations = self.ctx.get_all_locations()
@@ -194,15 +233,24 @@ class GameRuntime:
                 }
                 for l in locations
             ]
-            affordances = compute_affordances(self.ctx, self._require_session_id(sid)) if sid else []
+            affordances = compute_affordances(
+                self.ctx, self._require_session_id(sid),
+                self.request_context,
+            ) if sid else []
             return self._format_response(results, affordances, sid or None)
         if resource_type == "enemies":
             results = self.ctx.graph.get_all_enemies()
-            affordances = compute_affordances(self.ctx, self._require_session_id(sid)) if sid else []
+            affordances = compute_affordances(
+                self.ctx, self._require_session_id(sid),
+                self.request_context,
+            ) if sid else []
             return self._format_response(results, affordances, sid or None)
         if resource_type == "ubermenschen":
             results = self.ctx.graph.get_ubermenschen()
-            affordances = compute_affordances(self.ctx, self._require_session_id(sid)) if sid else []
+            affordances = compute_affordances(
+                self.ctx, self._require_session_id(sid),
+                self.request_context,
+            ) if sid else []
             return self._format_response(results, affordances, sid or None)
         raise UnsupportedOperationError(
             f"Unknown search type: {resource_type}",
@@ -217,6 +265,8 @@ class GameRuntime:
         expected_revision: int | None = None,
         affordance_id: str | None = None,
         idempotency_key: str | None = None,
+        capability_id: str | None = None,
+        policy_version: str | None = None,
     ) -> ActionResponse:
         """Execute one action through the execution service (PR 5).
 
@@ -228,9 +278,18 @@ class GameRuntime:
         sid = self._require_session_id(session_id)
         parsed = self._require_mapping(params, "params")
         result, events = execute_action(
-            self.ctx, sid, action, parsed, expected_revision, affordance_id, idempotency_key,
+            self.ctx,
+            sid,
+            action,
+            parsed,
+            expected_revision,
+            affordance_id,
+            idempotency_key,
+            request_context=self.request_context,
+            capability_id=capability_id,
+            policy_version=policy_version,
         )
-        affordances = compute_affordances(self.ctx, sid)
+        affordances = compute_affordances(self.ctx, sid, self.request_context)
         return self._format_action_response(result, affordances, events, sid)
 
 

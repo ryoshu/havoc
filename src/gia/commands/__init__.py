@@ -16,7 +16,18 @@ from __future__ import annotations
 from .base import Actor, Binding, Command, Snapshot
 from .execution import execute
 from .heal import HealCommand
-from .kernel import compute_affordances, dispatch, get_command, project_affordances, registry
+from .kernel import (
+    compute_affordances,
+    compute_capability_set,
+    dispatch,
+    get_command,
+    project_affordances,
+    project_capability_set,
+    project_bindings,
+    registry,
+    resolve_capability,
+    session_scope,
+)
 from .registry import CommandRegistry, DuplicateCommandError
 
 __all__ = [
@@ -28,9 +39,14 @@ __all__ = [
     "HealCommand",
     "Snapshot",
     "compute_affordances",
+    "compute_capability_set",
     "dispatch",
     "execute",
     "get_command",
     "project_affordances",
+    "project_bindings",
+    "project_capability_set",
     "registry",
+    "resolve_capability",
+    "session_scope",
 ]

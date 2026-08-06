@@ -207,6 +207,8 @@ class DiceRoll(BaseModel):
 
 class GameSession(BaseModel):
     id: str
+    tenant_id: str = "default"
+    policy_version: str = "policy-v1"
     phase: GamePhase = GamePhase.setup
     state_revision: int = 0
     current_location_id: str | None = None
@@ -241,6 +243,10 @@ class DecisionRecord(BaseModel):
     """Captures a single decision: who did what, when, from what options, with what result."""
     id: str = ""
     session_id: str = ""
+    tenant_id: str = "default"
+    scope: str = ""
+    state_revision: int = 0
+    policy_version: str = "policy-v1"
     actor_id: str = ""  # character_id or "system"
     actor_name: str = ""
     action: str = ""

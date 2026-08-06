@@ -80,6 +80,18 @@ class IdempotencyConflictError(DomainError):
     code = "idempotency_conflict"
 
 
+class ScopeMismatchError(DomainError):
+    """Raised without resource details when a request crosses a tenant/scope."""
+
+    code = "scope_mismatch"
+
+
+class PolicyChangedError(DomainError):
+    """Raised when a capability was issued under an obsolete policy version."""
+
+    code = "policy_changed"
+
+
 class HavocEngine:
     """Implements the Havoc Engine game mechanics."""
 

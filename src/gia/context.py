@@ -22,6 +22,13 @@ from .models import (
     SceneState,
     ThreatState,
 )
+from .policy import (
+    Actor,
+    DeterministicPolicyProvider,
+    PolicyProvider,
+    RequestContext,
+    Scope,
+)
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
@@ -31,9 +38,15 @@ ONTOLOGY_PATH = PROJECT_ROOT / "ontology" / "etr.ttl"
 class GameContext:
     """Unified access to game knowledge (graph) and mutable state (db)."""
 
-    def __init__(self, db_path: str = ":memory:"):
+    def __init__(
+        self,
+        db_path: str = ":memory:",
+        *,
+        policy_provider: PolicyProvider | None = None,
+    ):
         self.db = GameDB(db_path)
         self.graph = GameGraph()
+        self.policy_provider = policy_provider or DeterministicPolicyProvider()
 
         # Load templates from JSON (faster than round-tripping through SPARQL)
         self._char_templates: dict[str, CharacterTemplate] = {}
