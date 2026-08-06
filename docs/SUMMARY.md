@@ -131,6 +131,20 @@ Comparing LLM-driven gameplay (stateful vs stateless) against the Director:
 
 The Director is 3,000x faster and makes zero invalid calls. The LLM adds value only at decision boundaries (which threat to engage, how to allocate resources) and in narration — not in sequencing or rule enforcement.
 
+### Cross-Domain GAS Evaluation
+
+The separate `eval/` framework tests whether the three-tool pattern generalizes beyond the game. It compares GAS with traditional 15/30/60-tool APIs while holding the backend, seeded state, tasks, and deterministic oracle constant within each domain.
+
+The current suite contains 30 tasks in each of three business domains:
+
+- **Project management** — issues, projects, sprints, roles, and approvals
+- **Cruise booking** — inventory, passengers, bookings, payments, and embarkation
+- **Automotive sales** — vehicles, test drives, deals, offers, trade-ins, and credit decisions
+
+In the historical advisory-era matrix, recorded GAS configurations achieved 90–100% oracle pass rates. The automotive domain is especially useful because its many closely related entities and operations suggest that intra-domain semantic similarity can be more damaging than raw tool count: traditional 30-tool configurations consistently outperformed their 60-tool counterparts, while GAS remained at three tools. These descriptive results are not pooled with the newer enforced-mode factorial study.
+
+See [`eval/README.md`](../eval/README.md) for methodology and usage, [`eval/results/eval_summary.md`](../eval/results/eval_summary.md) for the historical cross-domain results and caveats, and [`eval/PR12-CONTROLLED-EVALUATION.md`](../eval/PR12-CONTROLLED-EVALUATION.md) for the controlled factorial design.
+
 ## Generalizing Beyond Games
 
 The pattern maps directly to any domain with phased workflows and enforced invariants:

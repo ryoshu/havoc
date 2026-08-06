@@ -1,25 +1,25 @@
 # GAS Eval Framework
 
-Compares **GAS** (3 generic tools with affordances) against **traditional tool APIs** (15/30/60 specialized tools) across frontier and open-weight LLMs on identical project-management tasks. The evaluation distinguishes `gas-advisory` (historical guidance-only behavior) from `gas-enforced` (typed contracts, current-capability validation, and revision checks at the server boundary). The PR12 factorial design also includes static native MCP, state-filtered native MCP, and generic `get/search/act` without advertised capabilities; see [PR12-CONTROLLED-EVALUATION.md](PR12-CONTROLLED-EVALUATION.md).
+Compares **GAS** (3 generic tools with affordances) against **traditional tool APIs** across frontier and open-weight LLMs in three stateful business domains: project management, cruise booking, and automotive dealership sales. Historical results compare advisory GAS with 15/30/60-tool APIs. The PR12 controlled factorial additionally separates `gas-advisory`, `gas-enforced`, static native MCP, state-filtered native MCP, and generic `get/search/act` without advertised capabilities; see [PR12-CONTROLLED-EVALUATION.md](PR12-CONTROLLED-EVALUATION.md).
 
 **Core question:** Does constraining an LLM to 3 affordance-driven tools outperform giving it direct access to N domain-specific tools?
 
-**Historical result:** Yes. All 6 models reached 85–97% task completion with the recorded GAS (3-tool) runs. With 60 traditional tools, only 3 of 6 matched that level — GPT-4o dropped to 30%, Qwen3 to 57%. Even when pass rates converged, GAS used 2–2.4x fewer tokens. These figures describe the recorded advisory-era dataset; enforced-mode runs are labeled separately.
+**Historical cross-domain result:** Recorded advisory-era GAS runs reached 90–100% task completion for every tested model/domain pair. Traditional APIs could converge on simpler domains, but were less consistent when many similar operations competed in the same catalog. GAS also used fewer tokens when accuracy converged. These descriptive results are not pooled with the new factorial cells.
 
 ## Results at a Glance
 
-1,092 runs across 6 models, 4 modes, 30 tasks (4 tiers).
+The historical dataset contains 2,750+ clean, deduplicated runs across 6 models, 3 domains, 4 modes, and 30 tasks per domain.
 
-| Model | GAS (3 tools) | trad-15 | trad-30 | trad-60 |
+| Model | PM GAS | Cruise GAS | Auto GAS | Cross-domain average |
 |-------|:---:|:---:|:---:|:---:|
-| Claude Haiku 4.5 | **96.7%** | 53.3% | 56.7% | 90.0% |
-| GPT-5.4 | **95.7%** | 62.2% | 57.8% | 93.3% |
-| GPT-4o | **90.0%** | 50.0% | 26.7% | 30.0% |
-| DeepSeek V3.2 | **90.0%** | 75.0% | 75.0% | 90.0%† |
-| Qwen3 32B | **90.0%** | 40.0% | 33.3% | 56.7% |
-| GLM-5 | 85.5% | 63.3% | 65.0% | **91.7%** |
+| GLM-5 | 93.3% | 96.7% | **100%** | **96.7%** |
+| DeepSeek V3.2 | 90.0% | **100%** | 96.7% | **95.6%** |
+| Claude Haiku 4.5 | **96.7%** | 93.3% | 96.7% | **95.6%** |
+| GPT-4o | 90.0% | **100%** | 96.7% | **95.6%** |
+| Qwen3 32B | 90.0% | 93.3% | 96.7% | **93.3%** |
+| GPT-5.4 | **96.7%** | — | — | 96.7%* |
 
-*† DeepSeek trad results exclude T2 (process hung on T2 trad tasks).*
+*GPT-5.4 has been evaluated on project management only. GLM-5 traditional modes on automotive are pending. See [`results/eval_summary.md`](results/eval_summary.md) for complete tables and caveats.*
 
 ## Controlled factorial study (PR12)
 
@@ -78,7 +78,7 @@ Invalid actions don't appear. Role constraints, state transitions, and business 
 
 ### The Traditional Approach (15/30/60 tools)
 
-Same domain, same backend, same tasks. But the LLM receives all tools upfront with text descriptions of constraints:
+Within each domain, the traditional mode uses the same backend, seeded state, tasks, and oracle as GAS. The difference is that the LLM receives all tools upfront with text descriptions of constraints:
 
 ```
 Tools: create_issue, get_issue, update_issue, close_issue, assign_issue,
@@ -90,11 +90,11 @@ The LLM must infer valid transitions, role permissions, and entity relationships
 
 ### Controlled Comparison
 
-Both modes share the same:
-- **Domain layer** (`backend/`) — Pydantic models, SQLite state, business logic
-- **Task definitions** (`tasks/definitions/`) — JSON specs with setup state and oracle checks
+Within a domain, both modes share the same:
+- **Domain layer** (`backend/`, `cruise_backend/`, or `auto_backend/`) — Pydantic models, SQLite state, business logic
+- **Task definitions** (`tasks/`, `cruise_tasks/`, or `auto_tasks/`) — JSON specs with setup state and oracle checks
 - **Agent harness** (`harness/`) — identical agent loop, metrics, and result storage
-- **Oracle** (`tasks/oracle.py`) — pass/fail verification against post-conditions
+- **Oracle** — deterministic pass/fail verification against post-conditions
 
 The only variable is how tools are presented to the LLM.
 
@@ -102,24 +102,18 @@ The only variable is how tools are presented to the LLM.
 
 ```
 eval/
-├── backend/           # Domain layer (project management — not the TTRPG)
-│   ├── models.py      #   Pydantic types: Issue, Project, Sprint, User, etc.
-│   ├── domain.py      #   ProjectEngine: state transitions, validation, business rules
-│   ├── db.py          #   SQLite persistence per eval session
-│   └── context.py     #   Unified access layer
-├── gas_server/        # GAS runtime (3 tools + affordances)
-│   ├── server.py      #   EvalRuntime: get / search / act dispatch
-│   └── affordances.py #   compute_affordances() — role-aware, state-dependent
-├── trad_server/       # Traditional runtime (15/30/60 tools)
-│   ├── server.py      #   TradRuntime: N-tool dispatch
-│   ├── tools_15.py    #   15 tool definitions
-│   ├── tools_30.py    #   30 tool definitions (15 + decomposed variants)
-│   └── tools_60.py    #   60 tool definitions (30 + per-field granularity)
-├── tasks/             # Task definitions and verification
-│   ├── definitions/   #   JSON task specs (tier 1–4)
-│   ├── schema.py      #   TaskDefinition model
-│   ├── seeder.py      #   Populates eval scenario state
-│   └── oracle.py      #   Post-condition checks (pass/fail)
+├── backend/             # Project-management domain
+├── gas_server/          # Project-management GAS runtime
+├── trad_server/         # Project-management traditional runtimes
+├── tasks/               # Project-management tasks, seeder, and oracle
+├── cruise_backend/      # Cruise inventory, booking, passenger, and payment rules
+├── cruise_gas_server/   # Cruise GAS runtime
+├── cruise_trad_server/  # Cruise traditional runtimes
+├── cruise_tasks/        # Cruise tasks, seeder, and oracle
+├── auto_backend/        # Vehicle, test-drive, deal, offer, trade-in, and credit rules
+├── auto_gas_server/     # Automotive GAS runtime
+├── auto_trad_server/    # Automotive traditional runtimes
+├── auto_tasks/          # Automotive tasks, seeder, and oracle
 ├── harness/           # Eval execution
 │   ├── agent.py       #   LLM agent loop (OpenAI + Anthropic SDKs)
 │   ├── runner.py      #   Task orchestration
@@ -130,19 +124,23 @@ eval/
 │   ├── charts.py      #   Matplotlib/seaborn chart generation
 │   ├── extract.py     #   Results DB → pandas DataFrame
 │   └── stats.py       #   Statistical summaries
-├── data/              # Template data (users, projects, labels)
+├── data/              # Project-management template data
+├── cruise_data/       # Cruise and user templates
+├── auto_data/         # Vehicle and user templates
 ├── results/           # Generated artifacts (DB, charts, summaries)
 └── cli.py             # Entry point
 ```
 
 ## Task Tiers
 
-| Tier | Category | Example | Count |
-|------|----------|---------|:---:|
-| T1 | CRUD | Create issue, close resolved issue, add comment | 8 |
-| T2 | Multi-step | Triage 3 issues, move to sprint and start | 10 |
-| T3 | Constraints | Close sprint with P1 blockers, role-restricted ops | 8 |
-| T4 | Lifecycle | Full project setup → sprint → resolve → close | 4 |
+Each domain contains 30 tasks across four tiers. Exact counts vary by domain.
+
+| Tier | Category | Example |
+|------|----------|---------|
+| T1 | CRUD / happy path | Create an issue, hold a booking, register a customer |
+| T2 | Multi-step | Run a sprint workflow, confirm a booking, negotiate an offer |
+| T3 | Constraints | Exercise role, inventory, price-floor, and lifecycle restrictions |
+| T4 | Lifecycle | Complete an end-to-end project, cruise, or dealership workflow |
 
 ## Setup
 
@@ -164,6 +162,10 @@ uv run python -m eval run --mode gas-advisory --model gpt-4o --tiers 1 3
 uv run python -m eval run --mode gas-enforced --model gpt-4o --tiers 1 3
 uv run python -m eval run --mode trad-15 --model claude-haiku-4.5 --tiers 1
 
+# Select a domain: pm (default), cruise, or auto
+uv run python -m eval run --domain cruise --mode gas-enforced --model gpt-4o --tiers 1 2 3 4
+uv run python -m eval run --domain auto --mode trad-30 --model deepseek-v3.2 --tiers 1 2 3 4
+
 # Run a full matrix
 uv run python -m eval matrix --models gpt-4o gpt-5.4 claude-haiku-4.5 \
                       --modes gas-advisory gas-enforced trad-15 trad-30 trad-60 \
@@ -174,7 +176,7 @@ uv run python -m eval summary        # print results table
 uv run python -m eval charts         # generate charts to eval/results/charts/
 
 # Inspect
-uv run python -m eval list-tasks     # show all tasks by tier
+uv run python -m eval list-tasks --domain auto  # show automotive tasks by tier
 uv run python -m eval list-models    # show available models (based on API keys)
 ```
 
@@ -182,15 +184,22 @@ Results persist to `eval/results/eval_results.db` (SQLite). Charts and summaries
 
 ## Key Findings
 
-1. **GAS eliminates the model-capability tax on tool navigation.** All 6 models reach 85–97% with 3 tools. With 60 tools, only 3 of 6 match that level.
-2. **The "confused middle" at 15–30 tools.** Most models dip at 15–30 tools where names are polymorphic (`update_issue` covers too many operations). At 60, granular names (`set_issue_priority`) partially recover some models — but not all.
-3. **Even when pass rates converge, GAS uses fewer tokens.** DeepSeek ties at 90% but GAS costs 28K tokens vs trad-60's 69K (0.42x). Claude Haiku uses 0.61x.
-4. **Convergence is model-dependent.** GPT-5.4, DeepSeek, and GLM-5 can brute-force 60 tools. GPT-4o and Qwen3 cannot. GAS equalizes them.
+The following findings describe the historical advisory-era dataset; PR12 factorial results must be reported separately.
+
+1. **GAS generalized across the recorded domains.** Advisory GAS pass rates were 90–100% across project management, cruise booking, and automotive sales.
+2. **Intra-domain similarity matters more than raw tool count.** Automotive trad-30 beats trad-60 by roughly 6.7 percentage points for every fully tested model; adding more closely related operations creates confusion.
+3. **Distractors are easier than dense semantics.** In project management, some models handle large catalogs of irrelevant cross-domain tools better than smaller catalogs of similar project operations.
+4. **GAS equalizes model capability.** Qwen3 reaches 96.7% with GAS in automotive, compared with 70.0% at trad-60.
+5. **GAS remains token-efficient.** Even when traditional accuracy converges, the fixed tool surface generally consumes fewer tokens.
+
+Complete historical results and qualifications are in [`results/eval_summary.md`](results/eval_summary.md). The interactive cross-domain dashboard is [`results/cruise_dashboard.html`](results/cruise_dashboard.html), and the automotive state/affordance graph is [`results/auto_domain_graph.html`](results/auto_domain_graph.html). The preregistered controlled design is documented in [`PR12-CONTROLLED-EVALUATION.md`](PR12-CONTROLLED-EVALUATION.md).
 
 ## Extending
 
 **Add a model:** Add a `ModelCatalogEntry` to `harness/providers.py`. Set the corresponding API key env var. Run.
 
-**Add tasks:** Create a JSON file in `tasks/definitions/` following the existing schema — `setup` (initial state), `oracle` (post-conditions), `max_turns`. The seeder and oracle handle the rest.
+**Add tasks:** Create or update a tier file in the selected domain's `*_tasks/definitions/` directory. Each task defines `setup` (initial state), `oracle` (post-conditions), and `max_turns`; update that domain's seeder and oracle when introducing new entity types or assertions.
 
-**Add tool tiers:** Create a `tools_N.py` in `trad_server/` and wire it into `trad_server/server.py`.
+**Add tool tiers:** Create a `tools_N.py` in the selected domain's traditional server package and wire it into its `server.py`.
+
+**Add a domain:** Implement a backend, GAS server, traditional server, task package, and template data package following the existing `cruise_*` or `auto_*` layout. Register the domain in `harness/config.py`, `harness/runner.py`, `harness/agent.py`, and `cli.py`.

@@ -235,8 +235,15 @@ def main():
 
     # run
     p_run = sub.add_parser("run", help="Run eval suite with a single config")
-    p_run.add_argument("--domain", default="pm", choices=["pm", "cruise", "auto"], help="Eval domain (pm or cruise)")
-    p_run.add_argument("--mode", default="gas", help="gas, trad-15, trad-30, trad-60, trad-60-poly, trad-120d, trad-240d, trad-480d")
+    p_run.add_argument("--domain", default="pm", choices=["pm", "cruise", "auto"], help="Eval domain (pm, cruise, or auto)")
+    p_run.add_argument(
+        "--mode",
+        default="gas",
+        help=(
+            "gas/gas-advisory, gas-enforced, generic, static-native, "
+            "state-filtered-native, or trad-N (for example trad-15/30/60)"
+        ),
+    )
     p_run.add_argument("--model", default="gpt-4o", help="Model name or alias")
     p_run.add_argument("--tiers", nargs="+", default=None, help="Task tiers to run")
     p_run.add_argument("--tasks", nargs="+", default=None, help="Specific task IDs to run")
