@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 
 import anyio
+import pytest
 from starlette.testclient import TestClient
 
 from mcp.client import Client
 from mcp.server import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.shared.exceptions import MCPError
 
 from src.gia.server import _allowed_hosts, _configured_db_path, mcp
 
@@ -27,8 +29,17 @@ async def _exercise_server() -> None:
         tools = await client.list_tools()
         assert {tool.name for tool in tools.tools} >= {"create_session", "get", "search", "act"}
         by_name = {tool.name: tool for tool in tools.tools}
-        assert by_name["get"].input_schema["properties"]["resource_type"]["enum"]
-        assert "expected_revision" in by_name["act"].input_schema["required"]
+        assert by_name["get"].input_schema["properties"]["resource_uri"]["type"] == "string"
+        assert set(by_name["act"].input_schema["required"]) >= {
+            "capability_id",
+            "expected_revision",
+            "input",
+            "idempotency_key",
+        }
+        assert "action" not in by_name["act"].input_schema["properties"]
+        assert "params" not in by_name["act"].input_schema["properties"]
+        assert "query" in by_name["search"].input_schema["properties"]
+        assert "filters" not in by_name["search"].input_schema["properties"]
         assert by_name["get"].annotations.read_only_hint is True
         assert by_name["act"].annotations.destructive_hint is True
 
@@ -55,34 +66,46 @@ async def _exercise_server() -> None:
         state = _text(
             await client.call_tool(
                 "get",
-                {"resource_type": "session", "session_id": session_id},
+                {"resource_uri": f"gia://session/{session_id}"},
             )
         )
         assert state["data"]["id"] == session_id
         assert state["state_revision"] == 0
+        assert state["commands"]
+        capability = next(
+            command
+            for command in state["commands"]
+            if command["command"] == "select_character"
+            and command["input_schema"]["properties"]["template_id"]["const"] == "iryna"
+        )
 
         acted = await client.call_tool(
             "act",
             {
-                "action": "select_character",
-                "params": {"template_id": "iryna"},
-                "session_id": session_id,
+                "capability_id": capability["id"],
                 "expected_revision": 0,
+                "input": {"template_id": "iryna"},
+                "idempotency_key": "mcp-v2-test",
+                "session_id": session_id,
             },
         )
         assert acted.is_error is False
         assert acted.structured_content is not None
 
-        rejected = await client.call_tool(
-            "act",
-            {
-                "action": "select_character",
-                "params": {"template_id": "iryna", "unexpected": True},
-                "session_id": session_id,
-                "expected_revision": 1,
-            },
-        )
-        assert rejected.is_error is True
+        with pytest.raises(MCPError) as error:
+            await client.call_tool(
+                "act",
+                {
+                    "capability_id": capability["id"],
+                    "expected_revision": 1,
+                    "input": {"template_id": "iryna", "unexpected": True},
+                    "idempotency_key": "mcp-v2-invalid",
+                    "session_id": session_id,
+                },
+            )
+        assert error.value.code == -32000
+        assert error.value.message == "action_unavailable"
+        assert error.value.data["code"] == "action_unavailable"
 
 
 def test_mcp_v2_in_memory_client_contract():

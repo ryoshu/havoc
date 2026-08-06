@@ -17,6 +17,7 @@ import time
 from openai import OpenAI
 
 from src.gia.compat import JsonGameRuntimeAdapter
+from src.gia.gas import GasRuntime
 from src.gia.server import GameRuntime
 
 from .config import PlaythroughStrategy
@@ -118,7 +119,7 @@ def main():
     t0 = time.monotonic()
     runtime_core = GameRuntime(db_path=args.db)
     session_id = runtime_core.create_session().data["id"]
-    runtime = JsonGameRuntimeAdapter(runtime_core, session_id=session_id)
+    runtime = GasRuntime(runtime_core, session_id=session_id)
     director = Director(runtime, strategy)
     beats = director.run_full_game()
     director_time = time.monotonic() - t0
