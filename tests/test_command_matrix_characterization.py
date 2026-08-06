@@ -1,9 +1,21 @@
 """Characterization tests for the GIA/GAS 2.0 PR 1 command matrix.
 
-These tests freeze *current* behavior — including the known gaps recorded in
-docs/gia2/command-matrix.json — so later PRs in
-docs/GIA-GAS-2.0-IMPLEMENTATION-PLAN.md have a baseline to diverge from on
-purpose. They intentionally avoid LLMs and dice-outcome-dependent assertions;
+These tests originally froze *current* behavior — including the known gaps
+recorded in docs/gia2/command-matrix.json — so later PRs in
+docs/GIA-GAS-2.0-IMPLEMENTATION-PLAN.md would have a baseline to diverge
+from on purpose. PR 4 is that divergence: every command's phase/binding/
+precondition/mutation logic moved out of `affordances.py`'s conditional
+tree and `server.py::_dispatch_action`'s elif tree into one owned
+definition per command under `src/gia/commands/` (ADR-0001), registered in
+`src/gia/commands/kernel.py`. The PR 1 source-grepping structural tests
+(matching literal `action="x"`/`action == "x"` strings) are retired below
+in favor of structural tests against the new registry — see
+tests/test_command_kernel.py for the deeper registry/kernel test suite.
+The *behavioral* tests in this file (per-phase affordance sets, dispatch
+outcomes, response shapes) are kept as-is: PR 4's whole point is that
+observable behavior does not change, only where the policy lives.
+
+They intentionally avoid LLMs and dice-outcome-dependent assertions;
 phases that would otherwise require driving randomized combat to reach
 (between_scenes, downed, last_stand, mission_complete) are forced directly
 through GameContext, since compute_affordances and _dispatch_action only
@@ -18,7 +30,8 @@ from typing import get_args
 
 import pytest
 
-from src.gia.domain import DomainError, UnavailableActionError
+from src.gia.commands.kernel import registry as kernel_registry
+from src.gia.domain import UnavailableActionError
 from src.gia.models import GamePhase, InjuryState
 from src.gia.server import ActionName, GameRuntime
 
@@ -26,8 +39,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 COMMAND_MATRIX = json.loads(
     (REPO_ROOT / "docs" / "gia2" / "command-matrix.json").read_text()
 )["actions"]
-AFFORDANCES_SRC = (REPO_ROOT / "src" / "gia" / "affordances.py").read_text()
-SERVER_SRC = (REPO_ROOT / "src" / "gia" / "server.py").read_text()
 
 
 # ---------------------------------------------------------------------------
@@ -91,58 +102,35 @@ def _force_phase(runtime: GameRuntime, phase: GamePhase) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Matrix <-> code coverage (table-driven, per action)
+# Matrix <-> kernel registry coverage (PR 4: registry replaces source grepping)
 # ---------------------------------------------------------------------------
 
 
-def test_matrix_actions_match_the_action_name_literal():
+def test_matrix_actions_match_the_action_name_literal_except_wait_for_rescue():
+    """wait_for_rescue is deliberately removed from the ActionName literal:
+    see test_wait_for_rescue_is_deliberately_unregistered in
+    tests/test_command_kernel.py for why PR 4 resolves the gap this way
+    instead of preserving an advertised-but-undispatchable action."""
     matrix_actions = {entry["action"] for entry in COMMAND_MATRIX}
     literal_actions = set(get_args(ActionName))
-    assert matrix_actions == literal_actions
+    assert literal_actions == matrix_actions - {"wait_for_rescue"}
 
 
 @pytest.mark.parametrize(
     "entry",
-    [e for e in COMMAND_MATRIX if e["action"] != "heal"],
-    ids=[e["action"] for e in COMMAND_MATRIX if e["action"] != "heal"],
+    [e for e in COMMAND_MATRIX if e["action"] != "wait_for_rescue"],
+    ids=[e["action"] for e in COMMAND_MATRIX if e["action"] != "wait_for_rescue"],
 )
-def test_every_matrix_action_is_projected_in_affordances_py(entry):
-    assert f'action="{entry["action"]}"' in AFFORDANCES_SRC
+def test_every_matrix_action_has_exactly_one_registered_command(entry):
+    """Replaces the PR 1 source-grepping test now that projection and
+    dispatch share one registry (ADR-0001): an action is "covered" when
+    it has exactly one Command definition, not when a literal string
+    appears in affordances.py/server.py."""
+    assert kernel_registry.get(entry["action"]) is not None
 
 
-def test_heal_is_migrated_onto_the_command_policy_kernel():
-    """PR 3 of the GIA/GAS 2.0 plan gives `heal` one owned definition
-    (src/gia/commands/heal.py) instead of a projector branch here and a
-    dispatcher branch in server.py. This intentionally diverges from the
-    PR 1 baseline the same way Gap A/B document `wait_for_rescue`'s gap:
-    the literal is gone from affordances.py on purpose, not by omission."""
-    assert 'action="heal"' not in AFFORDANCES_SRC
-    assert "commands.kernel" in AFFORDANCES_SRC
-    assert "commands.kernel" in SERVER_SRC
-
-
-@pytest.mark.parametrize(
-    "entry",
-    [e for e in COMMAND_MATRIX if e["dispatched"]],
-    ids=[e["action"] for e in COMMAND_MATRIX if e["dispatched"]],
-)
-def test_dispatched_actions_have_a_dispatch_branch_in_server_py(entry):
-    assert f'action == "{entry["action"]}"' in SERVER_SRC
-
-
-def test_wait_for_rescue_has_no_dispatch_branch():
-    """Gap A: advertised in the downed phase, but _dispatch_action has no
-    branch for it. This test documents the gap; it should start failing
-    (forcing an explicit update) the moment a later PR adds one definition
-    per command and the gap can no longer exist structurally."""
-    assert 'action == "wait_for_rescue"' not in SERVER_SRC
-
-
-def test_downed_phase_is_never_assigned_by_the_dispatcher():
-    """Gap B: GamePhase.downed is only ever read (in affordances.py's
-    projection), never written. The downed phase — and therefore
-    wait_for_rescue — is unreachable through normal play."""
-    assert "GamePhase.downed" not in SERVER_SRC
+def test_wait_for_rescue_has_no_registered_command():
+    assert kernel_registry.get("wait_for_rescue") is None
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +221,10 @@ def test_between_scenes_phase_affordances(runtime):
         _act(runtime, "engage_threat")
 
 
-def test_downed_phase_affordances_and_wait_for_rescue_dispatch_gap(runtime):
+def test_downed_phase_no_longer_advertises_wait_for_rescue(runtime):
+    """PR 4 resolves ADR-0001's wait_for_rescue gap by never registering it
+    (see tests/test_command_kernel.py for the fuller test) rather than by
+    preserving the PR 1 baseline's advertised-but-undispatchable action."""
     _advance_to_exploration(runtime)
     session = runtime.ctx.get_session(runtime.session_id)
     active_char = runtime.ctx.db.get_character(session.active_character_id)
@@ -241,10 +232,9 @@ def test_downed_phase_affordances_and_wait_for_rescue_dispatch_gap(runtime):
     runtime.ctx.db.update_character(active_char)
     _force_phase(runtime, GamePhase.downed)
 
-    actions = _actions(runtime)
-    assert "wait_for_rescue" in actions
+    assert "wait_for_rescue" not in _actions(runtime)
 
-    with pytest.raises(DomainError, match="Unknown action: wait_for_rescue"):
+    with pytest.raises(UnavailableActionError):
         _act(runtime, "wait_for_rescue")
 
 
