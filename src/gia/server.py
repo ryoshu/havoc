@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import os
+import json
 from collections.abc import Mapping
 from typing import Any, Literal
 
 from mcp.server import MCPServer
+from mcp.server.caching import CacheHint
 from mcp.types import ToolAnnotations
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .affordances import compute_affordances, validate_parameters
 from .compat import JsonGameRuntimeAdapter
-from .context import GameContext
+from .context import ONTOLOGY_PATH, GameContext
 from .domain import (
     DomainError,
     HavocEngine,
@@ -899,7 +901,77 @@ mcp = MCPServer(
         "for mutations."
     ),
     version="0.2.0",
+    cache_hints={
+        "resources/list": CacheHint(ttl_ms=3_600_000, scope="public"),
+        "resources/read": CacheHint(ttl_ms=3_600_000, scope="public"),
+    },
 )
+
+
+def _resource_json(value: Any) -> str:
+    """Serialize immutable knowledge deterministically for MCP resources."""
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2)
+
+
+@mcp.resource(
+    "gia://rules",
+    name="rules",
+    title="EAT THE REICH rules",
+    description="Immutable game rules and mechanics.",
+    mime_type="application/json",
+)
+def rules_resource() -> str:
+    return _resource_json(_default.ctx.graph.get_rules())
+
+
+@mcp.resource(
+    "gia://characters",
+    name="characters",
+    title="Playable characters",
+    description="Immutable playable character templates.",
+    mime_type="application/json",
+)
+def characters_resource() -> str:
+    return _resource_json([
+        template.model_dump(mode="json")
+        for template in _default.ctx.get_all_character_templates()
+    ])
+
+
+@mcp.resource(
+    "gia://enemies",
+    name="enemies",
+    title="Enemy catalogue",
+    description="Immutable enemy and Übermensch templates.",
+    mime_type="application/json",
+)
+def enemies_resource() -> str:
+    return _resource_json(_default.ctx.graph.get_all_enemies())
+
+
+@mcp.resource(
+    "gia://locations",
+    name="locations",
+    title="Paris locations",
+    description="Immutable location, objective, and route templates.",
+    mime_type="application/json",
+)
+def locations_resource() -> str:
+    return _resource_json([
+        location.model_dump(mode="json")
+        for location in _default.ctx.get_all_locations()
+    ])
+
+
+@mcp.resource(
+    "gia://ontology",
+    name="ontology",
+    title="GIA ontology",
+    description="The immutable EAT THE REICH RDF ontology.",
+    mime_type="text/turtle",
+)
+def ontology_resource() -> str:
+    return ONTOLOGY_PATH.read_text(encoding="utf-8")
 
 
 ResourceType = Literal[

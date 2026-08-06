@@ -31,6 +31,23 @@ async def _exercise_server() -> None:
         assert by_name["get"].annotations.read_only_hint is True
         assert by_name["act"].annotations.destructive_hint is True
 
+        resources = await client.list_resources()
+        resource_uris = {str(resource.uri) for resource in resources.resources}
+        assert resource_uris >= {
+            "gia://rules",
+            "gia://characters",
+            "gia://enemies",
+            "gia://locations",
+            "gia://ontology",
+        }
+        assert resources.ttl_ms == 3_600_000
+        characters = await client.read_resource("gia://characters")
+        assert characters.contents[0].mime_type == "application/json"
+        assert any(item["id"] == "iryna" for item in json.loads(characters.contents[0].text))
+        ontology = await client.read_resource("gia://ontology")
+        assert ontology.contents[0].mime_type == "text/turtle"
+        assert "etr:" in ontology.contents[0].text
+
         created = _text(await client.call_tool("create_session", {}))
         session_id = created["data"]["id"]
         assert (await client.call_tool("create_session", {})).structured_content is not None
