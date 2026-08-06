@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 import pyoxigraph as ox
@@ -19,6 +20,29 @@ PREFIX rdfs: <{RDFS}>
 PREFIX xsd: <{XSD}>
 """
 
+# The graph is a versioned read model.  These values are deliberately kept
+# outside the ontology's runtime policy vocabulary: changing a shape or
+# predicate is a projection migration, not an authorization change.
+GRAPH_SCHEMA_VERSION = "2.0"
+PROVENANCE_PREDICATE_VERSION = "2.0"
+
+
+@dataclass(frozen=True)
+class GraphValidationReport:
+    """Result of the dependency-free SHACL profile used by this project.
+
+    The profile checks structural constraints for projected provenance.  It
+    intentionally does not inspect command applicability or authorization;
+    those remain closed-world command/policy concerns.
+    """
+
+    conforms: bool
+    violations: tuple[str, ...] = ()
+
+    def raise_if_invalid(self) -> None:
+        if not self.conforms:
+            raise ValueError("Graph shape validation failed: " + "; ".join(self.violations))
+
 
 def _iri(local: str) -> ox.NamedNode:
     return ox.NamedNode(f"{ETR}{local}")
@@ -33,16 +57,52 @@ def _lit(value, datatype: str | None = None) -> ox.Literal:
 
 
 class GameGraph:
-    """Wraps an Oxigraph in-memory store with domain-specific SPARQL queries."""
+    """Oxigraph read model with explicit vocabulary/knowledge/derived layers.
 
-    def __init__(self, store: ox.Store | None = None):
+    ``store`` is intentionally not used by the command or policy kernel.  The
+    vocabulary layer comes from the checked-in ontology, imported knowledge
+    comes from static domain data, and derived provenance is projected from
+    SQLite.  A caller can therefore discard this object and rebuild it from
+    authoritative records without changing domain state.
+    """
+
+    def __init__(
+        self,
+        store: ox.Store | None = None,
+        *,
+        schema_version: str = GRAPH_SCHEMA_VERSION,
+    ):
         self.store = store or ox.Store()
+        self.schema_version = schema_version
+        self._layers: set[str] = set()
+        self._derived_subjects: set[ox.NamedNode] = set()
+        self._write_schema_metadata()
+
+    @property
+    def loaded_layers(self) -> frozenset[str]:
+        """Return the graph layers currently populated."""
+        return frozenset(self._layers)
+
+    def _write_schema_metadata(self) -> None:
+        metadata = _iri("graphSchema")
+        self._add(metadata, _iri("rdf_type"), _iri("GraphSchema"))
+        self._add(metadata, _iri("graphSchemaVersion"), _lit(self.schema_version))
+        self._add(
+            metadata,
+            _iri("provenancePredicateVersion"),
+            _lit(PROVENANCE_PREDICATE_VERSION),
+        )
+
+    def _mark_layer(self, layer: str) -> None:
+        self._layers.add(layer)
 
     def load_ttl(self, path: str | Path) -> None:
         with open(path, "rb") as f:
             self.store.load(f, "text/turtle", base_iri=ETR)
+        self._mark_layer("vocabulary")
 
     def load_characters(self, data: list[dict]) -> None:
+        self._mark_layer("knowledge")
         for char in data:
             cid = _iri(f"char_{char['id']}")
             self._add(cid, _iri("rdf_type"), _iri("Character"))
@@ -101,6 +161,7 @@ class GameGraph:
                 self._add(cid, _iri("hasInjurySlot"), iid)
 
     def load_enemies(self, data: list[dict]) -> None:
+        self._mark_layer("knowledge")
         for enemy in data:
             eid = _iri(f"enemy_{enemy['id']}")
             etype = _iri("Ubermensch") if enemy.get("is_ubermensch") else _iri("Enemy")
@@ -120,6 +181,7 @@ class GameGraph:
                 self._add(eid, _iri("bloodFlavour"), _lit(enemy["blood_flavour"]))
 
     def load_locations(self, data: list[dict]) -> None:
+        self._mark_layer("knowledge")
         sector_map = {1: _iri("sector_1"), 2: _iri("sector_2"), 3: _iri("sector_3")}
         for loc in data:
             lid = _iri(f"loc_{loc['id']}")
@@ -283,12 +345,20 @@ class GameGraph:
         redaction boundary before this projection.  The graph is never an
         execution authority and does not receive hidden model traces.
         """
+        self._mark_layer("derived")
         for d in decisions:
             did = _iri(f"decision_{d.id}")
+            self._derived_subjects.add(did)
             self._add(did, _iri("rdf_type"), _iri("DecisionProvenance"))
             # Keep the old type while the 1.x query adapter remains supported.
             self._add(did, _iri("rdf_type"), _iri("Decision"))
             self._add(did, _iri("provenanceVersion"), _lit(getattr(d, "version", "1.0")))
+            self._add(
+                did,
+                _iri("provenancePredicateVersion"),
+                _lit(PROVENANCE_PREDICATE_VERSION),
+            )
+            self._add(did, _iri("graphSchemaVersion"), _lit(self.schema_version))
             self._add(did, _iri("requestId"), _lit(getattr(d, "request_id", "")))
             self._add(did, _iri("sessionId"), _lit(d.session_id))
             self._add(did, _iri("tenantId"), _lit(d.tenant_id))
@@ -321,6 +391,7 @@ class GameGraph:
 
             for ev in d.events:
                 eid = _iri(f"decision_{d.id}_event_{ev.get('type', 'unknown')}")
+                self._derived_subjects.add(eid)
                 self._add(eid, _iri("rdf_type"), _iri("DecisionEvent"))
                 self._add(eid, _iri("eventType"), _lit(ev.get("type", "")))
                 self._add(did, _iri("triggeredEvent"), eid)
@@ -328,6 +399,59 @@ class GameGraph:
             # Link to actor
             if d.actor_id != "system":
                 self._add(did, _iri("madeBy"), _lit(d.actor_id))
+
+    def clear_derived(self) -> None:
+        """Remove only the SQLite-backed derived layer from this graph.
+
+        Ontology and imported knowledge remain available.  Rebuilding into a
+        fresh ``GameGraph`` is preferred for recovery, but this operation is
+        useful for deterministic projection tests and local repair tools.
+        """
+        for subject in tuple(self._derived_subjects):
+            for quad in list(self.store.quads_for_pattern(subject, None, None, None)):
+                self.store.remove(quad)
+        self._derived_subjects.clear()
+        self._layers.discard("derived")
+
+    def validate_shapes(self) -> GraphValidationReport:
+        """Validate the structural SHACL profile for derived provenance.
+
+        The checked-in ``ontology/etr-shapes.ttl`` describes the same shape
+        for deployments using a full SHACL engine.  This small validator keeps
+        the local runtime dependency-free while preserving the important
+        boundary: malformed graph data is rejected as a projection concern,
+        never interpreted as a permission decision.
+        """
+        required = (
+            "sessionId",
+            "actorId",
+            "actionTaken",
+            "stateRevisionBefore",
+            "stateRevisionAfter",
+            "policyVersion",
+            "provenanceVersion",
+            "outcome",
+        )
+        violations: list[str] = []
+        subjects = self.query(
+            "SELECT DISTINCT ?id WHERE { ?id etr:rdf_type etr:DecisionProvenance . }"
+        )
+        for row in subjects:
+            subject = row["id"]
+            for predicate in required:
+                values = self.query(
+                    f"SELECT ?value WHERE {{ <{subject}> etr:{predicate} ?value . }}"
+                )
+                if len(values) != 1:
+                    violations.append(
+                        f"{subject} etr:{predicate} must have exactly one value "
+                        f"(found {len(values)})"
+                    )
+        return GraphValidationReport(not violations, tuple(violations))
+
+    # Explicit alias for callers that use the SHACL terminology from the
+    # architecture plan.
+    validate_shacl = validate_shapes
 
     load_provenance = load_decisions
 
