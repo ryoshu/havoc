@@ -36,7 +36,7 @@ Instead of N domain-specific tools (one per action), the system exposes three:
 - **`search`** — browse/filter resources
 - **`act`** — execute an action from the affordance set
 
-Every response includes an `affordances` array listing exactly what the consumer can do next, with parameter schemas. The action space is contextual: during setup, the only actions are character selection and mission start. During combat, the only actions are engage, roll, allocate. The LLM cannot call `allocate_dice` during setup because that action does not exist in the response.
+Every response includes an `affordances` array listing exactly what the consumer can do next, with parameter schemas. The action space is contextual: during setup, the only actions are character selection and mission start. During combat, the only actions are engage, roll, allocate. If a client sends `allocate_dice` during setup anyway, the server rejects it because it is not a current capability.
 
 This is HATEOAS (Hypermedia as the Engine of Application State) applied to LLM tool use. The server is the authority on what's possible. The client is a consumer of that authority.
 
@@ -47,13 +47,13 @@ HATEOAS was designed for REST APIs consumed by deterministic programs. The const
 - A program that calls the wrong endpoint gets a 404. It was a bug in the code.
 - An LLM that calls the wrong tool was *reasoning correctly from its context* — it just had too many options and picked wrong.
 
-Narrowing the action space per turn doesn't just prevent errors. It makes the LLM's job tractable. Instead of choosing from 50 tools and reasoning about validity, it picks from 3-5 affordances where every option is guaranteed valid. The LLM's decision quality improves because its decision complexity dropped.
+Narrowing the action space per turn doesn't just prevent errors. It makes the LLM's job tractable. Instead of choosing from 50 tools and reasoning about validity, it picks from 3-5 affordances that the server currently advertises and will validate. The LLM's decision quality improves because its decision complexity dropped.
 
 ### Invariant Enforcement
 
-The key distinction: **prompt-enforced constraints fail gracefully** (the LLM tries the invalid action, maybe the system catches it). **Affordance-enforced constraints fail loudly** (the action doesn't exist in the response, so the LLM can't even attempt it).
+The key distinction: **prompt-enforced constraints are advisory** (the LLM may try an invalid action). **Affordance-enforced constraints are authoritative** (the server rejects actions that are not current capabilities).
 
-The error surface shrinks from "any tool called in the wrong order with bad parameters" to "a valid action called with bad parameter values within a valid schema." The server enforces sequencing, phase transitions, and access control structurally — not as instructions the LLM might ignore.
+The error surface shrinks from "any tool called in the wrong order with bad parameters" to "a valid action called with bad parameter values within a valid schema." The server enforces sequencing, phase transitions, access control, and revision checks at the mutation boundary — not as instructions the LLM might ignore. A model can still emit malformed text; the guarantee is rejection before domain mutation.
 
 ## Reasoning Traces
 
@@ -173,16 +173,19 @@ data/
 
 ```bash
 # Mechanical playthrough (no LLM, instant)
-python -m playthrough.runner --characters iryna chuck --no-narrate
+uv run python -m src.playthrough.runner --characters iryna chuck --no-narrate
 
 # Narrated playthrough (stateless narrator)
-python -m playthrough.runner --characters iryna chuck
+uv run python -m src.playthrough.runner --characters iryna chuck
 
 # Narrated playthrough (stateful narrator — continuity between beats)
-python -m playthrough.runner --characters iryna chuck --stateful
+uv run python -m src.playthrough.runner --characters iryna chuck --stateful
 
-# MCP server
-python -m src.gia.server
+# MCP server (stdio; Streamable HTTP is documented in docs/OPERATIONS.md)
+uv run python -m src.gia.server
+
+# MCP Inspector
+uv run mcp dev src/gia/server.py
 ```
 
 ## The Core Insight

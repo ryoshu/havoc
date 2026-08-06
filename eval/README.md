@@ -1,10 +1,10 @@
 # GAS Eval Framework
 
-Compares **GAS** (3 generic tools with affordances) against **traditional tool APIs** (15/30/60 specialized tools) across frontier and open-weight LLMs on identical project-management tasks.
+Compares **GAS** (3 generic tools with affordances) against **traditional tool APIs** (15/30/60 specialized tools) across frontier and open-weight LLMs on identical project-management tasks. The evaluation distinguishes `gas-advisory` (historical guidance-only behavior) from `gas-enforced` (typed contracts, current-capability validation, and revision checks at the server boundary).
 
 **Core question:** Does constraining an LLM to 3 affordance-driven tools outperform giving it direct access to N domain-specific tools?
 
-**Answer:** Yes. All 6 models reach 85–97% task completion with GAS (3 tools). With 60 traditional tools, only 3 of 6 match that level — GPT-4o drops to 30%, Qwen3 to 57%. Even when pass rates converge, GAS uses 2–2.4x fewer tokens.
+**Historical result:** Yes. All 6 models reached 85–97% task completion with the recorded GAS (3-tool) runs. With 60 traditional tools, only 3 of 6 matched that level — GPT-4o dropped to 30%, Qwen3 to 57%. Even when pass rates converged, GAS used 2–2.4x fewer tokens. These figures describe the recorded advisory-era dataset; enforced-mode runs are labeled separately.
 
 ## Results at a Glance
 
@@ -42,7 +42,7 @@ Response from `get(resource="issues", id="iss-42")`:
 }
 ```
 
-Invalid actions don't appear. Role constraints, state transitions, and business rules are enforced by the server — the LLM can't attempt them because they aren't in the response.
+Invalid actions don't appear. Role constraints, state transitions, and business rules are enforced by the server: if a client sends an action that is not a current affordance, the server rejects it before mutation. The model is not physically prevented from emitting an arbitrary payload.
 
 ### The Traditional Approach (15/30/60 tools)
 
@@ -116,8 +116,7 @@ eval/
 
 ```bash
 # From the project root
-source .venv/bin/activate
-pip install -e .
+uv sync --locked --extra test
 
 # API keys (set whichever providers you want to test)
 export OPENAI_API_KEY="..."
@@ -129,21 +128,22 @@ export DEEPINFRA_API_KEY="..."
 
 ```bash
 # Run a single model + mode
-python -m eval run --mode gas --model gpt-4o --tiers 1 3
-python -m eval run --mode trad-15 --model claude-haiku-4.5 --tiers 1
+uv run python -m eval run --mode gas-advisory --model gpt-4o --tiers 1 3
+uv run python -m eval run --mode gas-enforced --model gpt-4o --tiers 1 3
+uv run python -m eval run --mode trad-15 --model claude-haiku-4.5 --tiers 1
 
 # Run a full matrix
-python -m eval matrix --models gpt-4o gpt-5.4 claude-haiku-4.5 \
-                      --modes gas trad-15 trad-30 trad-60 \
+uv run python -m eval matrix --models gpt-4o gpt-5.4 claude-haiku-4.5 \
+                      --modes gas-advisory gas-enforced trad-15 trad-30 trad-60 \
                       --tiers 1 2 3 4 --runs 1
 
 # Generate outputs
-python -m eval summary        # print results table
-python -m eval charts         # generate charts to eval/results/charts/
+uv run python -m eval summary        # print results table
+uv run python -m eval charts         # generate charts to eval/results/charts/
 
 # Inspect
-python -m eval list-tasks     # show all tasks by tier
-python -m eval list-models    # show available models (based on API keys)
+uv run python -m eval list-tasks     # show all tasks by tier
+uv run python -m eval list-models    # show available models (based on API keys)
 ```
 
 Results persist to `eval/results/eval_results.db` (SQLite). Charts and summaries are regenerated from the DB, so you can accumulate runs over time and re-render.
