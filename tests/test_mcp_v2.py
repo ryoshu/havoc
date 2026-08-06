@@ -25,9 +25,15 @@ async def _exercise_server() -> None:
 
         tools = await client.list_tools()
         assert {tool.name for tool in tools.tools} >= {"create_session", "get", "search", "act"}
+        by_name = {tool.name: tool for tool in tools.tools}
+        assert by_name["get"].input_schema["properties"]["resource_type"]["enum"]
+        assert "expected_revision" in by_name["act"].input_schema["required"]
+        assert by_name["get"].annotations.read_only_hint is True
+        assert by_name["act"].annotations.destructive_hint is True
 
         created = _text(await client.call_tool("create_session", {}))
         session_id = created["data"]["id"]
+        assert (await client.call_tool("create_session", {})).structured_content is not None
         state = _text(
             await client.call_tool(
                 "get",
@@ -36,6 +42,29 @@ async def _exercise_server() -> None:
         )
         assert state["data"]["id"] == session_id
         assert state["state_revision"] == 0
+
+        acted = await client.call_tool(
+            "act",
+            {
+                "action": "select_character",
+                "params": {"template_id": "iryna"},
+                "session_id": session_id,
+                "expected_revision": 0,
+            },
+        )
+        assert acted.is_error is False
+        assert acted.structured_content is not None
+
+        rejected = await client.call_tool(
+            "act",
+            {
+                "action": "select_character",
+                "params": {"template_id": "iryna", "unexpected": True},
+                "session_id": session_id,
+                "expected_revision": 1,
+            },
+        )
+        assert rejected.is_error is True
 
 
 def test_mcp_v2_in_memory_client_contract():

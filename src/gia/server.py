@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Literal
 
 from mcp.server import MCPServer
+from mcp.types import ToolAnnotations
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .affordances import compute_affordances, validate_parameters
@@ -901,13 +902,115 @@ mcp = MCPServer(
 )
 
 
-@mcp.tool()
+ResourceType = Literal[
+    "session",
+    "character",
+    "character_template",
+    "location",
+    "scene",
+    "enemy",
+    "rules",
+]
+SearchType = Literal["characters", "locations", "enemies", "ubermenschen"]
+ActionName = Literal[
+    "allocate_dice",
+    "build_dice_pool",
+    "check_inventory",
+    "choose_next_location",
+    "engage_threat",
+    "heal",
+    "loot",
+    "move_to_location",
+    "next_turn",
+    "retreat",
+    "select_character",
+    "share_blood",
+    "start_mission",
+    "trigger_last_stand",
+    "use_flashback",
+    "view_character_sheet",
+    "view_character_template",
+    "view_epilogue",
+    "view_scene",
+    "wait_for_rescue",
+]
+
+READ_ONLY_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=False,
+)
+MUTATION_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=True,
+    idempotentHint=False,
+    openWorldHint=False,
+)
+
+
+@mcp.tool(
+    name="create_session",
+    title="Create game session",
+    description="Create an isolated game session and return its handle and initial affordances.",
+    annotations=MUTATION_ANNOTATIONS,
+    structured_output=True,
+)
+def mcp_create_session() -> ResourceResponse:
+    return _default.create_session()
+
+
+@mcp.tool(
+    name="get",
+    title="Get game resource",
+    description="Read a game resource. Immutable knowledge can be read without a session; stateful resources require session_id.",
+    annotations=READ_ONLY_ANNOTATIONS,
+    structured_output=True,
+)
+def mcp_get(resource_type: ResourceType, id: str = "", session_id: str = "") -> ResourceResponse:
+    return _default.get(resource_type, id, session_id)
+
+
+@mcp.tool(
+    name="search",
+    title="Search game knowledge",
+    description="Search immutable game knowledge, optionally including session affordances.",
+    annotations=READ_ONLY_ANNOTATIONS,
+    structured_output=True,
+)
+def mcp_search(
+    resource_type: SearchType,
+    filters: dict[str, Any] | None = None,
+    session_id: str = "",
+) -> ResourceResponse:
+    return _default.search(resource_type, filters, session_id)
+
+
+@mcp.tool(
+    name="act",
+    title="Execute game action",
+    description="Execute an action currently authorized by the session affordances.",
+    annotations=MUTATION_ANNOTATIONS,
+    structured_output=True,
+)
+def mcp_act(
+    action: ActionName,
+    expected_revision: int,
+    params: dict[str, Any] | None = None,
+    session_id: str = "",
+    affordance_id: str | None = None,
+) -> ActionResponse:
+    return _default.act(action, params, session_id, expected_revision, affordance_id)
+
+
+# Legacy JSON entry points remain explicit and undecorated. They are used by
+# the playthrough/evaluation adapters until PR10 removes the compatibility
+# boundary.
 def create_session() -> str:
-    """Create an isolated game session and return its handle and state."""
+    """Legacy JSON session creation wrapper."""
     return _legacy.create_session()
 
 
-@mcp.tool()
 def get(resource_type: str, id: str = "", session_id: str = "") -> str:
     """Retrieve a resource by type and ID. Returns data + available affordances.
 
@@ -918,7 +1021,6 @@ def get(resource_type: str, id: str = "", session_id: str = "") -> str:
     return _legacy.get(resource_type, id, session_id)
 
 
-@mcp.tool()
 def search(resource_type: str, filters: str = "{}", session_id: str = "") -> str:
     """Search/browse resources. Returns results + available affordances.
 
@@ -929,7 +1031,6 @@ def search(resource_type: str, filters: str = "{}", session_id: str = "") -> str
     return _legacy.search(resource_type, filters, session_id)
 
 
-@mcp.tool()
 def act(
     action: str,
     params: str = "{}",
