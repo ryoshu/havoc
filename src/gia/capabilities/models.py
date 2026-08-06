@@ -60,6 +60,25 @@ class Capability(BaseModel):
     legacy_id: str | None = None
 
 
+class BindingTemplate(BaseModel):
+    """Compact, non-executable description of a family of bindings.
+
+    A template is a discovery hint, never a bearer capability.  Clients use
+    its resource type to search for concrete targets and then obtain a bound
+    ``Capability`` from the target-local view.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    command: str
+    title: str
+    target_resource_type: str | None = None
+    input_schema: dict = Field(default_factory=dict)
+    constraints: list[str] = Field(default_factory=list)
+    effects: EffectMetadata
+
+
 class CapabilitySet(BaseModel):
     """The full contextual set of links and capabilities for one subject."""
 
@@ -72,4 +91,5 @@ class CapabilitySet(BaseModel):
     complete: bool = True
     links: list[Link] = Field(default_factory=list)
     commands: list[Capability] = Field(default_factory=list)
+    binding_templates: list[BindingTemplate] = Field(default_factory=list)
     next_cursor: str | None = None

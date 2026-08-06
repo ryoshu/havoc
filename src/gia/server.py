@@ -25,7 +25,7 @@ from .domain import (
     ScopeMismatchError,
     UnsupportedOperationError,
 )
-from .gas import GasActionResponse, GasResourceResponse, GasRuntime
+from .gas import GasActionResponse, GasResourceResponse, GasRuntime, WhyNotResponse
 from .policy import PolicyProvider, RequestContext
 from .responses import (
     ActionResponse,
@@ -270,6 +270,7 @@ class GameRuntime:
         idempotency_key: str | None = None,
         capability_id: str | None = None,
         policy_version: str | None = None,
+        request_context: RequestContext | None = None,
     ) -> ActionResponse:
         """Execute one action through the execution service (PR 5).
 
@@ -280,6 +281,7 @@ class GameRuntime:
         """
         sid = self._require_session_id(session_id)
         parsed = self._require_mapping(params, "params")
+        context = request_context or self.request_context
         result, events = execute_action(
             self.ctx,
             sid,
@@ -288,11 +290,11 @@ class GameRuntime:
             expected_revision,
             affordance_id,
             idempotency_key,
-            request_context=self.request_context,
+            request_context=context,
             capability_id=capability_id,
             policy_version=policy_version,
         )
-        affordances = compute_affordances(self.ctx, sid, self.request_context)
+        affordances = compute_affordances(self.ctx, sid, context)
         return self._format_action_response(result, affordances, events, sid)
 
 
@@ -484,8 +486,10 @@ def mcp_get(
     resource_uri: str,
     view: str | None = None,
     at_revision: int | None = None,
+    cursor: str | None = None,
+    limit: int | None = None,
 ) -> GasResourceResponse:
-    return _call_gas(lambda: _gas.get(resource_uri, view, at_revision))
+    return _call_gas(lambda: _gas.get(resource_uri, view, at_revision, cursor, limit))
 
 
 @mcp.tool(
@@ -518,6 +522,7 @@ def mcp_act(
     input: dict[str, Any],
     idempotency_key: str,
     session_id: str = "",
+    scope: str | None = None,
 ) -> GasActionResponse:
     return _call_gas(
         lambda: _gas.act(
@@ -526,8 +531,27 @@ def mcp_act(
             input,
             idempotency_key,
             session_id=session_id,
+            scope=scope,
         )
     )
+
+
+@mcp.tool(
+    name="why_not",
+    title="Diagnose unavailable command",
+    description=(
+        "Read-only diagnostic for a command that is unavailable in the current "
+        "state or policy. It never returns an executable capability."
+    ),
+    annotations=READ_ONLY_ANNOTATIONS,
+    structured_output=True,
+)
+def mcp_why_not(
+    resource_uri: str,
+    command: str,
+    input: dict[str, Any] | None = None,
+) -> WhyNotResponse:
+    return _call_gas(lambda: _gas.why_not(resource_uri, command, input))
 
 
 # Legacy JSON entry points remain explicit and undecorated. They are used by

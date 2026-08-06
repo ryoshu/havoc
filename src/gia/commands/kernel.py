@@ -205,6 +205,53 @@ def resolve_capability(
     return None
 
 
+def diagnose_command(
+    ctx: GameContext,
+    session: GameSession,
+    command_name: str,
+    request_context: RequestContext | None = None,
+    input: dict | None = None,
+) -> tuple[bool, list[dict[str, str]], list[str]]:
+    """Return a safe, non-executable explanation for a command's availability.
+
+    This keeps registry, applicability, and policy inspection in GIA.  GAS
+    only renders the resulting diagnostic and never receives a dispatch hook.
+    Details intentionally avoid binding/target data so a denied command cannot
+    become an entity-existence oracle.
+    """
+    request = _request_context(request_context)
+    resolved_scope = session_scope(session, request)
+    command = registry.get(command_name)
+    if command is None:
+        return False, [{"code": "unknown_command", "message": "Command is not part of this game."}], []
+    snapshot = Snapshot(ctx=ctx, session=session)
+    raw_bindings = command.applicable(snapshot, request.actor)
+    allowed_bindings = [
+        binding
+        for current, binding in project_bindings(
+            ctx, session, request, scope=resolved_scope
+        )
+        if current.name == command_name
+    ]
+    if raw_bindings and not allowed_bindings:
+        return False, [{"code": "policy_denied", "message": "The command is not available in this scope."}], []
+    if not raw_bindings:
+        return (
+            False,
+            [{"code": "prerequisite_unsatisfied", "message": "Current game state does not satisfy the command prerequisites."}],
+            [f"command is applicable in phase {session.phase.value}"],
+        )
+    if input is not None:
+        for binding in allowed_bindings:
+            try:
+                command.validate(snapshot, request.actor, binding, input)
+            except DomainError:
+                continue
+            return True, [], []
+        return False, [{"code": "invalid_input", "message": "Input does not satisfy an available binding."}], []
+    return True, [], []
+
+
 def project_affordances(
     ctx: GameContext,
     session: GameSession,

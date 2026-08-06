@@ -27,9 +27,10 @@ async def _exercise_server() -> None:
         assert client.server_info.title == "GIA — EAT THE REICH"
 
         tools = await client.list_tools()
-        assert {tool.name for tool in tools.tools} >= {"create_session", "get", "search", "act"}
+        assert {tool.name for tool in tools.tools} >= {"create_session", "get", "search", "act", "why_not"}
         by_name = {tool.name: tool for tool in tools.tools}
         assert by_name["get"].input_schema["properties"]["resource_uri"]["type"] == "string"
+        assert "cursor" in by_name["get"].input_schema["properties"]
         assert set(by_name["act"].input_schema["required"]) >= {
             "capability_id",
             "expected_revision",
@@ -42,6 +43,7 @@ async def _exercise_server() -> None:
         assert "filters" not in by_name["search"].input_schema["properties"]
         assert by_name["get"].annotations.read_only_hint is True
         assert by_name["act"].annotations.destructive_hint is True
+        assert by_name["why_not"].annotations.read_only_hint is True
 
         resources = await client.list_resources()
         resource_uris = {str(resource.uri) for resource in resources.resources}
@@ -91,6 +93,15 @@ async def _exercise_server() -> None:
         )
         assert acted.is_error is False
         assert acted.structured_content is not None
+
+        why_not = _text(
+            await client.call_tool(
+                "why_not",
+                {"resource_uri": f"gia://session/{session_id}", "command": "allocate_dice"},
+            )
+        )
+        assert why_not["commands"] == []
+        assert why_not["data"]["available"] is False
 
         with pytest.raises(MCPError) as error:
             await client.call_tool(
