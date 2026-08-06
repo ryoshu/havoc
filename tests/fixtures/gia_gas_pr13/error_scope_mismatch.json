@@ -1,0 +1,5 @@
+{
+  "details": {},
+  "error_code": "scope_mismatch",
+  "message": "The requested scope is not available."
+}

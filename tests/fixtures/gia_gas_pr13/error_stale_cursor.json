@@ -1,0 +1,10 @@
+{
+  "details": {
+    "current_policy_version": "policy-v1",
+    "current_state_revision": 1,
+    "expected_policy_version": "policy-v1",
+    "expected_state_revision": 0
+  },
+  "error_code": "stale_view",
+  "message": "The continuation cursor refers to an obsolete state or policy view."
+}

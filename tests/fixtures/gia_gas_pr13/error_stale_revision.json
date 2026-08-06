@@ -1,0 +1,9 @@
+{
+  "details": {
+    "current_revision": 0,
+    "expected_revision": 1,
+    "session_id": "gs-ID1"
+  },
+  "error_code": "stale_state",
+  "message": "Session gs-ID1 is at revision 0, not 1."
+}

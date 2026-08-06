@@ -33,9 +33,11 @@ and capability ID are still revalidated by the reference monitor.
 `JsonGameRuntimeAdapter` is the explicit `gas-legacy` boundary for callers that
 still need JSON strings, action names, and `affordances`. Its methods emit a
 `DeprecationWarning` and are intentionally not registered as MCP tools. Use
-`GasRuntime` for new code. The adapter is scheduled for deletion in PR13 after
-a repository-wide usage search confirms that first-party Director,
-playthrough, and evaluation callers have migrated.
+`GasRuntime` for new code. The adapter is scheduled for deletion in PR 19
+("Migrate callers and remove compatibility paths",
+`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`) after a repository-wide usage
+search confirms that first-party Director, playthrough, and evaluation
+callers have migrated.
 
 The adapter and GAS 2.0 delegate to the same `GameRuntime`, command registry,
 policy provider, and execution service. It cannot add an action or bypass the

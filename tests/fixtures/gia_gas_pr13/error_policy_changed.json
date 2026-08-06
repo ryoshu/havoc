@@ -1,0 +1,8 @@
+{
+  "details": {
+    "current_policy_version": "policy-v1",
+    "expected_policy_version": "policy-v0-obsolete"
+  },
+  "error_code": "policy_changed",
+  "message": "The policy version for this request is no longer current."
+}

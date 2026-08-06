@@ -1,0 +1,7 @@
+{
+  "details": {
+    "capability_id": "cap-ID1"
+  },
+  "error_code": "action_unavailable",
+  "message": "Capability is not currently available."
+}

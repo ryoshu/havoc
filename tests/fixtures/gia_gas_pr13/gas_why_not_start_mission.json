@@ -1,0 +1,45 @@
+{
+  "binding_templates": [],
+  "commands": [],
+  "complete": true,
+  "data": {
+    "available": false,
+    "command": "start_mission",
+    "prerequisites": [
+      "command is applicable in phase setup"
+    ],
+    "reasons": [
+      {
+        "code": "prerequisite_unsatisfied",
+        "message": "Current game state does not satisfy the command prerequisites."
+      }
+    ]
+  },
+  "links": [
+    {
+      "id": "gs-ID1",
+      "rel": "self",
+      "resource_type": "session"
+    },
+    {
+      "id": null,
+      "rel": "characters",
+      "resource_type": "characters"
+    },
+    {
+      "id": null,
+      "rel": "scene",
+      "resource_type": "scene"
+    },
+    {
+      "id": null,
+      "rel": "locations",
+      "resource_type": "locations"
+    }
+  ],
+  "next_cursor": null,
+  "policy_version": "policy-v1",
+  "scope": "tenant:default/session:gs-ID1",
+  "state_revision": 0,
+  "subject": "system"
+}

@@ -1,0 +1,414 @@
+{
+  "binding_templates": [],
+  "commands": [
+    {
+      "command": "select_character",
+      "constraints": [],
+      "effects": {
+        "destructive": false,
+        "idempotent": true,
+        "mutating": true
+      },
+      "id": "cap-ID1",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "const": "astrid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "type": "object"
+      },
+      "legacy_id": null,
+      "policy_version": "policy-v1",
+      "target": {
+        "id": "astrid",
+        "resource_type": "character_template"
+      },
+      "title": "Select Astrid \u2014 Ex-fighter pilot, bitten by something after a crash in the frozen taiga. The par...",
+      "valid_at_revision": 1
+    },
+    {
+      "command": "select_character",
+      "constraints": [],
+      "effects": {
+        "destructive": false,
+        "idempotent": true,
+        "mutating": true
+      },
+      "id": "cap-ID2",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "const": "chuck",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "type": "object"
+      },
+      "legacy_id": null,
+      "policy_version": "policy-v1",
+      "target": {
+        "id": "chuck",
+        "resource_type": "character_template"
+      },
+      "title": "Select Chuck \u2014 Grew up on the wrong side of the tracks, buried a sibling or two. Loves cowboy m...",
+      "valid_at_revision": 1
+    },
+    {
+      "command": "select_character",
+      "constraints": [],
+      "effects": {
+        "destructive": false,
+        "idempotent": true,
+        "mutating": true
+      },
+      "id": "cap-ID3",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "const": "cosgrave",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "type": "object"
+      },
+      "legacy_id": null,
+      "policy_version": "policy-v1",
+      "target": {
+        "id": "cosgrave",
+        "resource_type": "character_template"
+      },
+      "title": "Select Cosgrave \u2014 Hackney necromancer, taught by your aunt. Medically dead, but can still walk aro...",
+      "valid_at_revision": 1
+    },
+    {
+      "command": "select_character",
+      "constraints": [],
+      "effects": {
+        "destructive": false,
+        "idempotent": true,
+        "mutating": true
+      },
+      "id": "cap-ID4",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "const": "flint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "type": "object"
+      },
+      "legacy_id": null,
+      "policy_version": "policy-v1",
+      "target": {
+        "id": "flint",
+        "resource_type": "character_template"
+      },
+      "title": "Select Flint \u2014 Born in a cave, driven out by nazis. Half-bat, half-human, all nightmare. Monstr...",
+      "valid_at_revision": 1
+    },
+    {
+      "command": "select_character",
+      "constraints": [],
+      "effects": {
+        "destructive": false,
+        "idempotent": true,
+        "mutating": true
+      },
+      "id": "cap-ID5",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "const": "nicole",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "type": "object"
+      },
+      "legacy_id": null,
+      "policy_version": "policy-v1",
+      "target": {
+        "id": "nicole",
+        "resource_type": "character_template"
+      },
+      "title": "Select Nicole \u2014 Resistance guerrilla fighter and demolitions expert. Packing more heat than a wh...",
+      "valid_at_revision": 1
+    },
+    {
+      "command": "start_mission",
+      "constraints": [
+        "1 character(s) selected"
+      ],
+      "effects": {
+        "destructive": false,
+        "idempotent": true,
+        "mutating": true
+      },
+      "id": "cap-ID6",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "legacy_id": null,
+      "policy_version": "policy-v1",
+      "target": null,
+      "title": "Begin the mission with 1 character(s)",
+      "valid_at_revision": 1
+    },
+    {
+      "command": "view_character_template",
+      "constraints": [],
+      "effects": {
+        "destructive": false,
+        "idempotent": true,
+        "mutating": false
+      },
+      "id": "cap-ID7",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "const": "astrid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "type": "object"
+      },
+      "legacy_id": null,
+      "policy_version": "policy-v1",
+      "target": {
+        "id": "astrid",
+        "resource_type": "character_template"
+      },
+      "title": "View Astrid's full character sheet",
+      "valid_at_revision": 1
+    },
+    {
+      "command": "view_character_template",
+      "constraints": [],
+      "effects": {
+        "destructive": false,
+        "idempotent": true,
+        "mutating": false
+      },
+      "id": "cap-ID8",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "const": "chuck",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "type": "object"
+      },
+      "legacy_id": null,
+      "policy_version": "policy-v1",
+      "target": {
+        "id": "chuck",
+        "resource_type": "character_template"
+      },
+      "title": "View Chuck's full character sheet",
+      "valid_at_revision": 1
+    },
+    {
+      "command": "view_character_template",
+      "constraints": [],
+      "effects": {
+        "destructive": false,
+        "idempotent": true,
+        "mutating": false
+      },
+      "id": "cap-ID9",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "const": "cosgrave",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "type": "object"
+      },
+      "legacy_id": null,
+      "policy_version": "policy-v1",
+      "target": {
+        "id": "cosgrave",
+        "resource_type": "character_template"
+      },
+      "title": "View Cosgrave's full character sheet",
+      "valid_at_revision": 1
+    },
+    {
+      "command": "view_character_template",
+      "constraints": [],
+      "effects": {
+        "destructive": false,
+        "idempotent": true,
+        "mutating": false
+      },
+      "id": "cap-ID10",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "const": "flint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "type": "object"
+      },
+      "legacy_id": null,
+      "policy_version": "policy-v1",
+      "target": {
+        "id": "flint",
+        "resource_type": "character_template"
+      },
+      "title": "View Flint's full character sheet",
+      "valid_at_revision": 1
+    },
+    {
+      "command": "view_character_template",
+      "constraints": [],
+      "effects": {
+        "destructive": false,
+        "idempotent": true,
+        "mutating": false
+      },
+      "id": "cap-ID11",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "const": "iryna",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "type": "object"
+      },
+      "legacy_id": null,
+      "policy_version": "policy-v1",
+      "target": {
+        "id": "iryna",
+        "resource_type": "character_template"
+      },
+      "title": "View Iryna's full character sheet",
+      "valid_at_revision": 1
+    },
+    {
+      "command": "view_character_template",
+      "constraints": [],
+      "effects": {
+        "destructive": false,
+        "idempotent": true,
+        "mutating": false
+      },
+      "id": "cap-ID12",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "template_id": {
+            "const": "nicole",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id"
+        ],
+        "type": "object"
+      },
+      "legacy_id": null,
+      "policy_version": "policy-v1",
+      "target": {
+        "id": "nicole",
+        "resource_type": "character_template"
+      },
+      "title": "View Nicole's full character sheet",
+      "valid_at_revision": 1
+    }
+  ],
+  "complete": true,
+  "data": {
+    "character_id": "ch-ID1",
+    "message": "Iryna joins the mission!"
+  },
+  "events": [],
+  "links": [
+    {
+      "id": "gs-ID1",
+      "rel": "self",
+      "resource_type": "session"
+    },
+    {
+      "id": null,
+      "rel": "characters",
+      "resource_type": "characters"
+    },
+    {
+      "id": null,
+      "rel": "scene",
+      "resource_type": "scene"
+    },
+    {
+      "id": null,
+      "rel": "locations",
+      "resource_type": "locations"
+    }
+  ],
+  "next_cursor": null,
+  "policy_version": "policy-v1",
+  "scope": "tenant:default/session:gs-ID1",
+  "state_revision": 1,
+  "subject": "system"
+}

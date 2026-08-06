@@ -17,11 +17,12 @@ unrelated record rather than a collision. There is no authenticated actor
 system yet (PR 6), so `actor_id` here is the session's active character (or
 `"system"`), exactly as `DecisionRecord.actor_id` already computed it.
 
-A repeated call with the same key and the same `(action, params)` returns
+A repeated call with the same key and the same `(action, params)` — or,
+for a capability-id request, the same `(capability_id, params)` — returns
 the originally committed result without re-executing the handler or
 re-validating the (possibly now-stale) `expected_revision` — it is a retry
-of a decision already made, not a new one. The same key with different
-`(action, params)` is a caller bug, not an ambiguous request to guess at,
+of a decision already made, not a new one. The same key with a different
+identity or params is a caller bug, not an ambiguous request to guess at,
 so it raises `IdempotencyConflictError` rather than silently executing.
 """
 
@@ -149,17 +150,26 @@ def _execute_locked(
             },
         )
 
+    # A capability-id request always calls in with action="" (the action
+    # name is only known after resolving the capability, below) — comparing
+    # on `action` would then treat every replay as a different request from
+    # the original, resolved one. Compare on the caller-supplied capability
+    # id instead when there is one; it identifies the request as precisely
+    # as the resolved action name would, without requiring resolution
+    # (which may itself fail once the state a replay's capability id was
+    # issued against has moved on).
+    idempotency_identity = capability_id if capability_id else action
     if idempotency_key:
         cached = ctx.db.get_idempotent_result(session_id, actor_id, idempotency_key)
         if cached is not None:
-            if cached["action"] != action or cached["params"] != params:
+            if cached["action"] != idempotency_identity or cached["params"] != params:
                 raise IdempotencyConflictError(
                     f"Idempotency key {idempotency_key!r} was already used for a "
                     f"different request.",
                     details={
                         "idempotency_key": idempotency_key,
                         "original_action": cached["action"],
-                        "requested_action": action,
+                        "requested_action": idempotency_identity,
                     },
                 )
             return cached["result"], [DomainEvent(**e) for e in cached["events"]]
@@ -447,11 +457,17 @@ def _claim_and_dispatch(
         ctx.db.record_decision(decision)
 
         if idempotency_key:
+            # Mirror `_execute_locked`'s read-side comparison: a capability
+            # id, when present, identifies the request more precisely than
+            # the (already-resolved, by this point) action name — and is
+            # what a capability-id caller's replay will compare against
+            # before resolution runs again.
+            idempotency_identity = capability_id if capability_id else action
             ctx.db.save_idempotent_result(
                 session_id,
                 actor_id,
                 idempotency_key,
-                action,
+                idempotency_identity,
                 params,
                 result_data,
                 [e.model_dump() for e in events],

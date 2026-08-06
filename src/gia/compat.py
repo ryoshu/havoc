@@ -25,7 +25,9 @@ class JsonGameRuntimeAdapter:
     GAS 2.0 callers should use :class:`gia.gas.GasRuntime` directly.  This
     adapter remains only for the Director/evaluation migration window and emits
     a deprecation warning on every legacy operation.  The deletion milestone is
-    PR 13, after all first-party JSON callers have moved to GAS 2.0.
+    PR 19 ("Migrate callers and remove compatibility paths") of
+    docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md, after all first-party JSON
+    callers have moved to GAS 2.0.
     """
 
     def __init__(self, runtime: GameRuntime, session_id: str = ""):
@@ -37,7 +39,7 @@ class JsonGameRuntimeAdapter:
     def _warn_legacy() -> None:
         warnings.warn(
             "JsonGameRuntimeAdapter is the deprecated gas-legacy compatibility "
-            "path; migrate callers to gia.gas.GasRuntime before PR13.",
+            "path; migrate callers to gia.gas.GasRuntime before PR 19.",
             DeprecationWarning,
             stacklevel=3,
         )
