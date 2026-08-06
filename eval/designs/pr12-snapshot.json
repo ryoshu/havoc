@@ -1,0 +1,87 @@
+{
+  "captured_at": "2026-08-06T19:21:48.972244+00:00",
+  "code_commit": "a9f5c706702423c3da9f43e280bd9f279a971b47",
+  "conditions": [
+    "static-native",
+    "state-filtered-native",
+    "generic",
+    "gas-advisory",
+    "gas-enforced"
+  ],
+  "fixture_digest": "c5fd130978e36865ad5e807d283c522c27751bb143d358dfe3429a8ca1f3fa23",
+  "harness_digest": "4354c2e4195e3c8c45973f9cb25ca988f5017cceae4a78cdeadb0a029a5d1df7",
+  "history_policy": "compact-affordances",
+  "hypotheses": [
+    {
+      "claim": "gas-enforced reduces invalid state-transition attempts versus gas-advisory without changing the task text or fixtures.",
+      "comparison": "gas-enforced vs gas-advisory",
+      "id": "H1-enforcement",
+      "primary_metric": "invalid_state_transition_rate"
+    },
+    {
+      "claim": "state-filtered native MCP reduces invalid action attempts versus static native MCP.",
+      "comparison": "state-filtered-native vs static-native",
+      "id": "H2-filtering",
+      "primary_metric": "invalid_action_rate"
+    },
+    {
+      "claim": "advertised GAS affordances reduce invalid action attempts versus generic get/search/act without affordances.",
+      "comparison": "gas-advisory vs generic",
+      "id": "H3-interface-shape",
+      "primary_metric": "invalid_action_rate"
+    },
+    {
+      "claim": "any completion-rate difference is reported separately from modeled-invariant safety.",
+      "comparison": "all conditions",
+      "id": "H4-completion",
+      "primary_metric": "oracle_pass_rate"
+    }
+  ],
+  "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+  "provider_models": {
+    "Claude Haiku 4.5 (Anthropic)": {
+      "model": "claude-haiku-4-5",
+      "provider": "https://api.anthropic.com",
+      "provider_version": "anthropic"
+    },
+    "DeepSeek V3.2 (DeepInfra)": {
+      "model": "deepseek-ai/DeepSeek-V3.2",
+      "provider": "https://api.deepinfra.com/v1/openai",
+      "provider_version": "deepinfra"
+    },
+    "GLM-5 (DeepInfra)": {
+      "model": "zai-org/GLM-5",
+      "provider": "https://api.deepinfra.com/v1/openai",
+      "provider_version": "deepinfra"
+    },
+    "GPT-4o (OpenAI)": {
+      "model": "gpt-4o",
+      "provider": "https://api.openai.com/v1",
+      "provider_version": "openai"
+    },
+    "GPT-5.4 (OpenAI)": {
+      "model": "gpt-5.4",
+      "provider": "https://api.openai.com/v1",
+      "provider_version": "openai"
+    },
+    "Qwen3 32B (DeepInfra)": {
+      "model": "Qwen/Qwen3-32B",
+      "provider": "https://api.deepinfra.com/v1/openai",
+      "provider_version": "deepinfra"
+    }
+  },
+  "python_version": "3.14.6 (main, Jun 23 2026, 15:46:31) [Clang 22.1.3 ]",
+  "retry_policy": {
+    "backoff_seconds": [1.0, 2.0, 4.0, 8.0, 16.0],
+    "honor_retry_after": true,
+    "max_attempts": 6
+  },
+  "study_id": "gia-gas-2.0-pr12",
+  "study_version": "1.0",
+  "task_tiers": {
+    "pm:tier_1": 8,
+    "pm:tier_2": 10,
+    "pm:tier_3": 8,
+    "pm:tier_4": 4
+  }
+}
