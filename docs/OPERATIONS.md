@@ -39,13 +39,17 @@ uv run python -m src.gia.server
 
 For a stateless Streamable HTTP endpoint, set `MCP_TRANSPORT=streamable-http`.
 `MCP_HOST`, `MCP_PORT`, and `MCP_ALLOWED_HOSTS` control binding and host
-validation; the default endpoint is `http://127.0.0.1:8000/mcp`.
+validation; bare hostnames in `MCP_ALLOWED_HOSTS` are matched on the configured
+port, and `:*` may be used to allow every port. The default endpoint is
+`http://127.0.0.1:8000/mcp`. Set `GIA_DB_PATH` when the MCP process must retain
+sessions across restarts.
 
 ```bash
 MCP_TRANSPORT=streamable-http \
 MCP_HOST=127.0.0.1 \
 MCP_PORT=8000 \
 MCP_ALLOWED_HOSTS=127.0.0.1,localhost \
+GIA_DB_PATH=./gia.db \
 uv run python -m src.gia.server
 ```
 

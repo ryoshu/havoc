@@ -52,7 +52,7 @@ MAX_TURNS = 50
 
 def _run_stateful(client) -> dict:
     """Run the stateful (full-context) agent loop."""
-    server = fresh_server()
+    server, session_id = fresh_server()
     tracker = Tracker()
     t0 = time.monotonic()
     stall_count = 0
@@ -103,7 +103,7 @@ def _run_stateful(client) -> dict:
 
         stall_count = 0
         for tc in message.tool_calls:
-            result_str = execute_tool(server, tc)
+            result_str = execute_tool(server, tc, session_id)
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": trim_response(result_str)})
             tracker.process_tool_result(tc, result_str, turn)
 
@@ -115,12 +115,14 @@ def _run_stateful(client) -> dict:
 
 def _run_stateless(client) -> dict:
     """Run the stateless (fresh-context) agent loop."""
-    server = fresh_server()
+    server, session_id = fresh_server()
     tracker = Tracker()
     t0 = time.monotonic()
     stall_count = 0
 
-    initial_state = trim_response(server.get(resource_type="session"))
+    initial_state = trim_response(
+        server.get(resource_type="session", session_id=session_id)
+    )
 
     ctx: dict = {
         "phase": "setup",
@@ -171,7 +173,7 @@ def _run_stateless(client) -> dict:
         ctx["last_error"] = None
 
         for tc in message.tool_calls:
-            result_str = execute_tool(server, tc)
+            result_str = execute_tool(server, tc, session_id)
             trimmed = trim_response(result_str)
             all_messages.append({"role": "tool", "tool_call_id": tc.id, "content": trimmed})
             ctx["last_tool_response"] = trimmed

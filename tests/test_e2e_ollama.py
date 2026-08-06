@@ -95,7 +95,7 @@ def _nudge_message(tracker: Tracker) -> str | None:
 def test_e2e_stateful():
     """LLM plays through setup → multi-round combat → scene completion (stateful)."""
 
-    server = fresh_server()
+    server, session_id = fresh_server()
     client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama", timeout=180.0)
     tracker = Tracker()
     t0 = time.monotonic()
@@ -146,7 +146,7 @@ def test_e2e_stateful():
         stall_count = 0
 
         for tc in message.tool_calls:
-            result_str = execute_tool(server, tc)
+            result_str = execute_tool(server, tc, session_id)
             trimmed = trim_response(result_str)
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": trimmed})
             tracker.process_tool_result(tc, result_str, turn)

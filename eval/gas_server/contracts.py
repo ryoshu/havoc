@@ -156,11 +156,12 @@ class EnforcedGasMixin:
         return revisions.get(session_id, 0)
 
     def _contract_error(self, error: GasContractError, session_id: str):
+        valid_session_id = session_id if isinstance(session_id, str) else ""
         return error_response(
             self.mode,
             error,
-            self._contract_affordances(session_id) if session_id else [],
-            self._contract_revision(session_id) if session_id else None,
+            self._contract_affordances(valid_session_id) if valid_session_id else [],
+            self._contract_revision(valid_session_id) if valid_session_id else None,
         )
 
     def _require_contract_session(self, session_id: str) -> None:
@@ -168,6 +169,18 @@ class EnforcedGasMixin:
             raise GasContractError("invalid_input", "session_id is required in gas-enforced mode.", details={"parameter": "session_id"})
         if not self.ctx.get_session(session_id):
             raise GasContractError("resource_not_found", f"Session '{session_id}' not found.")
+
+    @staticmethod
+    def _require_mapping(value: Mapping[str, Any] | None, name: str) -> dict[str, Any]:
+        if value is None:
+            return {}
+        if not isinstance(value, Mapping):
+            raise GasContractError(
+                "invalid_input",
+                f"{name} must be an object.",
+                details={"parameter": name},
+            )
+        return dict(value)
 
     def get_enforced(self, resource_type: str, id: str = "", *, session_id: str) -> GasResourceResponse | GasErrorResponse:
         try:
@@ -187,7 +200,8 @@ class EnforcedGasMixin:
     def search_enforced(self, resource_type: str, filters: Mapping[str, Any] | None = None, *, session_id: str) -> GasResourceResponse | GasErrorResponse:
         try:
             self._require_contract_session(session_id)
-            payload = json.loads(self.search(resource_type, json.dumps(dict(filters or {})), session_id))
+            parsed_filters = self._require_mapping(filters, "filters")
+            payload = json.loads(self.search(resource_type, json.dumps(parsed_filters), session_id))
             if "error" in payload:
                 raise GasContractError("invalid_input", payload["error"])
             return GasResourceResponse(
@@ -209,8 +223,24 @@ class EnforcedGasMixin:
     ) -> GasActionResponse | GasErrorResponse:
         try:
             self._require_contract_session(session_id)
+            if not isinstance(action, str) or not action.strip():
+                raise GasContractError(
+                    "invalid_input",
+                    "action must be a non-empty string.",
+                    details={"parameter": "action"},
+                )
             if expected_revision is None:
                 raise GasContractError("invalid_input", "expected_revision is required in gas-enforced mode.")
+            if (
+                isinstance(expected_revision, bool)
+                or not isinstance(expected_revision, int)
+                or expected_revision < 0
+            ):
+                raise GasContractError(
+                    "invalid_input",
+                    "expected_revision must be a non-negative integer.",
+                    details={"parameter": "expected_revision"},
+                )
             current_revision = self._contract_revision(session_id)
             if expected_revision != current_revision:
                 raise GasContractError(
@@ -218,7 +248,7 @@ class EnforcedGasMixin:
                     f"Session revision is {current_revision}, not {expected_revision}.",
                     details={"expected_revision": expected_revision, "current_revision": current_revision},
                 )
-            parsed = dict(params or {})
+            parsed = self._require_mapping(params, "params")
             candidates = [a for a in contract_affordances(self._contract_affordances(session_id)) if a.action == action]
             if not candidates:
                 raise GasContractError("action_unavailable", f"Action '{action}' is not currently available.")

@@ -283,6 +283,18 @@ def test_json_adapter_preserves_legacy_success_and_error_payloads(runtime):
     assert "select_character" in _actions(failure)
 
 
+def test_e2e_compatibility_helper_provisions_an_explicit_session():
+    from tests.e2e_helpers import fresh_server
+
+    adapter, session_id = fresh_server()
+    try:
+        state = json.loads(adapter.get("session", session_id=session_id))
+        assert state["data"]["id"] == session_id
+        assert state["state_revision"] == 0
+    finally:
+        adapter.ctx.db.close()
+
+
 def test_pending_roll_survives_runtime_restart(tmp_path: Path):
     db_path = str(tmp_path / "restart.db")
     first = GameRuntime(db_path=db_path)

@@ -113,13 +113,15 @@ def _build_user_message(context: dict) -> str:
 def test_e2e_stateless():
     """LLM plays through setup → multi-round combat → scene completion (stateless)."""
 
-    server = fresh_server()
+    server, session_id = fresh_server()
     client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama", timeout=180.0)
     tracker = Tracker()
     t0 = time.monotonic()
 
     # Seed context with initial session state (gives the LLM affordances on turn 0)
-    initial_state = trim_response(server.get(resource_type="session"))
+    initial_state = trim_response(
+        server.get(resource_type="session", session_id=session_id)
+    )
 
     # Mutable context dict — passed to the LLM each turn as the user message
     ctx: dict = {
@@ -174,7 +176,7 @@ def test_e2e_stateless():
         ctx["last_error"] = None
 
         for tc in message.tool_calls:
-            result_str = execute_tool(server, tc)
+            result_str = execute_tool(server, tc, session_id)
             trimmed = trim_response(result_str)
             all_messages.append({"role": "tool", "tool_call_id": tc.id, "content": trimmed})
 

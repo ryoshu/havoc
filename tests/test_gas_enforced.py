@@ -62,6 +62,28 @@ def test_enforced_reads_are_typed_and_revision_errors_are_normalized(enforced_ru
     assert stale.error.details["current_revision"] == 0
 
 
+def test_enforced_mode_rejects_wrong_outer_input_types(enforced_runtime):
+    runtime, session_id = enforced_runtime
+
+    boolean_revision = runtime.act_enforced(
+        "unknown_action", {}, session_id=session_id, expected_revision=False
+    )
+    assert isinstance(boolean_revision, GasErrorResponse)
+    assert boolean_revision.error.code == "invalid_input"
+
+    list_params = runtime.act_enforced(
+        "unknown_action", [["key", "value"]], session_id=session_id, expected_revision=0
+    )
+    assert isinstance(list_params, GasErrorResponse)
+    assert list_params.error.code == "invalid_input"
+
+    list_filters = runtime.search_enforced(
+        "issues", ["not", "an", "object"], session_id=session_id
+    )
+    assert isinstance(list_filters, GasErrorResponse)
+    assert list_filters.error.code == "invalid_input"
+
+
 def test_advisory_mode_remains_the_legacy_default():
     runtime = EvalRuntime()
     try:

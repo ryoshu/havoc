@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 
 import anyio
+from starlette.testclient import TestClient
 
 from mcp.client import Client
 from mcp.server import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 
-from src.gia.server import mcp
+from src.gia.server import _allowed_hosts, _configured_db_path, mcp
 
 
 def _text(result) -> dict:
@@ -88,11 +89,41 @@ def test_mcp_v2_in_memory_client_contract():
     anyio.run(_exercise_server)
 
 
-def test_stateless_streamable_http_app_exposes_mcp_route():
+def test_module_runtime_database_path_is_configurable(monkeypatch, tmp_path):
+    db_path = tmp_path / "gia.db"
+    monkeypatch.setenv("GIA_DB_PATH", str(db_path))
+    assert _configured_db_path() == str(db_path)
+
+
+def test_stateless_streamable_http_request_accepts_configured_host_port():
+    allowed_hosts = _allowed_hosts(["127.0.0.1", "localhost"], 8000)
+    assert allowed_hosts == ["127.0.0.1:8000", "localhost:8000"]
     app = mcp.streamable_http_app(
         stateless_http=True,
         transport_security=TransportSecuritySettings(
-            allowed_hosts=["127.0.0.1", "localhost"]
+            allowed_hosts=allowed_hosts
         ),
     )
-    assert any(getattr(route, "path", None) == "/mcp" for route in app.routes)
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            headers={
+                "host": "127.0.0.1:8000",
+                "MCP-Protocol-Version": "2026-07-28",
+                "Mcp-Method": "server/discover",
+                "accept": "application/json, text/event-stream",
+            },
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "server/discover",
+                "params": {
+                    "_meta": {
+                        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                        "io.modelcontextprotocol/clientCapabilities": {},
+                    }
+                },
+            },
+        )
+
+    assert response.status_code == 200

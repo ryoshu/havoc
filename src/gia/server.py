@@ -882,7 +882,12 @@ class GameRuntime:
 # handle; importing this module does not create a game.
 # ---------------------------------------------------------------------------
 
-_default = GameRuntime()
+def _configured_db_path() -> str:
+    """Return the database path used by the module-level MCP runtime."""
+    return os.environ.get("GIA_DB_PATH", ":memory:")
+
+
+_default = GameRuntime(db_path=_configured_db_path())
 _legacy = JsonGameRuntimeAdapter(_default)
 ctx = _default.ctx
 engine = _default.engine
@@ -1119,19 +1124,34 @@ def act(
     return _legacy.act(action, params, session_id, expected_revision, affordance_id)
 
 
+def _allowed_hosts(raw_hosts: list[str], port: int) -> list[str]:
+    """Normalize configured hostnames to the complete Host header values."""
+    allowed_hosts = []
+    for item in raw_hosts:
+        item = item.strip()
+        if not item:
+            continue
+        # TransportSecuritySettings matches the complete Host header. A bare
+        # hostname therefore needs the bound port appended; callers can still
+        # opt into all ports with the SDK's ``:*`` syntax.
+        if ":" not in item:
+            item = f"{item}:{port}"
+        allowed_hosts.append(item)
+    return allowed_hosts
+
+
 if __name__ == "__main__":
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
     if transport == "streamable-http":
         host = os.environ.get("MCP_HOST", "127.0.0.1")
         port = int(os.environ.get("MCP_PORT", "8000"))
-        allowed_hosts = [
-            item.strip()
-            for item in os.environ.get(
-                "MCP_ALLOWED_HOSTS",
-                f"{host},localhost,127.0.0.1",
-            ).split(",")
-            if item.strip()
+        configured_hosts = os.environ.get("MCP_ALLOWED_HOSTS")
+        raw_hosts = configured_hosts.split(",") if configured_hosts else [
+            host,
+            "localhost",
+            "127.0.0.1",
         ]
+        allowed_hosts = _allowed_hosts(raw_hosts, port)
         mcp.run(
             "streamable-http",
             host=host,

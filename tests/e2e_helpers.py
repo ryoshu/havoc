@@ -104,13 +104,16 @@ def ollama_reachable(host: str = "localhost", port: int = 11434, timeout: float 
 # ---------------------------------------------------------------------------
 
 def fresh_server():
-    """Create a fresh runtime behind the legacy JSON compatibility API."""
+    """Create a fresh runtime and explicitly provision its test session."""
     from src.gia.compat import JsonGameRuntimeAdapter
     from src.gia.server import GameRuntime
-    return JsonGameRuntimeAdapter(GameRuntime())
+    runtime = GameRuntime()
+    bootstrap = JsonGameRuntimeAdapter(runtime)
+    session_id = json.loads(bootstrap.create_session())["data"]["id"]
+    return bootstrap, session_id
 
 
-def execute_tool(server, tool_call) -> str:
+def execute_tool(server, tool_call, session_id: str) -> str:
     """Run a tool call against the server module."""
     name = tool_call.function.name
     try:
@@ -123,16 +126,19 @@ def execute_tool(server, tool_call) -> str:
             return server.get(
                 resource_type=args.get("resource_type", ""),
                 id=args.get("id", ""),
+                session_id=session_id,
             )
         elif name == "search":
             return server.search(
                 resource_type=args.get("resource_type", "characters"),
                 filters=args.get("filters", "{}"),
+                session_id=session_id,
             )
         elif name == "act":
             return server.act(
                 action=args.get("action", ""),
                 params=args.get("params", "{}"),
+                session_id=session_id,
             )
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})
