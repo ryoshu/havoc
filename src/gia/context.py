@@ -49,23 +49,34 @@ class GameContext:
         self.policy_provider = policy_provider or DeterministicPolicyProvider()
 
         # Load templates from JSON (faster than round-tripping through SPARQL)
-        self._char_templates: dict[str, CharacterTemplate] = {}
-        self._enemy_templates: dict[str, EnemyTemplate] = {}
-        self._location_templates: dict[str, LocationTemplate] = {}
+        (
+            self._char_templates,
+            self._enemy_templates,
+            self._location_templates,
+        ) = self._load_data()
 
-        self._load_data()
+    def _load_data(self, graph: GameGraph | None = None):
+        """Load immutable vocabulary/knowledge into ``graph``.
 
-    def _load_data(self):
-        # Load ontology + data into graph
+        Returning fresh template maps makes graph rebuilds transactional from
+        the context's perspective: a malformed import leaves the current
+        graph and template view untouched.
+        """
+        graph = graph or self.graph
+        char_templates: dict[str, CharacterTemplate] = {}
+        enemy_templates: dict[str, EnemyTemplate] = {}
+        location_templates: dict[str, LocationTemplate] = {}
+
+        # Load ontology + imported knowledge into the selected graph.
         if ONTOLOGY_PATH.exists():
-            self.graph.load_ttl(ONTOLOGY_PATH)
+            graph.load_ttl(ONTOLOGY_PATH)
 
         # Load and parse JSON templates
         chars_path = DATA_DIR / "characters.json"
         if chars_path.exists():
             with open(chars_path) as f:
                 chars_data = json.load(f)
-            self.graph.load_characters(chars_data)
+            graph.load_characters(chars_data)
             for c in chars_data:
                 injuries = {}
                 for cat, inj in c.get("injuries", {}).items():
@@ -73,7 +84,7 @@ class GameContext:
                         category=cat, minor=inj["minor"],
                         major=inj["major"], major_penalty=inj["major_penalty"],
                     )
-                self._char_templates[c["id"]] = CharacterTemplate(
+                char_templates[c["id"]] = CharacterTemplate(
                     id=c["id"], name=c["name"], description=c["description"],
                     hooks=c.get("hooks", []),
                     stats=c["stats"],
@@ -93,17 +104,69 @@ class GameContext:
         if enemies_path.exists():
             with open(enemies_path) as f:
                 enemies_data = json.load(f)
-            self.graph.load_enemies(enemies_data)
+            graph.load_enemies(enemies_data)
             for e in enemies_data:
-                self._enemy_templates[e["id"]] = EnemyTemplate(**e)
+                enemy_templates[e["id"]] = EnemyTemplate(**e)
 
         locations_path = DATA_DIR / "locations.json"
         if locations_path.exists():
             with open(locations_path) as f:
                 locations_data = json.load(f)
-            self.graph.load_locations(locations_data)
+            graph.load_locations(locations_data)
             for loc in locations_data:
-                self._location_templates[loc["id"]] = LocationTemplate(**loc)
+                location_templates[loc["id"]] = LocationTemplate(**loc)
+
+        return char_templates, enemy_templates, location_templates
+
+    def rebuild_graph(self) -> GameGraph:
+        """Rebuild the read model from ontology, imports, and SQLite records.
+
+        The new graph is validated before it replaces the active graph.  No
+        command, policy, or transaction consults the graph, so a failed
+        rebuild cannot create a partial domain commit.
+        """
+        rebuilt = GameGraph()
+        templates = self._load_data(rebuilt)
+        for session in self.db.get_all_sessions():
+            decisions = self.db.get_session_provenance(session.id)
+            if decisions:
+                rebuilt.load_decisions(decisions)
+        rebuilt.validate_shacl().raise_if_invalid()
+        self.graph = rebuilt
+        (
+            self._char_templates,
+            self._enemy_templates,
+            self._location_templates,
+        ) = templates
+        return rebuilt
+
+    rebuild_graph_from_authority = rebuild_graph
+
+    def project_pending_graph(self, *, limit: int = 100) -> int:
+        """Apply committed outbox records to the eventually-consistent graph.
+
+        The event is marked published only after its provenance record has
+        been projected and shape-validated.  Retrying an event is safe because
+        RDF insertion is idempotent; a graph failure leaves the outbox row
+        pending for retry or a full rebuild.
+        """
+        projected = 0
+        for event in self.db.get_projection_outbox(limit=limit):
+            request_id = event["payload"].get("request_id")
+            if not request_id:
+                raise ValueError(f"Projection event {event['id']} has no request_id")
+            decision = self.db.get_provenance(request_id)
+            if decision is None:
+                raise ValueError(
+                    f"Projection event {event['id']} references missing provenance"
+                )
+            self.graph.load_decisions([decision])
+            self.graph.validate_shacl().raise_if_invalid()
+            self.db.mark_projection_published(event["id"])
+            projected += 1
+        return projected
+
+    publish_pending_graph = project_pending_graph
 
     # --- Template Access ---
 

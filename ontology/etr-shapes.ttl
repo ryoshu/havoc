@@ -1,0 +1,16 @@
+@prefix etr: <http://gia.dev/etr#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+
+# Structural projection shape only.  These constraints describe the facts
+# required for a queryable DecisionProvenance read model; they do not decide
+# whether a command is authorized or whether a state transition is legal.
+etr:DecisionProvenanceShape a sh:NodeShape ;
+    sh:targetClass etr:DecisionProvenance ;
+    sh:property [ sh:path etr:sessionId ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path etr:actorId ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path etr:actionTaken ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path etr:stateRevisionBefore ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path etr:stateRevisionAfter ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path etr:policyVersion ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path etr:provenanceVersion ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path etr:outcome ; sh:minCount 1 ; sh:maxCount 1 ] .

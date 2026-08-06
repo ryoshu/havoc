@@ -119,6 +119,17 @@ CREATE TABLE IF NOT EXISTS decision_records (
     committed_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS projection_outbox (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    aggregate_type TEXT NOT NULL,
+    aggregate_id TEXT NOT NULL,
+    aggregate_revision INTEGER NOT NULL,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    published_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS pending_rolls (
     session_id TEXT PRIMARY KEY REFERENCES game_sessions(id),
     roll_json TEXT NOT NULL,
@@ -299,6 +310,29 @@ class GameDB:
             scene_number=row["scene_number"],
             created_at=row["created_at"],
         )
+
+    def get_all_sessions(self) -> list[GameSession]:
+        """Return authoritative sessions for read-model rebuilds."""
+        rows = self.conn.execute(
+            "SELECT * FROM game_sessions ORDER BY created_at, id"
+        ).fetchall()
+        return [
+            GameSession(
+                id=row["id"],
+                tenant_id=row["tenant_id"],
+                policy_version=row["policy_version"],
+                phase=GamePhase(row["phase"]),
+                state_revision=row["state_revision"],
+                current_location_id=row["current_location_id"],
+                active_character_id=row["active_character_id"],
+                round_number=row["round_number"],
+                scene_number=row["scene_number"],
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
+    list_sessions = get_all_sessions
 
     def update_session(self, session: GameSession) -> None:
         self.conn.execute(
@@ -636,8 +670,97 @@ class GameDB:
                 decision.committed_at,
             ),
         )
+        # The outbox row is written in the same transaction as the
+        # authoritative decision.  A graph outage can therefore delay a
+        # projection without making the domain commit ambiguous or lossy.
+        self.enqueue_projection_event(
+            event_type="decision.provenance.recorded",
+            aggregate_type="session",
+            aggregate_id=decision.session_id,
+            aggregate_revision=decision.state_revision_after,
+            payload={
+                "decision_id": decision.id,
+                "request_id": decision.request_id,
+                "provenance_version": decision.version,
+            },
+            event_id=f"decision:{decision.id}",
+        )
         self._commit()
         return decision
+
+    def enqueue_projection_event(
+        self,
+        *,
+        event_type: str,
+        aggregate_type: str,
+        aggregate_id: str,
+        aggregate_revision: int,
+        payload: dict,
+        event_id: str | None = None,
+    ) -> str:
+        """Append one durable read-model event.
+
+        Callers may invoke this inside ``transaction()``; ``_commit`` is
+        intentionally deferred while the transaction depth is non-zero.
+        ``event_id`` makes retries idempotent for an already-recorded domain
+        decision.
+        """
+        event_id = event_id or _uid("outbox-")
+        self.conn.execute(
+            """INSERT OR IGNORE INTO projection_outbox
+               (id, event_type, aggregate_type, aggregate_id,
+                aggregate_revision, payload_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                event_id,
+                event_type,
+                aggregate_type,
+                aggregate_id,
+                aggregate_revision,
+                json.dumps(redact_sensitive(payload), sort_keys=True),
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
+        self._commit()
+        return event_id
+
+    def get_projection_outbox(
+        self,
+        *,
+        limit: int = 100,
+        include_published: bool = False,
+    ) -> list[dict]:
+        """Read pending (or all) projection events in insertion order."""
+        if limit <= 0:
+            return []
+        where = "" if include_published else "WHERE published_at IS NULL"
+        rows = self.conn.execute(
+            f"""SELECT * FROM projection_outbox {where}
+                ORDER BY created_at, id LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "event_type": row["event_type"],
+                "aggregate_type": row["aggregate_type"],
+                "aggregate_id": row["aggregate_id"],
+                "aggregate_revision": row["aggregate_revision"],
+                "payload": json.loads(row["payload_json"]),
+                "created_at": row["created_at"],
+                "published_at": row["published_at"],
+            }
+            for row in rows
+        ]
+
+    get_pending_projection_events = get_projection_outbox
+
+    def mark_projection_published(self, event_id: str) -> None:
+        self.conn.execute(
+            "UPDATE projection_outbox SET published_at = ? WHERE id = ?",
+            (datetime.now(timezone.utc).isoformat(), event_id),
+        )
+        self._commit()
 
     def update_last_decision_llm_context(
         self, session_id: str, narration: str, turn_context: str,
