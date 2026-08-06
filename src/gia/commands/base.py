@@ -17,8 +17,9 @@ from abc import ABC, abstractmethod
 
 from ..capabilities import EffectMetadata
 from ..context import GameContext
-from ..domain import DomainEvent
+from ..domain import DomainError, DomainEvent
 from ..models import GameSession
+from .schema import normalize_schema, schema_errors
 
 
 class Actor:
@@ -83,9 +84,21 @@ class Command(ABC):
     def applicable(self, snapshot: Snapshot, actor: Actor) -> list[Binding]:
         """Return every binding this command currently offers this actor."""
 
-    @abstractmethod
     def validate(self, snapshot: Snapshot, actor: Actor, binding: Binding, input: dict) -> None:
-        """Raise a DomainError if `input` does not satisfy `binding` against `snapshot`."""
+        """Raise a DomainError if `input` does not satisfy `binding` against `snapshot`.
+
+        The default checks `input` against `binding.input_schema` — the same
+        generic shape check the outer `act()` boundary already runs against
+        a projected affordance. Most commands only need this; a command with
+        a domain-level precondition beyond input shape (e.g. `heal`'s Blood
+        and injury-category check) overrides this and typically re-derives
+        that precondition from `snapshot` rather than trusting `binding`.
+        """
+        errors = schema_errors(normalize_schema(binding.input_schema), input)
+        if errors:
+            raise DomainError(
+                f"Invalid parameters for {binding.command}: {'; '.join(errors)}."
+            )
 
     @abstractmethod
     def execute(

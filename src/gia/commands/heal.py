@@ -59,13 +59,10 @@ class HealCommand(Command):
         return bindings
 
     def validate(self, snapshot: Snapshot, actor: Actor, binding: Binding, input: dict) -> None:
-        character_id = input.get("character_id")
-        category = input.get("category")
-        if not isinstance(character_id, str) or not isinstance(category, str):
-            raise DomainError("heal requires character_id and category.")
-        if binding.target is None or binding.target.get("id") != character_id:
-            raise DomainError(f"Binding does not authorize healing character {character_id!r}.")
+        super().validate(snapshot, actor, binding, input)  # binding.input_schema shape
 
+        character_id = input["character_id"]
+        category = input["category"]
         character = snapshot.ctx.db.get_character(character_id)
         if not character or character.session_id != snapshot.session.id:
             raise DomainError(f"Character {character_id} not found.")
