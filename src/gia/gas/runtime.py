@@ -303,6 +303,11 @@ class GasRuntime:
         *,
         session_id: str = "",
         scope: str | None = None,
+        request_id: str | None = None,
+        client_metadata: Mapping[str, Any] | None = None,
+        model_metadata: Mapping[str, Any] | None = None,
+        untrusted_rationale: str | None = None,
+        sensitive_fields: list[str] | tuple[str, ...] = (),
     ) -> GasActionResponse:
         if not isinstance(capability_id, str) or not capability_id.strip():
             raise InvalidInputError(
@@ -348,6 +353,11 @@ class GasRuntime:
             idempotency_key=idempotency_key,
             capability_id=capability_id,
             request_context=request_context.for_scope(resolved_scope),
+            request_id=request_id,
+            client_metadata=client_metadata,
+            model_metadata=model_metadata,
+            untrusted_rationale=untrusted_rationale,
+            sensitive_fields=tuple(sensitive_fields),
         )
         capabilities = self.runtime.capability_set(session_id)
         session_scope_value = Scope.session(request_context.tenant_id, session_id)

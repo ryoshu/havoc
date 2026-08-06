@@ -271,6 +271,11 @@ class GameRuntime:
         capability_id: str | None = None,
         policy_version: str | None = None,
         request_context: RequestContext | None = None,
+        request_id: str | None = None,
+        client_metadata: Mapping[str, Any] | None = None,
+        model_metadata: Mapping[str, Any] | None = None,
+        untrusted_rationale: str | None = None,
+        sensitive_fields: tuple[str, ...] = (),
     ) -> ActionResponse:
         """Execute one action through the execution service (PR 5).
 
@@ -293,6 +298,11 @@ class GameRuntime:
             request_context=context,
             capability_id=capability_id,
             policy_version=policy_version,
+            request_id=request_id,
+            client_metadata=client_metadata,
+            model_metadata=model_metadata,
+            untrusted_rationale=untrusted_rationale,
+            sensitive_fields=sensitive_fields,
         )
         affordances = compute_affordances(self.ctx, sid, context)
         return self._format_action_response(result, affordances, events, sid)
@@ -523,6 +533,11 @@ def mcp_act(
     idempotency_key: str,
     session_id: str = "",
     scope: str | None = None,
+    request_id: str | None = None,
+    client_metadata: dict[str, Any] | None = None,
+    model_metadata: dict[str, Any] | None = None,
+    untrusted_rationale: str | None = None,
+    sensitive_fields: list[str] | None = None,
 ) -> GasActionResponse:
     return _call_gas(
         lambda: _gas.act(
@@ -532,6 +547,11 @@ def mcp_act(
             idempotency_key,
             session_id=session_id,
             scope=scope,
+            request_id=request_id,
+            client_metadata=client_metadata,
+            model_metadata=model_metadata,
+            untrusted_rationale=untrusted_rationale,
+            sensitive_fields=sensitive_fields or (),
         )
     )
 
