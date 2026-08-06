@@ -17,7 +17,7 @@ import time
 
 from openai import APITimeoutError, InternalServerError, OpenAI
 
-from src.gia.server import GameRuntime
+from src.gia.compat import JsonGameRuntimeAdapter
 
 from .config import NarrativeBeat
 
@@ -26,7 +26,7 @@ RETRIES = 3
 ACTION_DELIMITER = "---ACTION---"
 
 
-def _get_alive_character_ids(runtime: GameRuntime, session_id: str) -> list[str]:
+def _get_alive_character_ids(runtime: JsonGameRuntimeAdapter, session_id: str) -> list[str]:
     """Return IDs of alive (not dead) characters in the session."""
     characters = runtime.ctx.db.get_session_characters(session_id)
     return [c.id for c in characters if not c.is_dead]
@@ -78,7 +78,7 @@ The {ACTION_DELIMITER} block is MANDATORY every response.\
 
 
 def _build_turn_message(
-    runtime: GameRuntime,
+    runtime: JsonGameRuntimeAdapter,
     session_id: str,
     last_result: dict | None = None,
 ) -> str:
@@ -281,7 +281,7 @@ class LLMGameRunner:
 
     def __init__(
         self,
-        runtime: GameRuntime,
+        runtime: JsonGameRuntimeAdapter,
         client: OpenAI,
         characters: list[str],
         model: str = "qwen3.5:9b",

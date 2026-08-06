@@ -16,6 +16,7 @@ import time
 
 from openai import OpenAI
 
+from src.gia.compat import JsonGameRuntimeAdapter
 from src.gia.server import GameRuntime
 
 from .config import PlaythroughStrategy
@@ -76,7 +77,7 @@ def main():
         print()
 
         t0 = time.monotonic()
-        runtime = GameRuntime(db_path=db_path)
+        runtime = JsonGameRuntimeAdapter(GameRuntime(db_path=db_path))
         client = OpenAI(base_url=args.api_url, api_key=args.api_key, timeout=300.0)
 
         is_ollama = "localhost" in args.api_url or "127.0.0.1" in args.api_url
@@ -113,7 +114,7 @@ def main():
 
     # --- Phase 1: Director plays the game ---
     t0 = time.monotonic()
-    runtime = GameRuntime(db_path=args.db)
+    runtime = JsonGameRuntimeAdapter(GameRuntime(db_path=args.db))
     director = Director(runtime, strategy)
     beats = director.run_full_game()
     director_time = time.monotonic() - t0

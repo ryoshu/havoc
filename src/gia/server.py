@@ -2,20 +2,34 @@
 
 from __future__ import annotations
 
-import json
+from collections.abc import Mapping
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from .affordances import compute_affordances
+from .compat import JsonGameRuntimeAdapter
 from .context import GameContext
-from .domain import DomainError, HavocEngine
+from .domain import (
+    DomainError,
+    HavocEngine,
+    InvalidInputError,
+    ResourceNotFoundError,
+    UnsupportedOperationError,
+)
 from .models import (
     DecisionRecord,
     DiceAllocation,
     EquipmentState,
     GamePhase,
 )
-from .responses import format_dice_roll, format_response
+from .responses import (
+    ActionResponse,
+    ResourceResponse,
+    format_action_response,
+    format_dice_roll,
+    format_response,
+)
 
 
 class GameRuntime:
@@ -35,108 +49,148 @@ class GameRuntime:
     def _session_id_or_default(self, sid: str) -> str:
         return sid or self.default_session_id
 
-    def get(self, resource_type: str, id: str = "", session_id: str = "") -> str:
-        """Retrieve a resource by type and ID. Returns data + available affordances."""
-        sid = self._session_id_or_default(session_id)
-        try:
-            if resource_type == "session":
-                target_id = id or sid
-                session = self.ctx.get_session(target_id)
-                if not session:
-                    return json.dumps({"error": f"Session {target_id} not found"})
-                affordances = compute_affordances(self.ctx, target_id)
-                return json.dumps(format_response(session, affordances), indent=2)
-            elif resource_type == "character":
-                char = self.ctx.db.get_character(id)
-                if not char:
-                    return json.dumps({"error": f"Character {id} not found"})
-                sheet = self.ctx.get_character_sheet(id)
-                affordances = compute_affordances(self.ctx, sid)
-                return json.dumps(format_response(sheet, affordances), indent=2)
-            elif resource_type == "character_template":
-                template = self.ctx.get_character_template(id)
-                if not template:
-                    return json.dumps({"error": f"Character template {id} not found"})
-                affordances = compute_affordances(self.ctx, sid)
-                return json.dumps(format_response(template, affordances), indent=2)
-            elif resource_type == "location":
-                loc = self.ctx.get_location_template(id)
-                if not loc:
-                    return json.dumps({"error": f"Location {id} not found"})
-                affordances = compute_affordances(self.ctx, sid)
-                return json.dumps(format_response(loc, affordances), indent=2)
-            elif resource_type == "scene":
-                scene = self.ctx.get_active_scene(sid)
-                if not scene:
-                    return json.dumps({"error": "No active scene"})
-                affordances = compute_affordances(self.ctx, sid)
-                return json.dumps(format_response(scene, affordances), indent=2)
-            elif resource_type == "enemy":
-                enemy = self.ctx.get_enemy_template(id)
-                if not enemy:
-                    return json.dumps({"error": f"Enemy {id} not found"})
-                affordances = compute_affordances(self.ctx, sid)
-                return json.dumps(format_response(enemy, affordances), indent=2)
-            elif resource_type == "rules":
-                rules = self.ctx.graph.get_rules()
-                affordances = compute_affordances(self.ctx, sid)
-                return json.dumps(format_response(rules, affordances), indent=2)
-            else:
-                return json.dumps({"error": f"Unknown resource type: {resource_type}"})
-        except DomainError as e:
-            return json.dumps({"error": str(e)})
+    @staticmethod
+    def _require_mapping(
+        value: Mapping[str, Any] | None,
+        parameter_name: str,
+    ) -> dict[str, Any]:
+        if value is None:
+            return {}
+        if not isinstance(value, Mapping):
+            raise InvalidInputError(f"{parameter_name} must be a mapping.")
+        return dict(value)
 
-    def search(self, resource_type: str, filters: str = "{}", session_id: str = "") -> str:
-        """Search/browse resources. Returns results + available affordances."""
+    def get(
+        self,
+        resource_type: str,
+        id: str = "",
+        session_id: str = "",
+    ) -> ResourceResponse:
+        """Retrieve a resource by type and ID."""
         sid = self._session_id_or_default(session_id)
-        try:
-            parsed = json.loads(filters) if isinstance(filters, str) else filters
-        except json.JSONDecodeError:
-            parsed = {}
-        try:
-            if resource_type == "characters":
-                templates = self.ctx.get_all_character_templates()
-                results = [{"id": t.id, "name": t.name, "description": t.description[:100]} for t in templates]
-                affordances = compute_affordances(self.ctx, sid)
-                return json.dumps(format_response(results, affordances), indent=2)
-            elif resource_type == "locations":
-                locations = self.ctx.get_all_locations()
-                if "sector" in parsed:
-                    locations = [l for l in locations if l.sector == parsed["sector"]]
-                results = [
-                    {
-                        "id": l.id, "name": l.name, "sector": l.sector,
-                        "objective": l.objective.name, "objective_rating": l.objective.rating,
-                    }
-                    for l in locations
-                ]
-                affordances = compute_affordances(self.ctx, sid)
-                return json.dumps(format_response(results, affordances), indent=2)
-            elif resource_type == "enemies":
-                results = self.ctx.graph.get_all_enemies()
-                affordances = compute_affordances(self.ctx, sid)
-                return json.dumps(format_response(results, affordances), indent=2)
-            elif resource_type == "ubermenschen":
-                results = self.ctx.graph.get_ubermenschen()
-                affordances = compute_affordances(self.ctx, sid)
-                return json.dumps(format_response(results, affordances), indent=2)
-            else:
-                return json.dumps({"error": f"Unknown search type: {resource_type}"})
-        except DomainError as e:
-            return json.dumps({"error": str(e)})
+        if resource_type == "session":
+            target_id = id or sid
+            session = self.ctx.get_session(target_id)
+            if not session:
+                raise ResourceNotFoundError(
+                    f"Session {target_id} not found.",
+                    details={"resource_type": "session", "id": target_id},
+                )
+            affordances = compute_affordances(self.ctx, target_id)
+            return format_response(session, affordances)
+        if resource_type == "character":
+            char = self.ctx.db.get_character(id)
+            if not char:
+                raise ResourceNotFoundError(
+                    f"Character {id} not found.",
+                    details={"resource_type": "character", "id": id},
+                )
+            sheet = self.ctx.get_character_sheet(id)
+            affordances = compute_affordances(self.ctx, sid)
+            return format_response(sheet, affordances)
+        if resource_type == "character_template":
+            template = self.ctx.get_character_template(id)
+            if not template:
+                raise ResourceNotFoundError(
+                    f"Character template {id} not found.",
+                    details={"resource_type": "character_template", "id": id},
+                )
+            affordances = compute_affordances(self.ctx, sid)
+            return format_response(template, affordances)
+        if resource_type == "location":
+            loc = self.ctx.get_location_template(id)
+            if not loc:
+                raise ResourceNotFoundError(
+                    f"Location {id} not found.",
+                    details={"resource_type": "location", "id": id},
+                )
+            affordances = compute_affordances(self.ctx, sid)
+            return format_response(loc, affordances)
+        if resource_type == "scene":
+            scene = self.ctx.get_active_scene(sid)
+            if not scene:
+                raise ResourceNotFoundError(
+                    "No active scene.",
+                    details={"resource_type": "scene", "session_id": sid},
+                )
+            affordances = compute_affordances(self.ctx, sid)
+            return format_response(scene, affordances)
+        if resource_type == "enemy":
+            enemy = self.ctx.get_enemy_template(id)
+            if not enemy:
+                raise ResourceNotFoundError(
+                    f"Enemy {id} not found.",
+                    details={"resource_type": "enemy", "id": id},
+                )
+            affordances = compute_affordances(self.ctx, sid)
+            return format_response(enemy, affordances)
+        if resource_type == "rules":
+            rules = self.ctx.graph.get_rules()
+            affordances = compute_affordances(self.ctx, sid)
+            return format_response(rules, affordances)
+        raise UnsupportedOperationError(
+            f"Unknown resource type: {resource_type}",
+            details={"operation": "get", "resource_type": resource_type},
+        )
 
-    def act(self, action: str, params: str = "{}", session_id: str = "") -> str:
-        """Execute an action discovered via affordances. Returns result + next affordances."""
+    def search(
+        self,
+        resource_type: str,
+        filters: Mapping[str, Any] | None = None,
+        session_id: str = "",
+    ) -> ResourceResponse:
+        """Search or browse resources."""
         sid = self._session_id_or_default(session_id)
-        try:
-            parsed = json.loads(params) if isinstance(params, str) else params
-        except json.JSONDecodeError:
-            parsed = {}
+        parsed = self._require_mapping(filters, "filters")
+        if resource_type == "characters":
+            templates = self.ctx.get_all_character_templates()
+            results = [{"id": t.id, "name": t.name, "description": t.description[:100]} for t in templates]
+            affordances = compute_affordances(self.ctx, sid)
+            return format_response(results, affordances)
+        if resource_type == "locations":
+            locations = self.ctx.get_all_locations()
+            if "sector" in parsed:
+                locations = [l for l in locations if l.sector == parsed["sector"]]
+            results = [
+                {
+                    "id": l.id, "name": l.name, "sector": l.sector,
+                    "objective": l.objective.name, "objective_rating": l.objective.rating,
+                }
+                for l in locations
+            ]
+            affordances = compute_affordances(self.ctx, sid)
+            return format_response(results, affordances)
+        if resource_type == "enemies":
+            results = self.ctx.graph.get_all_enemies()
+            affordances = compute_affordances(self.ctx, sid)
+            return format_response(results, affordances)
+        if resource_type == "ubermenschen":
+            results = self.ctx.graph.get_ubermenschen()
+            affordances = compute_affordances(self.ctx, sid)
+            return format_response(results, affordances)
+        raise UnsupportedOperationError(
+            f"Unknown search type: {resource_type}",
+            details={"operation": "search", "resource_type": resource_type},
+        )
+
+    def act(
+        self,
+        action: str,
+        params: Mapping[str, Any] | None = None,
+        session_id: str = "",
+    ) -> ActionResponse:
+        """Execute an action discovered via affordances."""
+        sid = self._session_id_or_default(session_id)
+        parsed = self._require_mapping(params, "params")
 
         # Snapshot state before action
         session_before = self.ctx.get_session(sid)
         phase_before = session_before.phase.value if session_before else ""
-        actor_id = session_before.active_character_id or "system" if session_before else "system"
+        actor_id = (
+            session_before.active_character_id or "system"
+            if session_before
+            else "system"
+        )
         actor_name = ""
         if actor_id != "system":
             actor_char = self.ctx.db.get_character(actor_id)
@@ -180,19 +234,13 @@ class GameRuntime:
             self.ctx.db.record_decision(decision)
 
             affordances = compute_affordances(self.ctx, sid)
-            response = format_response(result, affordances)
-            if events:
-                response["events"] = [e.model_dump() for e in events]
-            return json.dumps(response, indent=2)
-        except DomainError as e:
-            affordances = compute_affordances(self.ctx, sid)
-            return json.dumps({
-                "error": str(e),
-                "affordances": [
-                    {"action": a.action, "description": a.description, "schema": a.schema_, "constraints": a.constraints}
-                    for a in affordances
-                ],
-            }, indent=2)
+            return format_action_response(result, affordances, events)
+        except KeyError as error:
+            missing = str(error.args[0]) if error.args else "unknown"
+            raise InvalidInputError(
+                f"Missing required action parameter: {missing}.",
+                details={"action": action, "parameter": missing},
+            ) from error
 
     def _dispatch_action(self, session_id: str, action: str, params: dict):
         """Route action to appropriate domain method."""
@@ -690,6 +738,7 @@ class GameRuntime:
 # ---------------------------------------------------------------------------
 
 _default = GameRuntime()
+_legacy = JsonGameRuntimeAdapter(_default)
 ctx = _default.ctx
 engine = _default.engine
 _pending_rolls = _default._pending_rolls
@@ -712,7 +761,7 @@ def get(resource_type: str, id: str = "", session_id: str = "") -> str:
     id: resource ID (template_id for templates, character_id for characters, etc.)
     session_id: optional, defaults to current session
     """
-    return _default.get(resource_type, id, session_id)
+    return _legacy.get(resource_type, id, session_id)
 
 
 @mcp.tool()
@@ -723,7 +772,7 @@ def search(resource_type: str, filters: str = "{}", session_id: str = "") -> str
     filters: JSON string, e.g. {"sector": 3} for locations
     session_id: optional
     """
-    return _default.search(resource_type, filters, session_id)
+    return _legacy.search(resource_type, filters, session_id)
 
 
 @mcp.tool()
@@ -734,7 +783,7 @@ def act(action: str, params: str = "{}", session_id: str = "") -> str:
     params: JSON string of action parameters
     session_id: optional
     """
-    return _default.act(action, params, session_id)
+    return _legacy.act(action, params, session_id)
 
 
 if __name__ == "__main__":

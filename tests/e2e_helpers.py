@@ -104,9 +104,10 @@ def ollama_reachable(host: str = "localhost", port: int = 11434, timeout: float 
 # ---------------------------------------------------------------------------
 
 def fresh_server():
-    """Create a fresh GameRuntime instance with clean state."""
+    """Create a fresh runtime behind the legacy JSON compatibility API."""
+    from src.gia.compat import JsonGameRuntimeAdapter
     from src.gia.server import GameRuntime
-    return GameRuntime()
+    return JsonGameRuntimeAdapter(GameRuntime())
 
 
 def execute_tool(server, tool_call) -> str:

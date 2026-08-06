@@ -1,14 +1,14 @@
 """Director — deterministic state machine that plays the game without an LLM.
 
-Calls GameRuntime.act() directly, reads affordances, picks optimal actions,
-and records NarrativeBeat objects at key moments.
+Calls the temporary JSON runtime adapter, reads affordances, picks optimal
+actions, and records NarrativeBeat objects at key moments.
 """
 
 from __future__ import annotations
 
 import json
 
-from src.gia.server import GameRuntime
+from src.gia.compat import JsonGameRuntimeAdapter
 
 from .config import NarrativeBeat, PlaythroughStrategy
 
@@ -16,7 +16,7 @@ from .config import NarrativeBeat, PlaythroughStrategy
 class Director:
     """Plays a full game mechanically, collecting narrative beats."""
 
-    def __init__(self, runtime: GameRuntime, strategy: PlaythroughStrategy):
+    def __init__(self, runtime: JsonGameRuntimeAdapter, strategy: PlaythroughStrategy):
         self.rt = runtime
         self.strategy = strategy
         self.session_id = runtime.default_session_id

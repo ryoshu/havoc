@@ -24,6 +24,30 @@ from .models import (
 class DomainError(Exception):
     """Raised when a domain constraint is violated."""
 
+    code = "domain_error"
+
+    def __init__(self, message: str, *, details: dict | None = None):
+        super().__init__(message)
+        self.details = details or {}
+
+
+class InvalidInputError(DomainError):
+    """Raised when a runtime request does not satisfy its input contract."""
+
+    code = "invalid_input"
+
+
+class ResourceNotFoundError(DomainError):
+    """Raised when a requested resource does not exist."""
+
+    code = "resource_not_found"
+
+
+class UnsupportedOperationError(DomainError):
+    """Raised when a runtime request names an unsupported operation."""
+
+    code = "unsupported_operation"
+
 
 class HavocEngine:
     """Implements the Havoc Engine game mechanics."""

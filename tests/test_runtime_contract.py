@@ -11,6 +11,9 @@ import json
 
 import pytest
 
+from src.gia.compat import JsonGameRuntimeAdapter
+from src.gia.domain import DomainError, InvalidInputError, ResourceNotFoundError
+from src.gia.responses import ActionResponse, ResourceResponse
 from src.gia.server import GameRuntime
 
 
@@ -23,8 +26,8 @@ def runtime():
         instance.ctx.db.close()
 
 
-def _result(payload: str) -> dict:
-    return json.loads(payload)
+def _result(payload: ResourceResponse) -> dict:
+    return payload.model_dump(mode="json", by_alias=True)
 
 
 def _actions(payload: dict) -> set[str]:
@@ -32,8 +35,10 @@ def _actions(payload: dict) -> set[str]:
 
 
 def test_initial_session_exposes_setup_state_and_affordances(runtime):
-    result = _result(runtime.get("session"))
+    response = runtime.get("session")
+    result = _result(response)
 
+    assert isinstance(response, ResourceResponse)
     assert result["data"]["id"] == runtime.default_session_id
     assert result["data"]["phase"] == "setup"
     assert "select_character" in _actions(result)
@@ -50,7 +55,7 @@ def test_character_search_uses_the_standard_response_envelope(runtime):
 
 
 def test_location_search_applies_sector_filter(runtime):
-    result = _result(runtime.search("locations", '{"sector": 3}'))
+    result = _result(runtime.search("locations", {"sector": 3}))
 
     assert result["data"]
     assert {item["sector"] for item in result["data"]} == {3}
@@ -58,12 +63,12 @@ def test_location_search_applies_sector_filter(runtime):
 
 def test_setup_transition_records_decisions_and_enters_exploration(runtime):
     select_iryna = _result(
-        runtime.act("select_character", '{"template_id": "iryna"}')
+        runtime.act("select_character", {"template_id": "iryna"})
     )
     assert select_iryna["data"]["character_id"].startswith("ch-")
     assert "start_mission" in _actions(select_iryna)
 
-    runtime.act("select_character", '{"template_id": "chuck"}')
+    runtime.act("select_character", {"template_id": "chuck"})
     started = _result(runtime.act("start_mission"))
     session = _result(runtime.get("session"))
 
@@ -82,21 +87,19 @@ def test_setup_transition_records_decisions_and_enters_exploration(runtime):
 
 
 def test_duplicate_character_selection_returns_domain_error(runtime):
-    runtime.act("select_character", '{"template_id": "iryna"}')
+    runtime.act("select_character", {"template_id": "iryna"})
 
-    result = _result(
-        runtime.act("select_character", '{"template_id": "iryna"}')
-    )
+    with pytest.raises(DomainError, match="already selected") as exc_info:
+        runtime.act("select_character", {"template_id": "iryna"})
 
-    assert result["error"] == "Character iryna already selected."
-    assert "start_mission" in _actions(result)
+    assert exc_info.value.code == "domain_error"
 
 
 def test_runtime_instances_are_isolated():
     first = GameRuntime()
     second = GameRuntime()
     try:
-        first.act("select_character", '{"template_id": "iryna"}')
+        first.act("select_character", {"template_id": "iryna"})
 
         first_state = _result(first.get("session"))
         second_state = _result(second.get("session"))
@@ -114,23 +117,43 @@ def test_runtime_instances_are_isolated():
     reason="PR 3 will reject known actions that are absent from current affordances",
 )
 def test_known_but_unavailable_action_is_rejected(runtime):
-    runtime.act("select_character", '{"template_id": "iryna"}')
+    runtime.act("select_character", {"template_id": "iryna"})
     runtime.act("start_mission")
 
-    result = _result(
-        runtime.act("select_character", '{"template_id": "chuck"}')
-    )
-
-    assert "error" in result
-    assert "not currently available" in result["error"]
+    with pytest.raises(DomainError, match="not currently available"):
+        runtime.act("select_character", {"template_id": "chuck"})
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="PR 2 will replace encoded JSON parameters and surface typed errors",
-)
-def test_malformed_action_parameters_return_a_domain_error(runtime):
-    result = _result(runtime.act("select_character", "{not-json"))
+def test_runtime_requires_mapping_action_parameters(runtime):
+    with pytest.raises(InvalidInputError, match="params must be a mapping"):
+        runtime.act("select_character", "{not-json")
 
-    assert "error" in result
-    assert "parameter" in result["error"].lower()
+
+def test_action_response_has_typed_events_and_affordances(runtime):
+    response = runtime.act("select_character", {"template_id": "iryna"})
+
+    assert isinstance(response, ActionResponse)
+    assert response.events == []
+    assert all(affordance.action for affordance in response.affordances)
+
+
+def test_missing_resources_raise_typed_exceptions(runtime):
+    with pytest.raises(ResourceNotFoundError) as exc_info:
+        runtime.get("character_template", "missing")
+
+    assert exc_info.value.code == "resource_not_found"
+    assert exc_info.value.details == {
+        "resource_type": "character_template",
+        "id": "missing",
+    }
+
+
+def test_json_adapter_preserves_legacy_success_and_error_payloads(runtime):
+    adapter = JsonGameRuntimeAdapter(runtime)
+
+    success = json.loads(adapter.search("locations", '{"sector": 3}'))
+    failure = json.loads(adapter.act("select_character", "{not-json"))
+
+    assert {item["sector"] for item in success["data"]} == {3}
+    assert "Malformed JSON in params" in failure["error"]
+    assert "select_character" in _actions(failure)
