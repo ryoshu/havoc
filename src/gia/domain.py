@@ -67,6 +67,19 @@ class StaleStateError(DomainError):
     code = "stale_state"
 
 
+class IdempotencyConflictError(DomainError):
+    """Raised when an idempotency key is reused with a different action/params.
+
+    An idempotency key identifies one attempted mutation, not a bearer
+    token: retrying the same key with the same input is safe (PR 5 of the
+    GIA/GAS 2.0 plan), but reusing it for a different request means the
+    caller mismanaged key generation, not that the server should guess
+    which request it meant.
+    """
+
+    code = "idempotency_conflict"
+
+
 class HavocEngine:
     """Implements the Havoc Engine game mechanics."""
 

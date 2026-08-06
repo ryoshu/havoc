@@ -101,6 +101,19 @@ CREATE TABLE IF NOT EXISTS pending_rolls (
     gm_kept_json TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS idempotency_records (
+    session_id TEXT NOT NULL REFERENCES game_sessions(id),
+    actor_id TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    action TEXT NOT NULL,
+    params_json TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    events_json TEXT NOT NULL,
+    state_revision INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (session_id, actor_id, idempotency_key)
+);
 """
 
 
@@ -527,6 +540,60 @@ class GameDB:
             llm_narration=row["llm_narration"],
             llm_turn_context=row["llm_turn_context"],
         )
+
+    # --- Idempotency Records (PR 5: execution service) ---
+
+    def get_idempotent_result(
+        self, session_id: str, actor_id: str, idempotency_key: str,
+    ) -> dict | None:
+        """Look up a previously committed result for this (session, actor, key)."""
+        row = self.conn.execute(
+            """SELECT * FROM idempotency_records
+               WHERE session_id = ? AND actor_id = ? AND idempotency_key = ?""",
+            (session_id, actor_id, idempotency_key),
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "action": row["action"],
+            "params": json.loads(row["params_json"]),
+            "result": json.loads(row["result_json"]),
+            "events": json.loads(row["events_json"]),
+            "state_revision": row["state_revision"],
+        }
+
+    def save_idempotent_result(
+        self,
+        session_id: str,
+        actor_id: str,
+        idempotency_key: str,
+        action: str,
+        params: dict,
+        result: dict,
+        events: list[dict],
+        state_revision: int,
+    ) -> None:
+        """Record a committed mutation's result under its idempotency key.
+
+        Called from inside the same transaction as the mutation it records,
+        so a crash cannot commit one without the other. The primary key
+        scopes uniqueness to (session_id, actor_id, idempotency_key) — a key
+        is only unique per actor per session, matching PR 5's requirement
+        that reuse across sessions cannot collide.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            """INSERT INTO idempotency_records
+               (session_id, actor_id, idempotency_key, action, params_json,
+                result_json, events_json, state_revision, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                session_id, actor_id, idempotency_key, action,
+                json.dumps(params), json.dumps(result), json.dumps(events),
+                state_revision, now,
+            ),
+        )
+        self._commit()
 
     def _row_to_roll(self, row: sqlite3.Row) -> DiceRoll:
         return DiceRoll(
