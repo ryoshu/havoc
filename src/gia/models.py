@@ -237,27 +237,9 @@ class DomainEvent(BaseModel):
     data: dict = Field(default_factory=dict)
 
 
-# --- Decision Records (reasoning traces) ---
+# --- Decision provenance ---
 
-class DecisionRecord(BaseModel):
-    """Captures a single decision: who did what, when, from what options, with what result."""
-    id: str = ""
-    session_id: str = ""
-    tenant_id: str = "default"
-    scope: str = ""
-    state_revision: int = 0
-    policy_version: str = "policy-v1"
-    actor_id: str = ""  # character_id or "system"
-    actor_name: str = ""
-    action: str = ""
-    params: dict = Field(default_factory=dict)
-    affordances_snapshot: list[dict] = Field(default_factory=list)  # what was available
-    affordances_not_taken: list[str] = Field(default_factory=list)  # actions they chose NOT to do
-    result_summary: str = ""  # short description of outcome
-    events: list[dict] = Field(default_factory=list)  # domain events triggered
-    phase_before: str = ""
-    phase_after: str = ""
-    timestamp: str = ""
-    # LLM reasoning trace — populated when an LLM drives decisions
-    llm_narration: str = ""  # the LLM's prose output (its "why")
-    llm_turn_context: str = ""  # what the LLM saw (game state + affordances sent to it)
+# Kept in a transport-independent package so persistence and graph renderers
+# share one versioned contract.  ``DecisionRecord`` remains an explicit 1.x
+# compatibility alias; it no longer describes hidden reasoning or causality.
+from .provenance.models import DecisionProvenance, DecisionRecord

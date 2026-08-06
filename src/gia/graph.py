@@ -274,28 +274,49 @@ class GameGraph:
             }
         """)
 
-    # --- Decision Records ---
+    # --- Decision provenance ---
 
     def load_decisions(self, decisions: list) -> None:
-        """Load DecisionRecord objects into the graph for SPARQL querying."""
+        """Load observable provenance into the derived graph read model.
+
+        Inputs, results, and metadata have already passed through the
+        redaction boundary before this projection.  The graph is never an
+        execution authority and does not receive hidden model traces.
+        """
         for d in decisions:
             did = _iri(f"decision_{d.id}")
+            self._add(did, _iri("rdf_type"), _iri("DecisionProvenance"))
+            # Keep the old type while the 1.x query adapter remains supported.
             self._add(did, _iri("rdf_type"), _iri("Decision"))
+            self._add(did, _iri("provenanceVersion"), _lit(getattr(d, "version", "1.0")))
+            self._add(did, _iri("requestId"), _lit(getattr(d, "request_id", "")))
             self._add(did, _iri("sessionId"), _lit(d.session_id))
+            self._add(did, _iri("tenantId"), _lit(d.tenant_id))
+            self._add(did, _iri("scope"), _lit(d.scope))
             self._add(did, _iri("actorId"), _lit(d.actor_id))
             self._add(did, _iri("actorName"), _lit(d.actor_name))
+            if getattr(d, "capability_id", None):
+                self._add(did, _iri("capabilityId"), _lit(d.capability_id))
+            if getattr(d, "capability_set_hash", ""):
+                self._add(did, _iri("capabilitySetHash"), _lit(d.capability_set_hash))
             self._add(did, _iri("actionTaken"), _lit(d.action))
             self._add(did, _iri("resultSummary"), _lit(d.result_summary))
             self._add(did, _iri("phaseBefore"), _lit(d.phase_before))
             self._add(did, _iri("phaseAfter"), _lit(d.phase_after))
+            self._add(did, _iri("stateRevisionBefore"), _lit(d.state_revision_before, "integer"))
+            self._add(did, _iri("stateRevisionAfter"), _lit(d.state_revision_after, "integer"))
+            self._add(did, _iri("policyVersion"), _lit(d.policy_version))
+            self._add(did, _iri("outcome"), _lit(d.outcome))
+            self._add(did, _iri("createdAt"), _lit(d.created_at))
             self._add(did, _iri("timestamp"), _lit(d.timestamp))
 
-            if d.llm_narration:
-                self._add(did, _iri("llmNarration"), _lit(d.llm_narration))
-            if d.llm_turn_context:
-                self._add(did, _iri("llmTurnContext"), _lit(d.llm_turn_context))
+            if getattr(d, "untrusted_rationale", None):
+                self._add(did, _iri("untrustedRationale"), _lit(d.untrusted_rationale))
 
-            for i, alt in enumerate(d.affordances_not_taken):
+            for alt in getattr(d, "alternatives_not_selected", d.affordances_not_taken):
+                self._add(did, _iri("advertisedButNotSelected"), _lit(alt))
+                # Compatibility predicate; this describes advertisement only,
+                # not a claim about model deliberation.
                 self._add(did, _iri("actionNotTaken"), _lit(alt))
 
             for ev in d.events:
@@ -307,6 +328,8 @@ class GameGraph:
             # Link to actor
             if d.actor_id != "system":
                 self._add(did, _iri("madeBy"), _lit(d.actor_id))
+
+    load_provenance = load_decisions
 
     def get_decisions_by_actor(self, actor_name: str) -> list[dict]:
         return self.query(f"""
@@ -321,8 +344,10 @@ class GameGraph:
             }} ORDER BY ?ts
         """)
 
+    get_provenance_by_actor = get_decisions_by_actor
+
     def get_actions_not_taken(self, actor_name: str) -> list[dict]:
-        """Find what actions an actor chose NOT to do — the roads not taken."""
+        """Find advertised alternatives that were not selected."""
         return self.query(f"""
             SELECT ?action ?alternative ?ts WHERE {{
                 ?id etr:rdf_type etr:Decision .
@@ -346,6 +371,8 @@ class GameGraph:
                 ?ev etr:eventType "{event_type}" .
             }} ORDER BY ?ts
         """)
+
+    get_provenance_with_events = get_decisions_with_events
 
     def get_phase_transitions(self) -> list[dict]:
         """Get all phase transitions across the session."""

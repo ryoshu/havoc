@@ -22,6 +22,7 @@ from .models import (
     SceneState,
     ThreatState,
 )
+from .provenance import redact_sensitive
 
 SCHEMA = """\
 CREATE TABLE IF NOT EXISTS game_sessions (
@@ -97,7 +98,25 @@ CREATE TABLE IF NOT EXISTS decision_records (
     phase_after TEXT NOT NULL DEFAULT '',
     timestamp TEXT NOT NULL,
     llm_narration TEXT NOT NULL DEFAULT '',
-    llm_turn_context TEXT NOT NULL DEFAULT ''
+    llm_turn_context TEXT NOT NULL DEFAULT '',
+    provenance_version TEXT NOT NULL DEFAULT '2.0',
+    request_id TEXT NOT NULL DEFAULT '',
+    capability_id TEXT,
+    capability_set_hash TEXT NOT NULL DEFAULT '',
+    capability_snapshot_ref TEXT,
+    capability_snapshot_json TEXT NOT NULL DEFAULT '[]',
+    offered_capabilities_json TEXT NOT NULL DEFAULT '[]',
+    input_json TEXT NOT NULL DEFAULT '{}',
+    result_json TEXT NOT NULL DEFAULT '{}',
+    alternatives_not_selected_json TEXT NOT NULL DEFAULT '[]',
+    state_revision_before INTEGER NOT NULL DEFAULT 0,
+    state_revision_after INTEGER NOT NULL DEFAULT 0,
+    outcome TEXT NOT NULL DEFAULT 'committed',
+    client_metadata_json TEXT NOT NULL DEFAULT '{}',
+    model_metadata_json TEXT NOT NULL DEFAULT '{}',
+    untrusted_rationale TEXT,
+    created_at TEXT NOT NULL DEFAULT '',
+    committed_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS pending_rolls (
@@ -162,6 +181,24 @@ class GameDB:
                 "scope": "TEXT NOT NULL DEFAULT ''",
                 "state_revision": "INTEGER NOT NULL DEFAULT 0",
                 "policy_version": "TEXT NOT NULL DEFAULT 'policy-v1'",
+                "provenance_version": "TEXT NOT NULL DEFAULT '2.0'",
+                "request_id": "TEXT NOT NULL DEFAULT ''",
+                "capability_id": "TEXT",
+                "capability_set_hash": "TEXT NOT NULL DEFAULT ''",
+                "capability_snapshot_ref": "TEXT",
+                "capability_snapshot_json": "TEXT NOT NULL DEFAULT '[]'",
+                "offered_capabilities_json": "TEXT NOT NULL DEFAULT '[]'",
+                "input_json": "TEXT NOT NULL DEFAULT '{}'",
+                "result_json": "TEXT NOT NULL DEFAULT '{}'",
+                "alternatives_not_selected_json": "TEXT NOT NULL DEFAULT '[]'",
+                "state_revision_before": "INTEGER NOT NULL DEFAULT 0",
+                "state_revision_after": "INTEGER NOT NULL DEFAULT 0",
+                "outcome": "TEXT NOT NULL DEFAULT 'committed'",
+                "client_metadata_json": "TEXT NOT NULL DEFAULT '{}'",
+                "model_metadata_json": "TEXT NOT NULL DEFAULT '{}'",
+                "untrusted_rationale": "TEXT",
+                "created_at": "TEXT NOT NULL DEFAULT ''",
+                "committed_at": "TEXT",
             },
             "idempotency_records": {
                 "policy_version": "TEXT NOT NULL DEFAULT 'policy-v1'",
@@ -517,35 +554,86 @@ class GameDB:
         )
         self._commit()
 
-    # --- Decision Records ---
+    # --- Decision provenance (DecisionRecord is the 1.x adapter name) ---
 
     def record_decision(self, decision: DecisionRecord) -> DecisionRecord:
         if not decision.id:
             decision.id = _uid("dc-")
         if not decision.timestamp:
             decision.timestamp = datetime.now(timezone.utc).isoformat()
+        if not decision.created_at:
+            decision.created_at = decision.timestamp
+        if decision.committed_at is None and decision.outcome == "committed":
+            decision.committed_at = decision.timestamp
+        if not decision.request_id:
+            decision.request_id = _uid("req-")
+        if not decision.capability_snapshot_ref:
+            decision.capability_snapshot_ref = f"decision:{decision.id}:capabilities"
+        # Enforce the persistence boundary even for direct database callers;
+        # execution normally performs the same redaction with configured
+        # domain-specific fields before constructing this model.
+        decision.input = redact_sensitive(decision.input)
+        decision.result = redact_sensitive(decision.result)
+        decision.events = redact_sensitive(decision.events)
+        decision.capability_snapshot = redact_sensitive(decision.capability_snapshot)
+        decision.offered_capabilities = redact_sensitive(decision.offered_capabilities)
+        decision.affordances_snapshot = redact_sensitive(decision.affordances_snapshot)
+        decision.client_metadata = redact_sensitive(decision.client_metadata)
+        decision.model_metadata = redact_sensitive(decision.model_metadata)
+        decision.untrusted_rationale = redact_sensitive(decision.untrusted_rationale)
+        decision.result_summary = str(redact_sensitive(decision.result_summary))[:200]
+        safe_narration = redact_sensitive(decision.llm_narration)
+        safe_context = redact_sensitive(decision.llm_turn_context)
+        safe_rationale = redact_sensitive(decision.untrusted_rationale)
+        decision.llm_narration = safe_narration
+        decision.llm_turn_context = safe_context
+        decision.untrusted_rationale = safe_rationale
         self.conn.execute(
             """INSERT INTO decision_records
                (id, session_id, tenant_id, scope, state_revision, policy_version,
                 actor_id, actor_name, action, params_json,
                 affordances_snapshot_json, affordances_not_taken_json,
                 result_summary, events_json, phase_before, phase_after, timestamp,
-                llm_narration, llm_turn_context)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                llm_narration, llm_turn_context, provenance_version, request_id,
+                capability_id, capability_set_hash, capability_snapshot_ref,
+                capability_snapshot_json, offered_capabilities_json, input_json,
+                result_json, alternatives_not_selected_json, state_revision_before,
+                state_revision_after, outcome, client_metadata_json, model_metadata_json,
+                untrusted_rationale, created_at, committed_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 decision.id, decision.session_id, decision.tenant_id,
                 decision.scope, decision.state_revision, decision.policy_version,
                 decision.actor_id,
                 decision.actor_name, decision.action,
-                json.dumps(decision.params),
-                json.dumps(decision.affordances_snapshot),
-                json.dumps(decision.affordances_not_taken),
+                json.dumps(decision.input, sort_keys=True),
+                json.dumps(decision.affordances_snapshot, sort_keys=True),
+                json.dumps(decision.affordances_not_taken, sort_keys=True),
                 decision.result_summary,
                 json.dumps(decision.events),
                 decision.phase_before, decision.phase_after,
                 decision.timestamp,
-                decision.llm_narration,
-                decision.llm_turn_context,
+                safe_narration,
+                safe_context,
+                decision.version,
+                decision.request_id,
+                decision.capability_id,
+                decision.capability_set_hash,
+                decision.capability_snapshot_ref,
+                json.dumps(decision.capability_snapshot, sort_keys=True),
+                json.dumps(decision.offered_capabilities, sort_keys=True),
+                json.dumps(decision.input, sort_keys=True),
+                json.dumps(decision.result, sort_keys=True),
+                json.dumps(decision.alternatives_not_selected, sort_keys=True),
+                decision.state_revision_before,
+                decision.state_revision_after,
+                decision.outcome,
+                json.dumps(decision.client_metadata, sort_keys=True),
+                json.dumps(decision.model_metadata, sort_keys=True),
+                safe_rationale,
+                decision.created_at,
+                decision.committed_at,
             ),
         )
         self._commit()
@@ -554,16 +642,31 @@ class GameDB:
     def update_last_decision_llm_context(
         self, session_id: str, narration: str, turn_context: str,
     ) -> None:
-        """Attach LLM reasoning to the most recent decision in a session."""
+        """Compatibility adapter for 1.x callers.
+
+        The values are retained as explicitly supplied, untrusted metadata;
+        they are not treated as causal explanations or projected as reasoning
+        predicates in the graph.
+        """
         self.conn.execute(
             """UPDATE decision_records
-               SET llm_narration = ?, llm_turn_context = ?
+               SET llm_narration = ?, llm_turn_context = ?,
+                   untrusted_rationale = ?, model_metadata_json = ?
                WHERE id = (
                    SELECT id FROM decision_records
                    WHERE session_id = ?
                    ORDER BY timestamp DESC LIMIT 1
                )""",
-            (narration, turn_context, session_id),
+            (
+                redact_sensitive(narration),
+                redact_sensitive(turn_context),
+                redact_sensitive(narration) if narration else None,
+                json.dumps(
+                    {"turn_context": redact_sensitive(turn_context)}
+                    if turn_context else {}
+                ),
+                session_id,
+            ),
         )
         self.conn.commit()
 
@@ -574,20 +677,61 @@ class GameDB:
         ).fetchall()
         return [self._row_to_decision(r) for r in rows]
 
+    def get_session_provenance(self, session_id: str) -> list[DecisionRecord]:
+        """Canonical PR9 name for the session audit query."""
+        return self.get_session_decisions(session_id)
+
+    def get_provenance(self, request_id: str) -> DecisionRecord | None:
+        """Return one provenance record by its stable request identifier."""
+        row = self.conn.execute(
+            "SELECT * FROM decision_records WHERE request_id = ? LIMIT 1",
+            (request_id,),
+        ).fetchone()
+        return self._row_to_decision(row) if row else None
+
+    get_decision_provenance = get_provenance
+
     def _row_to_decision(self, row: sqlite3.Row) -> DecisionRecord:
+        columns = set(row.keys())
+
+        def value(name: str, default):
+            return row[name] if name in columns else default
+
+        provenance_version = value("provenance_version", "1.0")
+        legacy_row = (
+            provenance_version == "2.0"
+            and not value("request_id", "")
+            and not value("capability_set_hash", "")
+        )
+        input_json = value("input_json", row["params_json"])
+        offered_json = value("offered_capabilities_json", row["affordances_snapshot_json"])
+        alternatives_json = value(
+            "alternatives_not_selected_json", row["affordances_not_taken_json"]
+        )
+        if legacy_row:
+            input_json = row["params_json"]
+            offered_json = row["affordances_snapshot_json"]
+            alternatives_json = row["affordances_not_taken_json"]
+        state_before = row["state_revision"] if legacy_row else value(
+            "state_revision_before", row["state_revision"]
+        )
+        state_after = row["state_revision"] if legacy_row else value(
+            "state_revision_after", row["state_revision"]
+        )
         return DecisionRecord(
             id=row["id"],
             session_id=row["session_id"],
             tenant_id=row["tenant_id"],
             scope=row["scope"],
-            state_revision=row["state_revision"],
             policy_version=row["policy_version"],
             actor_id=row["actor_id"],
             actor_name=row["actor_name"],
             action=row["action"],
-            params=json.loads(row["params_json"]),
+            input=json.loads(input_json),
             affordances_snapshot=json.loads(row["affordances_snapshot_json"]),
             affordances_not_taken=json.loads(row["affordances_not_taken_json"]),
+            offered_capabilities=json.loads(offered_json),
+            alternatives_not_selected=json.loads(alternatives_json),
             result_summary=row["result_summary"],
             events=json.loads(row["events_json"]),
             phase_before=row["phase_before"],
@@ -595,6 +739,25 @@ class GameDB:
             timestamp=row["timestamp"],
             llm_narration=row["llm_narration"],
             llm_turn_context=row["llm_turn_context"],
+            version="1.0" if legacy_row else provenance_version,
+            request_id=value("request_id", "") or f"legacy:{row['id']}",
+            capability_id=value("capability_id", None),
+            capability_set_hash=value("capability_set_hash", ""),
+            capability_snapshot_ref=value("capability_snapshot_ref", None),
+            capability_snapshot=(
+                json.loads(value("capability_snapshot_json", "{}"))
+                if isinstance(json.loads(value("capability_snapshot_json", "{}")), dict)
+                else {}
+            ),
+            result=json.loads(value("result_json", "{}")),
+            state_revision_before=state_before,
+            state_revision_after=state_after,
+            outcome=value("outcome", "committed"),
+            client_metadata=json.loads(value("client_metadata_json", "{}")),
+            model_metadata=json.loads(value("model_metadata_json", "{}")),
+            untrusted_rationale=value("untrusted_rationale", None),
+            created_at=value("created_at", row["timestamp"]) or row["timestamp"],
+            committed_at=value("committed_at", row["timestamp"]) or row["timestamp"],
         )
 
     # --- Idempotency Records (PR 5: execution service) ---

@@ -27,6 +27,9 @@ so it raises `IdempotencyConflictError` rather than silently executing.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from uuid import uuid4
+
 from ..context import GameContext
 from ..domain import (
     DomainError,
@@ -40,7 +43,13 @@ from ..domain import (
 )
 from ..models import DecisionRecord, DomainEvent
 from ..policy import RequestContext
-from .kernel import compute_affordances, resolve_capability, session_scope
+from ..provenance import capability_set_digest, redact_sensitive
+from .kernel import (
+    compute_affordances,
+    project_capability_set,
+    resolve_capability,
+    session_scope,
+)
 from .kernel import dispatch as kernel_dispatch
 from .schema import validate_parameters
 
@@ -57,6 +66,11 @@ def execute(
     request_context: RequestContext | None = None,
     capability_id: str | None = None,
     policy_version: str | None = None,
+    request_id: str | None = None,
+    client_metadata: Mapping[str, object] | None = None,
+    model_metadata: Mapping[str, object] | None = None,
+    untrusted_rationale: str | None = None,
+    sensitive_fields: tuple[str, ...] = (),
 ) -> tuple[dict, list[DomainEvent]]:
     """Validate, execute, and record one mutating action. The sole entry
     point `GameRuntime.act` (or any other caller) must use to reach a
@@ -77,6 +91,11 @@ def execute(
             request_context,
             capability_id,
             policy_version,
+            request_id,
+            client_metadata,
+            model_metadata,
+            untrusted_rationale,
+            sensitive_fields,
         )
 
 
@@ -91,6 +110,11 @@ def _execute_locked(
     request_context: RequestContext | None,
     capability_id: str | None,
     expected_policy_version: str | None,
+    request_id: str | None,
+    client_metadata: Mapping[str, object] | None,
+    model_metadata: Mapping[str, object] | None,
+    untrusted_rationale: str | None,
+    sensitive_fields: tuple[str, ...],
 ) -> tuple[dict, list[DomainEvent]]:
     session_before = ctx.get_session(session_id)
     if not session_before:
@@ -104,6 +128,9 @@ def _execute_locked(
     legacy_context = request_context is None
     request = request_context or RequestContext.system(session_before.tenant_id)
     scope = session_scope(session_before, request)
+    request_id = request_id or f"req-{uuid4().hex}"
+    client_metadata = dict(client_metadata or {})
+    model_metadata = dict(model_metadata or {})
     actor_id = (
         (session_before.active_character_id or "system")
         if legacy_context
@@ -175,6 +202,10 @@ def _execute_locked(
             )
 
     pre_affordances = compute_affordances(ctx, session_id, request)
+    # Keep the exact local capability context that was offered with the
+    # request.  It is an audit snapshot, not an authorization shortcut; the
+    # transaction below still re-resolves the capability and policy.
+    offered_set = project_capability_set(ctx, session_before, request, scope=scope)
     if affordance_id:
         by_id = [a for a in pre_affordances if a.id == affordance_id]
         if by_id and by_id[0].action != action:
@@ -223,6 +254,12 @@ def _execute_locked(
             capability_id,
             selected_binding,
             expected_policy_version,
+            request_id,
+            client_metadata,
+            model_metadata,
+            untrusted_rationale,
+            sensitive_fields,
+            offered_set,
         )
     except KeyError as error:
         missing = str(error.args[0]) if error.args else "unknown"
@@ -248,6 +285,12 @@ def _claim_and_dispatch(
     capability_id: str | None,
     selected_binding,
     expected_policy_version: str | None,
+    request_id: str,
+    client_metadata: Mapping[str, object],
+    model_metadata: Mapping[str, object],
+    untrusted_rationale: str | None,
+    sensitive_fields: tuple[str, ...],
+    offered_set,
 ) -> tuple[dict, list[DomainEvent]]:
     """Atomically claim a revision, re-resolve and execute the command, and
     record decision provenance (and, if requested, the idempotent result) —
@@ -282,6 +325,18 @@ def _claim_and_dispatch(
             for a in pre_affordances
         ]
         affordances_not_taken = [a.action for a in pre_affordances if a.action != action]
+        offered_snapshot = offered_set.model_dump(mode="json")
+        offered_commands = offered_snapshot.get("commands", [])
+        selected_id = capability_id
+        alternatives = [
+            str(item.get("id"))
+            for item in offered_commands
+            if item.get("id") and item.get("id") != selected_id
+        ]
+        # Legacy action callers have no capability ID, so preserve the old
+        # affordance identifiers as advertised alternatives.
+        if selected_id is None:
+            alternatives = [a.id for a in pre_affordances if a.action != action]
 
         session = ctx.get_session(session_id)
         if not session:
@@ -341,18 +396,53 @@ def _claim_and_dispatch(
             session_id=session_id,
             tenant_id=request.tenant_id,
             scope=scope.key,
-            state_revision=session_after.state_revision if session_after else expected_revision + 1,
+            request_id=request_id,
+            capability_id=capability_id,
+            capability_set_hash=capability_set_digest(offered_snapshot),
+            capability_snapshot=redact_sensitive(
+                offered_snapshot, sensitive_fields=sensitive_fields
+            ),
+            offered_capabilities=redact_sensitive(
+                offered_snapshot.get("commands", []),
+                sensitive_fields=sensitive_fields,
+            ),
             policy_version=current_policy_version,
             actor_id=actor_id,
             actor_name=(request.subject if request.subject != "system" else actor_name),
             action=action,
-            params=params,
-            affordances_snapshot=affordances_snapshot,
-            affordances_not_taken=list(set(affordances_not_taken)),
-            result_summary=result_data.get("message", "")[:200],
-            events=[e.model_dump() for e in events],
+            input=redact_sensitive(params, sensitive_fields=sensitive_fields),
+            result=redact_sensitive(result_data, sensitive_fields=sensitive_fields),
+            affordances_snapshot=redact_sensitive(
+                affordances_snapshot, sensitive_fields=sensitive_fields
+            ),
+            alternatives_not_selected=alternatives,
+            affordances_not_taken=list(dict.fromkeys(affordances_not_taken)),
+            result_summary=str(
+                redact_sensitive(
+                    result_data.get("message", ""), sensitive_fields=sensitive_fields
+                )
+            )[:200],
+            events=redact_sensitive(
+                [e.model_dump() for e in events], sensitive_fields=sensitive_fields
+            ),
+            state_revision_before=expected_revision,
+            state_revision_after=(
+                session_after.state_revision if session_after else expected_revision + 1
+            ),
             phase_before=phase_before,
             phase_after=phase_after,
+            outcome="committed",
+            client_metadata=redact_sensitive(
+                client_metadata, sensitive_fields=sensitive_fields
+            ),
+            model_metadata=redact_sensitive(
+                model_metadata, sensitive_fields=sensitive_fields
+            ),
+            untrusted_rationale=(
+                redact_sensitive(untrusted_rationale, sensitive_fields=sensitive_fields)
+                if untrusted_rationale is not None
+                else None
+            ),
         )
         ctx.db.record_decision(decision)
 

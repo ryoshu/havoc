@@ -61,3 +61,22 @@ returns the typed `stale_view` error, so clients should restart discovery.
 for an unavailable command but always returns an empty executable command set;
 it cannot be used to bypass capability-ID dispatch or reveal another tenant's
 entities.
+
+## Decision provenance
+
+Every committed mutation writes one versioned `DecisionProvenance` record in
+the same SQLite transaction as the state revision and domain events. It binds
+the request ID, actor, tenant/scope, selected capability, capability-set hash,
+durable snapshot reference, redacted input/result, before/after revisions,
+policy version, emitted events, outcome, and optional client/model metadata.
+The snapshot records capabilities advertised by the server; alternatives are
+labelled "advertised but not selected" and do not claim access to hidden model
+reasoning. Explicit caller rationale is stored only as `untrusted_rationale`.
+
+Sensitive fields are recursively redacted before SQLite persistence or graph
+projection. Idempotent retries return the original result and do not create a
+second provenance record. Rejected or failed mutations do not create a
+committed provenance record; their typed error is the observable outcome, and
+transaction rollback removes any in-flight state, events, revision, and audit
+row together. `get_session_provenance` and `get_provenance` are the canonical
+read APIs; `get_session_decisions` remains a 1.x compatibility alias.

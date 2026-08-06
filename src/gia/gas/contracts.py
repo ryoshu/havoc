@@ -92,6 +92,11 @@ class ActRequest(BaseModel):
     idempotency_key: str
     session_id: str = ""
     scope: str | None = None
+    request_id: str | None = None
+    client_metadata: dict[str, Any] = Field(default_factory=dict)
+    model_metadata: dict[str, Any] = Field(default_factory=dict)
+    untrusted_rationale: str | None = None
+    sensitive_fields: list[str] = Field(default_factory=list)
 
     @field_validator("capability_id", "idempotency_key")
     @classmethod

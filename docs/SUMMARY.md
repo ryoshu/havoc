@@ -4,8 +4,8 @@
 > is in progress — see `docs/GIA-GAS-2.0-IMPLEMENTATION-PLAN.md` for the
 > target architecture and `docs/adr/` for the architectural decisions being
 > held constant across that migration. Some claims below (e.g. "3 tools"
-> as the architecture rather than one interface choice, and the reasoning
-> traces described as causal) are narrowed or reframed by that plan. This
+> as the architecture rather than one interface choice) are narrowed or
+> reframed by that plan. This
 > file stays as-is until the 2.0 cutover (PR 13) rewrites it; it is not
 > being kept in sync with the migration in the meantime.
 
@@ -64,24 +64,24 @@ The key distinction: **prompt-enforced constraints are advisory** (the LLM may t
 
 The error surface shrinks from "any tool called in the wrong order with bad parameters" to "a valid action called with bad parameter values within a valid schema." The server enforces sequencing, phase transitions, access control, and revision checks at the mutation boundary — not as instructions the LLM might ignore. A model can still emit malformed text; the guarantee is rejection before domain mutation.
 
-## Reasoning Traces
+## Decision Provenance (legacy 1.x description)
 
 Every decision is recorded with:
 
 - **Who** — the actor (character, agent, system)
 - **What** — the action taken and its parameters
 - **When** — timestamp
-- **What was available** — the full affordance snapshot at decision time
-- **What was not taken** — the actions the actor chose *not* to do
+- **What was advertised** — the local affordance/capability snapshot at decision time
+- **What was not selected** — advertised alternatives, without claiming what a model considered
 - **What happened** — result summary and domain events triggered
 - **State transition** — phase before and after
 
-This creates causal traces, not just logs. The difference: a log says "the agent called heal." A reasoning trace says "the agent called heal when attack, retreat, and advance were also valid, during the between_scenes phase, which transitioned to exploration, and triggered an InjuryHealed event."
+This creates observable provenance, not hidden reasoning or causal proof. The difference: a log says "the agent called heal." Provenance says "the agent called heal when attack, retreat, and advance were advertised, during the between_scenes phase, which transitioned to exploration, and triggered an InjuryHealed event."
 
 Because decisions are loaded into the knowledge graph, they're queryable via SPARQL:
 
 ```sparql
-# What decisions caused character deaths?
+# Which decisions are linked to character-death events?
 SELECT ?actor ?action ?result ?ts WHERE {
     ?id etr:rdf_type etr:Decision .
     ?id etr:actorName ?actor .
@@ -92,7 +92,7 @@ SELECT ?actor ?action ?result ?ts WHERE {
     ?ev etr:eventType "CharacterDead" .
 } ORDER BY ?ts
 
-# What did the agent choose NOT to do before each injury?
+# Which alternatives were advertised but not selected before each injury?
 SELECT ?actor ?action ?alternative ?ts WHERE {
     ?id etr:rdf_type etr:Decision .
     ?id etr:actorName ?actor .
@@ -104,7 +104,7 @@ SELECT ?actor ?action ?alternative ?ts WHERE {
 } ORDER BY ?ts
 ```
 
-This is what vector stores cannot provide. Similarity search finds *related* content. Graph queries find *causal* relationships — what led to what, what was available but rejected, how state evolved through decisions.
+This is what vector stores cannot provide. Similarity search finds *related* content. Graph queries find *observable* relationships — what was recorded, what was advertised, and how state evolved through decisions.
 
 ## The Playthrough System
 
@@ -143,7 +143,7 @@ The pattern maps directly to any domain with phased workflows and enforced invar
 | SQLite (session state, character injuries) | Working memory (current case, pending approvals) |
 | Director (picks optimal action) | Planner agent |
 | Narrator (explains what happened) | Communicator agent |
-| Decision records with affordance snapshots | Audit trail with reasoning traces |
+| Decision records with affordance snapshots | Audit trail with decision provenance |
 
 The three-layer separation (ontology / knowledge graph / affordances) means:
 - **Ontology** can be updated when regulations change without touching the runtime
