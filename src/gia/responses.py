@@ -15,6 +15,7 @@ class ResourceResponse(BaseModel):
 
     data: Any
     affordances: list[Affordance] = Field(default_factory=list)
+    state_revision: int | None = None
 
 
 class ActionResponse(ResourceResponse):
@@ -36,6 +37,7 @@ class ErrorResponse(BaseModel):
 
     error: ErrorDetail
     affordances: list[Affordance] = Field(default_factory=list)
+    state_revision: int | None = None
 
 
 def _serialize_data(data: Any) -> Any:
@@ -50,25 +52,39 @@ def _serialize_data(data: Any) -> Any:
     return data
 
 
-def format_response(data: Any, affordances: list[Affordance]) -> ResourceResponse:
+def format_response(
+    data: Any,
+    affordances: list[Affordance],
+    state_revision: int | None = None,
+) -> ResourceResponse:
     """Build a typed resource response."""
-    return ResourceResponse(data=_serialize_data(data), affordances=affordances)
+    return ResourceResponse(
+        data=_serialize_data(data),
+        affordances=affordances,
+        state_revision=state_revision,
+    )
 
 
 def format_action_response(
     data: Any,
     affordances: list[Affordance],
     events: list[DomainEvent],
+    state_revision: int | None = None,
 ) -> ActionResponse:
     """Build a typed action response."""
     return ActionResponse(
         data=_serialize_data(data),
         affordances=affordances,
         events=events,
+        state_revision=state_revision,
     )
 
 
-def format_error(error: DomainError, affordances: list[Affordance]) -> ErrorResponse:
+def format_error(
+    error: DomainError,
+    affordances: list[Affordance],
+    state_revision: int | None = None,
+) -> ErrorResponse:
     """Build a typed error response for a protocol compatibility adapter."""
     return ErrorResponse(
         error=ErrorDetail(
@@ -77,6 +93,7 @@ def format_error(error: DomainError, affordances: list[Affordance]) -> ErrorResp
             details=error.details,
         ),
         affordances=affordances,
+        state_revision=state_revision,
     )
 
 

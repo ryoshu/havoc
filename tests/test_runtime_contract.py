@@ -12,7 +12,13 @@ import json
 import pytest
 
 from src.gia.compat import JsonGameRuntimeAdapter
-from src.gia.domain import DomainError, InvalidInputError, ResourceNotFoundError
+from src.gia.domain import (
+    InvalidInputError,
+    InvalidParameterError,
+    ResourceNotFoundError,
+    StaleStateError,
+    UnavailableActionError,
+)
 from src.gia.responses import ActionResponse, ResourceResponse
 from src.gia.server import GameRuntime
 
@@ -34,6 +40,15 @@ def _actions(payload: dict) -> set[str]:
     return {item["action"] for item in payload.get("affordances", [])}
 
 
+def _act(runtime: GameRuntime, action: str, params: dict | None = None):
+    revision = runtime.get("session").state_revision
+    return runtime.act(
+        action,
+        params or {},
+        expected_revision=revision,
+    )
+
+
 def test_initial_session_exposes_setup_state_and_affordances(runtime):
     response = runtime.get("session")
     result = _result(response)
@@ -41,9 +56,26 @@ def test_initial_session_exposes_setup_state_and_affordances(runtime):
     assert isinstance(response, ResourceResponse)
     assert result["data"]["id"] == runtime.default_session_id
     assert result["data"]["phase"] == "setup"
+    assert result["state_revision"] == 0
     assert "select_character" in _actions(result)
     assert "view_character_template" in _actions(result)
     assert "start_mission" not in _actions(result)
+    assert all(
+        affordance["schema"]["type"] == "object"
+        and affordance["schema"]["additionalProperties"] is False
+        and "id" in affordance
+        for affordance in result["affordances"]
+    )
+    assert len({affordance["id"] for affordance in result["affordances"]}) == len(result["affordances"])
+
+
+def test_affordance_ids_are_stable_across_reads(runtime):
+    first = _result(runtime.get("session"))
+    second = _result(runtime.get("session"))
+
+    assert [item["id"] for item in first["affordances"]] == [
+        item["id"] for item in second["affordances"]
+    ]
 
 
 def test_character_search_uses_the_standard_response_envelope(runtime):
@@ -63,13 +95,13 @@ def test_location_search_applies_sector_filter(runtime):
 
 def test_setup_transition_records_decisions_and_enters_exploration(runtime):
     select_iryna = _result(
-        runtime.act("select_character", {"template_id": "iryna"})
+        _act(runtime, "select_character", {"template_id": "iryna"})
     )
     assert select_iryna["data"]["character_id"].startswith("ch-")
     assert "start_mission" in _actions(select_iryna)
 
-    runtime.act("select_character", {"template_id": "chuck"})
-    started = _result(runtime.act("start_mission"))
+    _act(runtime, "select_character", {"template_id": "chuck"})
+    started = _result(_act(runtime, "start_mission"))
     session = _result(runtime.get("session"))
 
     assert started["data"]["active_character"] == "Iryna"
@@ -86,20 +118,19 @@ def test_setup_transition_records_decisions_and_enters_exploration(runtime):
     ]
 
 
-def test_duplicate_character_selection_returns_domain_error(runtime):
-    runtime.act("select_character", {"template_id": "iryna"})
+def test_invalid_character_selection_parameters_are_rejected(runtime):
+    _act(runtime, "select_character", {"template_id": "iryna"})
 
-    with pytest.raises(DomainError, match="already selected") as exc_info:
-        runtime.act("select_character", {"template_id": "iryna"})
+    with pytest.raises(InvalidParameterError, match="must equal"):
+        _act(runtime, "select_character", {"template_id": "iryna"})
 
-    assert exc_info.value.code == "domain_error"
 
 
 def test_runtime_instances_are_isolated():
     first = GameRuntime()
     second = GameRuntime()
     try:
-        first.act("select_character", {"template_id": "iryna"})
+        _act(first, "select_character", {"template_id": "iryna"})
 
         first_state = _result(first.get("session"))
         second_state = _result(second.get("session"))
@@ -112,16 +143,12 @@ def test_runtime_instances_are_isolated():
         second.ctx.db.close()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="PR 3 will reject known actions that are absent from current affordances",
-)
 def test_known_but_unavailable_action_is_rejected(runtime):
-    runtime.act("select_character", {"template_id": "iryna"})
-    runtime.act("start_mission")
+    _act(runtime, "select_character", {"template_id": "iryna"})
+    _act(runtime, "start_mission")
 
-    with pytest.raises(DomainError, match="not currently available"):
-        runtime.act("select_character", {"template_id": "chuck"})
+    with pytest.raises(UnavailableActionError, match="not currently available"):
+        _act(runtime, "select_character", {"template_id": "chuck"})
 
 
 def test_runtime_requires_mapping_action_parameters(runtime):
@@ -129,12 +156,56 @@ def test_runtime_requires_mapping_action_parameters(runtime):
         runtime.act("select_character", "{not-json")
 
 
+def test_extra_action_parameters_are_rejected_before_dispatch(runtime):
+    with pytest.raises(InvalidParameterError, match="extra is not allowed"):
+        _act(runtime, "select_character", {"template_id": "iryna", "extra": True})
+
+
+def test_runtime_requires_expected_revision(runtime):
+    with pytest.raises(InvalidInputError, match="expected_revision is required"):
+        runtime.act("select_character", {"template_id": "iryna"})
+
+
+def test_affordance_id_authorizes_the_matching_action(runtime):
+    state = _result(runtime.get("session"))
+    affordance = next(
+        item
+        for item in state["affordances"]
+        if item["action"] == "select_character" and item["schema"]["properties"]["template_id"]["const"] == "iryna"
+    )
+
+    response = runtime.act(
+        "select_character",
+        {"template_id": "iryna"},
+        expected_revision=state["state_revision"],
+        affordance_id=affordance["id"],
+    )
+
+    assert response.data["character_id"].startswith("ch-")
+
+
 def test_action_response_has_typed_events_and_affordances(runtime):
-    response = runtime.act("select_character", {"template_id": "iryna"})
+    response = _act(runtime, "select_character", {"template_id": "iryna"})
 
     assert isinstance(response, ActionResponse)
     assert response.events == []
     assert all(affordance.action for affordance in response.affordances)
+
+
+def test_stale_revision_cannot_mutate_session(runtime):
+    revision = runtime.get("session").state_revision
+    runtime.act(
+        "select_character",
+        {"template_id": "iryna"},
+        expected_revision=revision,
+    )
+
+    with pytest.raises(StaleStateError, match="not 0"):
+        runtime.act(
+            "select_character",
+            {"template_id": "chuck"},
+            expected_revision=revision,
+        )
 
 
 def test_missing_resources_raise_typed_exceptions(runtime):

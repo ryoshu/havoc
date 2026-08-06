@@ -7,14 +7,17 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from .affordances import compute_affordances
+from .affordances import compute_affordances, validate_parameters
 from .compat import JsonGameRuntimeAdapter
 from .context import GameContext
 from .domain import (
     DomainError,
     HavocEngine,
+    InvalidParameterError,
     InvalidInputError,
     ResourceNotFoundError,
+    StaleStateError,
+    UnavailableActionError,
     UnsupportedOperationError,
 )
 from .models import (
@@ -49,6 +52,31 @@ class GameRuntime:
     def _session_id_or_default(self, sid: str) -> str:
         return sid or self.default_session_id
 
+    def _state_revision(self, session_id: str) -> int | None:
+        session = self.ctx.get_session(session_id)
+        return session.state_revision if session else None
+
+    def _format_response(self, data: Any, affordances: list, session_id: str) -> ResourceResponse:
+        return format_response(
+            data,
+            affordances,
+            state_revision=self._state_revision(session_id),
+        )
+
+    def _format_action_response(
+        self,
+        data: Any,
+        affordances: list,
+        events: list,
+        session_id: str,
+    ) -> ActionResponse:
+        return format_action_response(
+            data,
+            affordances,
+            events,
+            state_revision=self._state_revision(session_id),
+        )
+
     @staticmethod
     def _require_mapping(
         value: Mapping[str, Any] | None,
@@ -77,7 +105,7 @@ class GameRuntime:
                     details={"resource_type": "session", "id": target_id},
                 )
             affordances = compute_affordances(self.ctx, target_id)
-            return format_response(session, affordances)
+            return self._format_response(session, affordances, target_id)
         if resource_type == "character":
             char = self.ctx.db.get_character(id)
             if not char:
@@ -87,7 +115,7 @@ class GameRuntime:
                 )
             sheet = self.ctx.get_character_sheet(id)
             affordances = compute_affordances(self.ctx, sid)
-            return format_response(sheet, affordances)
+            return self._format_response(sheet, affordances, sid)
         if resource_type == "character_template":
             template = self.ctx.get_character_template(id)
             if not template:
@@ -96,7 +124,7 @@ class GameRuntime:
                     details={"resource_type": "character_template", "id": id},
                 )
             affordances = compute_affordances(self.ctx, sid)
-            return format_response(template, affordances)
+            return self._format_response(template, affordances, sid)
         if resource_type == "location":
             loc = self.ctx.get_location_template(id)
             if not loc:
@@ -105,7 +133,7 @@ class GameRuntime:
                     details={"resource_type": "location", "id": id},
                 )
             affordances = compute_affordances(self.ctx, sid)
-            return format_response(loc, affordances)
+            return self._format_response(loc, affordances, sid)
         if resource_type == "scene":
             scene = self.ctx.get_active_scene(sid)
             if not scene:
@@ -114,7 +142,7 @@ class GameRuntime:
                     details={"resource_type": "scene", "session_id": sid},
                 )
             affordances = compute_affordances(self.ctx, sid)
-            return format_response(scene, affordances)
+            return self._format_response(scene, affordances, sid)
         if resource_type == "enemy":
             enemy = self.ctx.get_enemy_template(id)
             if not enemy:
@@ -123,11 +151,11 @@ class GameRuntime:
                     details={"resource_type": "enemy", "id": id},
                 )
             affordances = compute_affordances(self.ctx, sid)
-            return format_response(enemy, affordances)
+            return self._format_response(enemy, affordances, sid)
         if resource_type == "rules":
             rules = self.ctx.graph.get_rules()
             affordances = compute_affordances(self.ctx, sid)
-            return format_response(rules, affordances)
+            return self._format_response(rules, affordances, sid)
         raise UnsupportedOperationError(
             f"Unknown resource type: {resource_type}",
             details={"operation": "get", "resource_type": resource_type},
@@ -146,7 +174,7 @@ class GameRuntime:
             templates = self.ctx.get_all_character_templates()
             results = [{"id": t.id, "name": t.name, "description": t.description[:100]} for t in templates]
             affordances = compute_affordances(self.ctx, sid)
-            return format_response(results, affordances)
+            return self._format_response(results, affordances, sid)
         if resource_type == "locations":
             locations = self.ctx.get_all_locations()
             if "sector" in parsed:
@@ -159,15 +187,15 @@ class GameRuntime:
                 for l in locations
             ]
             affordances = compute_affordances(self.ctx, sid)
-            return format_response(results, affordances)
+            return self._format_response(results, affordances, sid)
         if resource_type == "enemies":
             results = self.ctx.graph.get_all_enemies()
             affordances = compute_affordances(self.ctx, sid)
-            return format_response(results, affordances)
+            return self._format_response(results, affordances, sid)
         if resource_type == "ubermenschen":
             results = self.ctx.graph.get_ubermenschen()
             affordances = compute_affordances(self.ctx, sid)
-            return format_response(results, affordances)
+            return self._format_response(results, affordances, sid)
         raise UnsupportedOperationError(
             f"Unknown search type: {resource_type}",
             details={"operation": "search", "resource_type": resource_type},
@@ -178,28 +206,104 @@ class GameRuntime:
         action: str,
         params: Mapping[str, Any] | None = None,
         session_id: str = "",
+        expected_revision: int | None = None,
+        affordance_id: str | None = None,
     ) -> ActionResponse:
         """Execute an action discovered via affordances."""
         sid = self._session_id_or_default(session_id)
         parsed = self._require_mapping(params, "params")
 
-        # Snapshot state before action
         session_before = self.ctx.get_session(sid)
-        phase_before = session_before.phase.value if session_before else ""
+        if not session_before:
+            raise ResourceNotFoundError(
+                f"Session {sid} not found.",
+                details={"resource_type": "session", "id": sid},
+            )
+        if expected_revision is None:
+            raise InvalidInputError(
+                "expected_revision is required for mutating actions.",
+                details={"parameter": "expected_revision"},
+            )
+        if (
+            isinstance(expected_revision, bool)
+            or not isinstance(expected_revision, int)
+        ):
+            raise InvalidInputError(
+                "expected_revision must be an integer.",
+                details={"parameter": "expected_revision"},
+            )
+
+        pre_affordances = compute_affordances(self.ctx, sid)
+        if affordance_id:
+            candidates = [a for a in pre_affordances if a.id == affordance_id]
+            if candidates and candidates[0].action != action:
+                raise UnavailableActionError(
+                    f"Affordance {affordance_id} does not authorize action {action}.",
+                    details={"affordance_id": affordance_id, "action": action},
+                )
+        else:
+            candidates = [a for a in pre_affordances if a.action == action]
+        if not candidates:
+            raise UnavailableActionError(
+                f"Action {action} is not currently available.",
+                details={
+                    "action": action,
+                    "affordance_id": affordance_id,
+                    "state_revision": session_before.state_revision,
+                },
+            )
+        validated = [
+            (candidate, validate_parameters(candidate, parsed))
+            for candidate in candidates
+        ]
+        matching = [candidate for candidate, errors in validated if not errors]
+        if not matching:
+            parameter_errors = min((errors for _, errors in validated), key=len)
+            raise InvalidParameterError(
+                f"Invalid parameters for {action}: {'; '.join(parameter_errors)}.",
+                details={"action": action, "errors": parameter_errors},
+            )
+        if expected_revision != session_before.state_revision:
+            raise StaleStateError(
+                f"Session {sid} is at revision {session_before.state_revision}, "
+                f"not {expected_revision}.",
+                details={
+                    "session_id": sid,
+                    "expected_revision": expected_revision,
+                    "current_revision": session_before.state_revision,
+                },
+            )
+        if not self.ctx.db.claim_session_revision(sid, expected_revision):
+            current = self.ctx.get_session(sid)
+            current_revision = current.state_revision if current else None
+            raise StaleStateError(
+                f"Session {sid} changed while the action was being validated.",
+                details={
+                    "session_id": sid,
+                    "expected_revision": expected_revision,
+                    "current_revision": current_revision,
+                },
+            )
+
+        # Snapshot state before action after claiming the revision.
+        phase_before = session_before.phase.value
         actor_id = (
             session_before.active_character_id or "system"
-            if session_before
-            else "system"
+            if session_before else "system"
         )
         actor_name = ""
         if actor_id != "system":
             actor_char = self.ctx.db.get_character(actor_id)
             actor_name = actor_char.name if actor_char else ""
 
-        # Snapshot affordances available at decision time
-        pre_affordances = compute_affordances(self.ctx, sid)
         affordances_snapshot = [
-            {"action": a.action, "description": a.description}
+            {
+                "id": a.id,
+                "action": a.action,
+                "description": a.description,
+                "schema": a.schema_,
+                "constraints": a.constraints,
+            }
             for a in pre_affordances
         ]
         affordances_not_taken = [
@@ -234,7 +338,7 @@ class GameRuntime:
             self.ctx.db.record_decision(decision)
 
             affordances = compute_affordances(self.ctx, sid)
-            return format_action_response(result, affordances, events)
+            return self._format_action_response(result, affordances, events, sid)
         except KeyError as error:
             missing = str(error.args[0]) if error.args else "unknown"
             raise InvalidInputError(
@@ -776,14 +880,20 @@ def search(resource_type: str, filters: str = "{}", session_id: str = "") -> str
 
 
 @mcp.tool()
-def act(action: str, params: str = "{}", session_id: str = "") -> str:
+def act(
+    action: str,
+    params: str = "{}",
+    session_id: str = "",
+    expected_revision: int | None = None,
+    affordance_id: str | None = None,
+) -> str:
     """Execute an action discovered via affordances. Returns result + next affordances.
 
     action: action name from affordances
     params: JSON string of action parameters
     session_id: optional
     """
-    return _legacy.act(action, params, session_id)
+    return _legacy.act(action, params, session_id, expected_revision, affordance_id)
 
 
 if __name__ == "__main__":

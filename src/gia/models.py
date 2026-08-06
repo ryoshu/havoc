@@ -208,6 +208,7 @@ class DiceRoll(BaseModel):
 class GameSession(BaseModel):
     id: str
     phase: GamePhase = GamePhase.setup
+    state_revision: int = 0
     current_location_id: str | None = None
     active_character_id: str | None = None
     round_number: int = 0
@@ -218,6 +219,7 @@ class GameSession(BaseModel):
 # --- Affordance Model ---
 
 class Affordance(BaseModel):
+    id: str = ""
     action: str
     description: str
     schema_: dict = Field(default_factory=dict, alias="schema")

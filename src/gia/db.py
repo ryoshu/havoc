@@ -24,6 +24,7 @@ SCHEMA = """\
 CREATE TABLE IF NOT EXISTS game_sessions (
     id TEXT PRIMARY KEY,
     phase TEXT NOT NULL DEFAULT 'setup',
+    state_revision INTEGER NOT NULL DEFAULT 0,
     current_location_id TEXT,
     active_character_id TEXT,
     round_number INTEGER NOT NULL DEFAULT 0,
@@ -93,7 +94,7 @@ CREATE TABLE IF NOT EXISTS decision_records (
 
 
 def _uid(prefix: str = "") -> str:
-    return f"{prefix}{uuid.uuid4().hex[:8]}"
+    return f"{prefix}{uuid.uuid4().hex}"
 
 
 class GameDB:
@@ -103,6 +104,19 @@ class GameDB:
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        self._ensure_session_revision_column()
+
+    def _ensure_session_revision_column(self) -> None:
+        """Add the PR 3 revision column to databases created by older GIA versions."""
+        columns = {
+            row["name"]
+            for row in self.conn.execute("PRAGMA table_info(game_sessions)").fetchall()
+        }
+        if "state_revision" not in columns:
+            self.conn.execute(
+                "ALTER TABLE game_sessions ADD COLUMN state_revision INTEGER NOT NULL DEFAULT 0"
+            )
+            self.conn.commit()
 
     def close(self):
         self.conn.close()
@@ -128,6 +142,7 @@ class GameDB:
         return GameSession(
             id=row["id"],
             phase=GamePhase(row["phase"]),
+            state_revision=row["state_revision"],
             current_location_id=row["current_location_id"],
             active_character_id=row["active_character_id"],
             round_number=row["round_number"],
@@ -138,11 +153,12 @@ class GameDB:
     def update_session(self, session: GameSession) -> None:
         self.conn.execute(
             """UPDATE game_sessions
-               SET phase=?, current_location_id=?, active_character_id=?,
+               SET phase=?, state_revision=?, current_location_id=?, active_character_id=?,
                    round_number=?, scene_number=?
                WHERE id=?""",
             (
                 session.phase.value,
+                session.state_revision,
                 session.current_location_id,
                 session.active_character_id,
                 session.round_number,
@@ -151,6 +167,17 @@ class GameDB:
             ),
         )
         self.conn.commit()
+
+    def claim_session_revision(self, session_id: str, expected_revision: int) -> bool:
+        """Atomically claim a revision for one mutating operation."""
+        cursor = self.conn.execute(
+            """UPDATE game_sessions
+               SET state_revision = state_revision + 1
+               WHERE id = ? AND state_revision = ?""",
+            (session_id, expected_revision),
+        )
+        self.conn.commit()
+        return cursor.rowcount == 1
 
     # --- Character States ---
 
@@ -328,7 +355,7 @@ class GameDB:
 
     def record_decision(self, decision: DecisionRecord) -> DecisionRecord:
         if not decision.id:
-            decision.id = _uid("dr-")
+            decision.id = _uid("dc-")
         if not decision.timestamp:
             decision.timestamp = datetime.now(timezone.utc).isoformat()
         self.conn.execute(

@@ -67,11 +67,20 @@ class JsonGameRuntimeAdapter:
         return parsed
 
     @staticmethod
+    def _legacy_payload(payload: dict) -> dict:
+        """Downgrade complete schemas for callers written against PR 2 JSON."""
+        for affordance in payload.get("affordances", []):
+            schema = affordance.get("schema", {})
+            if schema.get("type") == "object" and "properties" in schema:
+                affordance["schema"] = schema["properties"]
+        return payload
+
+    @staticmethod
     def _serialize(response: ResourceResponse) -> str:
         payload = response.model_dump(mode="json", by_alias=True)
         if payload.get("events") == []:
             payload.pop("events")
-        return json.dumps(payload, indent=2)
+        return json.dumps(JsonGameRuntimeAdapter._legacy_payload(payload), indent=2)
 
     def _invoke(
         self,
@@ -83,10 +92,15 @@ class JsonGameRuntimeAdapter:
         except DomainError as error:
             sid = session_id or self.default_session_id
             affordances = compute_affordances(self.ctx, sid)
-            response = format_error(error, affordances)
+            session = self.ctx.get_session(sid)
+            response = format_error(
+                error,
+                affordances,
+                state_revision=session.state_revision if session else None,
+            )
             payload = response.model_dump(mode="json", by_alias=True)
             payload["error"] = payload["error"]["message"]
-            return json.dumps(payload, indent=2)
+            return json.dumps(self._legacy_payload(payload), indent=2)
 
     def get(self, resource_type: str, id: str = "", session_id: str = "") -> str:
         return self._invoke(
@@ -114,12 +128,23 @@ class JsonGameRuntimeAdapter:
         action: str,
         params: str | Mapping[str, Any] | None = None,
         session_id: str = "",
+        expected_revision: int | None = None,
+        affordance_id: str | None = None,
     ) -> str:
-        return self._invoke(
-            lambda: self.runtime.act(
+        def operation():
+            revision = expected_revision
+            if revision is None:
+                sid = session_id or self.default_session_id
+                revision = self.runtime.get("session", session_id=sid).state_revision
+            return self.runtime.act(
                 action,
                 self._parse_mapping(params, "params"),
                 session_id,
-            ),
+                revision,
+                affordance_id,
+            )
+
+        return self._invoke(
+            operation,
             session_id,
         )

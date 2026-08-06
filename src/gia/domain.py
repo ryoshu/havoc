@@ -49,6 +49,24 @@ class UnsupportedOperationError(DomainError):
     code = "unsupported_operation"
 
 
+class UnavailableActionError(DomainError):
+    """Raised when an action is not in the current affordance set."""
+
+    code = "action_unavailable"
+
+
+class InvalidParameterError(DomainError):
+    """Raised when action parameters do not match an affordance schema."""
+
+    code = "invalid_parameters"
+
+
+class StaleStateError(DomainError):
+    """Raised when a caller acts on an obsolete session revision."""
+
+    code = "stale_state"
+
+
 class HavocEngine:
     """Implements the Havoc Engine game mechanics."""
 
