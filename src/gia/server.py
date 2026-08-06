@@ -38,25 +38,40 @@ from .responses import (
 class GameRuntime:
     """Encapsulates game state for a single runtime instance.
 
-    Holds a GameContext, HavocEngine, pending rolls, and a default session.
-    Can be instantiated multiple times for parallel/isolated playthroughs.
+    Holds a GameContext, HavocEngine, and transient roll state.
+    Sessions are created explicitly and are never selected implicitly.
     """
 
     def __init__(self, db_path: str = ":memory:"):
         self.ctx = GameContext(db_path=db_path)
         self.engine = HavocEngine()
         self._pending_rolls: dict[str, dict] = {}
-        _session = self.ctx.db.create_session()
-        self.default_session_id = _session.id
 
-    def _session_id_or_default(self, sid: str) -> str:
-        return sid or self.default_session_id
+    def create_session(self) -> ResourceResponse:
+        """Create an isolated game session and return its initial state."""
+        session = self.ctx.db.create_session()
+        return self._format_response(
+            session,
+            compute_affordances(self.ctx, session.id),
+            session.id,
+        )
 
-    def _state_revision(self, session_id: str) -> int | None:
+    @staticmethod
+    def _require_session_id(session_id: str) -> str:
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise InvalidInputError(
+                "session_id is required for stateful operations.",
+                details={"parameter": "session_id"},
+            )
+        return session_id
+
+    def _state_revision(self, session_id: str | None) -> int | None:
+        if not session_id:
+            return None
         session = self.ctx.get_session(session_id)
         return session.state_revision if session else None
 
-    def _format_response(self, data: Any, affordances: list, session_id: str) -> ResourceResponse:
+    def _format_response(self, data: Any, affordances: list, session_id: str | None) -> ResourceResponse:
         return format_response(
             data,
             affordances,
@@ -95,8 +110,9 @@ class GameRuntime:
         session_id: str = "",
     ) -> ResourceResponse:
         """Retrieve a resource by type and ID."""
-        sid = self._session_id_or_default(session_id)
+        sid = session_id.strip() if isinstance(session_id, str) else ""
         if resource_type == "session":
+            sid = self._require_session_id(sid)
             target_id = id or sid
             session = self.ctx.get_session(target_id)
             if not session:
@@ -107,8 +123,9 @@ class GameRuntime:
             affordances = compute_affordances(self.ctx, target_id)
             return self._format_response(session, affordances, target_id)
         if resource_type == "character":
+            sid = self._require_session_id(sid)
             char = self.ctx.db.get_character(id)
-            if not char:
+            if not char or char.session_id != sid:
                 raise ResourceNotFoundError(
                     f"Character {id} not found.",
                     details={"resource_type": "character", "id": id},
@@ -123,8 +140,7 @@ class GameRuntime:
                     f"Character template {id} not found.",
                     details={"resource_type": "character_template", "id": id},
                 )
-            affordances = compute_affordances(self.ctx, sid)
-            return self._format_response(template, affordances, sid)
+            return self._format_response(template, [], None)
         if resource_type == "location":
             loc = self.ctx.get_location_template(id)
             if not loc:
@@ -132,9 +148,9 @@ class GameRuntime:
                     f"Location {id} not found.",
                     details={"resource_type": "location", "id": id},
                 )
-            affordances = compute_affordances(self.ctx, sid)
-            return self._format_response(loc, affordances, sid)
+            return self._format_response(loc, [], None)
         if resource_type == "scene":
+            sid = self._require_session_id(sid)
             scene = self.ctx.get_active_scene(sid)
             if not scene:
                 raise ResourceNotFoundError(
@@ -150,12 +166,10 @@ class GameRuntime:
                     f"Enemy {id} not found.",
                     details={"resource_type": "enemy", "id": id},
                 )
-            affordances = compute_affordances(self.ctx, sid)
-            return self._format_response(enemy, affordances, sid)
+            return self._format_response(enemy, [], None)
         if resource_type == "rules":
             rules = self.ctx.graph.get_rules()
-            affordances = compute_affordances(self.ctx, sid)
-            return self._format_response(rules, affordances, sid)
+            return self._format_response(rules, [], None)
         raise UnsupportedOperationError(
             f"Unknown resource type: {resource_type}",
             details={"operation": "get", "resource_type": resource_type},
@@ -168,13 +182,13 @@ class GameRuntime:
         session_id: str = "",
     ) -> ResourceResponse:
         """Search or browse resources."""
-        sid = self._session_id_or_default(session_id)
+        sid = session_id.strip() if isinstance(session_id, str) else ""
         parsed = self._require_mapping(filters, "filters")
         if resource_type == "characters":
             templates = self.ctx.get_all_character_templates()
             results = [{"id": t.id, "name": t.name, "description": t.description[:100]} for t in templates]
-            affordances = compute_affordances(self.ctx, sid)
-            return self._format_response(results, affordances, sid)
+            affordances = compute_affordances(self.ctx, self._require_session_id(sid)) if sid else []
+            return self._format_response(results, affordances, sid or None)
         if resource_type == "locations":
             locations = self.ctx.get_all_locations()
             if "sector" in parsed:
@@ -186,16 +200,16 @@ class GameRuntime:
                 }
                 for l in locations
             ]
-            affordances = compute_affordances(self.ctx, sid)
-            return self._format_response(results, affordances, sid)
+            affordances = compute_affordances(self.ctx, self._require_session_id(sid)) if sid else []
+            return self._format_response(results, affordances, sid or None)
         if resource_type == "enemies":
             results = self.ctx.graph.get_all_enemies()
-            affordances = compute_affordances(self.ctx, sid)
-            return self._format_response(results, affordances, sid)
+            affordances = compute_affordances(self.ctx, self._require_session_id(sid)) if sid else []
+            return self._format_response(results, affordances, sid or None)
         if resource_type == "ubermenschen":
             results = self.ctx.graph.get_ubermenschen()
-            affordances = compute_affordances(self.ctx, sid)
-            return self._format_response(results, affordances, sid)
+            affordances = compute_affordances(self.ctx, self._require_session_id(sid)) if sid else []
+            return self._format_response(results, affordances, sid or None)
         raise UnsupportedOperationError(
             f"Unknown search type: {resource_type}",
             details={"operation": "search", "resource_type": resource_type},
@@ -210,7 +224,7 @@ class GameRuntime:
         affordance_id: str | None = None,
     ) -> ActionResponse:
         """Execute an action discovered via affordances."""
-        sid = self._session_id_or_default(session_id)
+        sid = self._require_session_id(session_id)
         parsed = self._require_mapping(params, "params")
 
         session_before = self.ctx.get_session(sid)
@@ -838,7 +852,8 @@ class GameRuntime:
 
 
 # ---------------------------------------------------------------------------
-# Module-level backward compatibility (MCP server, existing tests, demo)
+# Module-level server entry point. Stateful requests must carry their session
+# handle; importing this module does not create a game.
 # ---------------------------------------------------------------------------
 
 _default = GameRuntime()
@@ -846,10 +861,6 @@ _legacy = JsonGameRuntimeAdapter(_default)
 ctx = _default.ctx
 engine = _default.engine
 _pending_rolls = _default._pending_rolls
-DEFAULT_SESSION_ID = _default.default_session_id
-
-def _session_id_or_default(sid: str) -> str:
-    return _default._session_id_or_default(sid)
 
 
 # --- Tools ---
@@ -858,12 +869,18 @@ mcp = FastMCP("gia-eat-the-reich")
 
 
 @mcp.tool()
+def create_session() -> str:
+    """Create an isolated game session and return its handle and state."""
+    return _legacy.create_session()
+
+
+@mcp.tool()
 def get(resource_type: str, id: str = "", session_id: str = "") -> str:
     """Retrieve a resource by type and ID. Returns data + available affordances.
 
     resource_type: "session", "character", "character_template", "location", "scene", "enemy", "rules"
     id: resource ID (template_id for templates, character_id for characters, etc.)
-    session_id: optional, defaults to current session
+    session_id: required for stateful resources; omit for immutable knowledge
     """
     return _legacy.get(resource_type, id, session_id)
 
@@ -874,7 +891,7 @@ def search(resource_type: str, filters: str = "{}", session_id: str = "") -> str
 
     resource_type: "characters", "locations", "enemies", "ubermenschen"
     filters: JSON string, e.g. {"sector": 3} for locations
-    session_id: optional
+    session_id: required only when requesting state affordances
     """
     return _legacy.search(resource_type, filters, session_id)
 
@@ -891,7 +908,7 @@ def act(
 
     action: action name from affordances
     params: JSON string of action parameters
-    session_id: optional
+    session_id: required
     """
     return _legacy.act(action, params, session_id, expected_revision, affordance_id)
 

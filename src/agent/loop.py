@@ -115,8 +115,9 @@ TOOLS = [
 class AgentLoop:
     """Stateless agent loop — all game state lives in the backend."""
 
-    def __init__(self, server_module):
+    def __init__(self, server_module, session_id: str):
         self.server = server_module
+        self.session_id = session_id
         self.client = OpenAI(
             base_url="http://localhost:11434/v1",
             api_key="ollama",
@@ -176,16 +177,19 @@ class AgentLoop:
             return self.server.get(
                 resource_type=args.get("resource_type", ""),
                 id=args.get("id", ""),
+                session_id=self.session_id,
             )
         elif name == "search":
             return self.server.search(
                 resource_type=args.get("resource_type", "characters"),
                 filters=args.get("filters", "{}"),
+                session_id=self.session_id,
             )
         elif name == "act":
             return self.server.act(
                 action=args.get("action", ""),
                 params=args.get("params", "{}"),
+                session_id=self.session_id,
             )
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})

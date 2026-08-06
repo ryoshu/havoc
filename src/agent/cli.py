@@ -68,12 +68,12 @@ def print_character_summary(chars: list[dict]):
 def main():
     print_banner()
 
-    agent = AgentLoop(server_module)
-    session_id = server_module.DEFAULT_SESSION_ID
+    session_id = json.loads(server_module.create_session())["data"]["id"]
+    agent = AgentLoop(server_module, session_id)
     console.print(f"[dim]Session: {session_id}[/dim]\n")
 
     # Show initial state
-    result = server_module.search(resource_type="characters")
+    result = server_module.search(resource_type="characters", session_id=session_id)
     data = json.loads(result)
     print_character_summary(data.get("data", []))
     console.print()
@@ -95,28 +95,28 @@ def main():
             break
 
         if user_input.lower() == "state":
-            state = server_module.get(resource_type="session")
+            state = server_module.get(resource_type="session", session_id=session_id)
             console.print_json(state)
             continue
 
         if user_input.lower() == "affordances":
-            state = server_module.get(resource_type="session")
+            state = server_module.get(resource_type="session", session_id=session_id)
             print_affordances_from_json(state)
             continue
 
         if user_input.lower() == "characters":
-            result = server_module.search(resource_type="characters")
+            result = server_module.search(resource_type="characters", session_id=session_id)
             data = json.loads(result)
             print_character_summary(data.get("data", []))
             continue
 
         if user_input.lower() == "scene":
-            result = server_module.get(resource_type="scene")
+            result = server_module.get(resource_type="scene", session_id=session_id)
             console.print_json(result)
             continue
 
         if user_input.lower() == "sheet":
-            result = server_module.act(action="view_character_sheet", params="{}")
+            result = server_module.act(action="view_character_sheet", params="{}", session_id=session_id)
             console.print_json(result)
             continue
 

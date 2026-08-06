@@ -26,6 +26,7 @@ from src.gia.server import GameRuntime
 @pytest.fixture
 def runtime():
     instance = GameRuntime()
+    instance.session_id = instance.create_session().data["id"]
     try:
         yield instance
     finally:
@@ -41,20 +42,21 @@ def _actions(payload: dict) -> set[str]:
 
 
 def _act(runtime: GameRuntime, action: str, params: dict | None = None):
-    revision = runtime.get("session").state_revision
+    revision = runtime.get("session", session_id=runtime.session_id).state_revision
     return runtime.act(
         action,
         params or {},
+        session_id=runtime.session_id,
         expected_revision=revision,
     )
 
 
 def test_initial_session_exposes_setup_state_and_affordances(runtime):
-    response = runtime.get("session")
+    response = runtime.get("session", session_id=runtime.session_id)
     result = _result(response)
 
     assert isinstance(response, ResourceResponse)
-    assert result["data"]["id"] == runtime.default_session_id
+    assert result["data"]["id"] == runtime.session_id
     assert result["data"]["phase"] == "setup"
     assert result["state_revision"] == 0
     assert "select_character" in _actions(result)
@@ -69,9 +71,53 @@ def test_initial_session_exposes_setup_state_and_affordances(runtime):
     assert len({affordance["id"] for affordance in result["affordances"]}) == len(result["affordances"])
 
 
+def test_sessions_are_created_explicitly_and_isolated():
+    runtime = GameRuntime()
+    try:
+        first = _result(runtime.create_session())
+        second = _result(runtime.create_session())
+
+        assert first["data"]["id"] != second["data"]["id"]
+        assert first["state_revision"] == second["state_revision"] == 0
+        assert "select_character" in _actions(first)
+
+        _act_for_session(runtime, first["data"]["id"], "select_character", {"template_id": "iryna"})
+        second_state = _result(runtime.get("session", session_id=second["data"]["id"]))
+        assert "start_mission" not in _actions(second_state)
+    finally:
+        runtime.ctx.db.close()
+
+
+def _act_for_session(runtime: GameRuntime, session_id: str, action: str, params: dict | None = None):
+    revision = runtime.get("session", session_id=session_id).state_revision
+    return runtime.act(
+        action,
+        params or {},
+        session_id=session_id,
+        expected_revision=revision,
+    )
+
+
+def test_stateful_operations_require_a_session_handle(runtime):
+    with pytest.raises(InvalidInputError, match="session_id is required"):
+        runtime.get("session")
+    with pytest.raises(InvalidInputError, match="session_id is required"):
+        runtime.act("select_character", {"template_id": "iryna"}, expected_revision=0)
+
+
+def test_immutable_knowledge_reads_do_not_require_a_session(runtime):
+    response = runtime.get("character_template", "iryna")
+    assert response.state_revision is None
+    assert response.affordances == []
+
+    search = runtime.search("locations", {"sector": 3})
+    assert search.state_revision is None
+    assert search.affordances == []
+
+
 def test_affordance_ids_are_stable_across_reads(runtime):
-    first = _result(runtime.get("session"))
-    second = _result(runtime.get("session"))
+    first = _result(runtime.get("session", session_id=runtime.session_id))
+    second = _result(runtime.get("session", session_id=runtime.session_id))
 
     assert [item["id"] for item in first["affordances"]] == [
         item["id"] for item in second["affordances"]
@@ -79,7 +125,7 @@ def test_affordance_ids_are_stable_across_reads(runtime):
 
 
 def test_character_search_uses_the_standard_response_envelope(runtime):
-    result = _result(runtime.search("characters"))
+    result = _result(runtime.search("characters", session_id=runtime.session_id))
 
     assert {"data", "affordances"} <= result.keys()
     assert {item["id"] for item in result["data"]} >= {"iryna", "chuck"}
@@ -87,7 +133,7 @@ def test_character_search_uses_the_standard_response_envelope(runtime):
 
 
 def test_location_search_applies_sector_filter(runtime):
-    result = _result(runtime.search("locations", {"sector": 3}))
+    result = _result(runtime.search("locations", {"sector": 3}, runtime.session_id))
 
     assert result["data"]
     assert {item["sector"] for item in result["data"]} == {3}
@@ -102,7 +148,7 @@ def test_setup_transition_records_decisions_and_enters_exploration(runtime):
 
     _act(runtime, "select_character", {"template_id": "chuck"})
     started = _result(_act(runtime, "start_mission"))
-    session = _result(runtime.get("session"))
+    session = _result(runtime.get("session", session_id=runtime.session_id))
 
     assert started["data"]["active_character"] == "Iryna"
     assert session["data"]["phase"] == "exploration"
@@ -110,7 +156,7 @@ def test_setup_transition_records_decisions_and_enters_exploration(runtime):
     assert session["data"]["scene_number"] == 1
     assert "engage_threat" in _actions(session)
 
-    decisions = runtime.ctx.db.get_session_decisions(runtime.default_session_id)
+    decisions = runtime.ctx.db.get_session_decisions(runtime.session_id)
     assert [decision.action for decision in decisions] == [
         "select_character",
         "select_character",
@@ -130,12 +176,14 @@ def test_runtime_instances_are_isolated():
     first = GameRuntime()
     second = GameRuntime()
     try:
+        first.session_id = first.create_session().data["id"]
+        second.session_id = second.create_session().data["id"]
         _act(first, "select_character", {"template_id": "iryna"})
 
-        first_state = _result(first.get("session"))
-        second_state = _result(second.get("session"))
+        first_state = _result(first.get("session", session_id=first.session_id))
+        second_state = _result(second.get("session", session_id=second.session_id))
 
-        assert first.default_session_id != second.default_session_id
+        assert first.session_id != second.session_id
         assert "start_mission" in _actions(first_state)
         assert "start_mission" not in _actions(second_state)
     finally:
@@ -153,7 +201,7 @@ def test_known_but_unavailable_action_is_rejected(runtime):
 
 def test_runtime_requires_mapping_action_parameters(runtime):
     with pytest.raises(InvalidInputError, match="params must be a mapping"):
-        runtime.act("select_character", "{not-json")
+        runtime.act("select_character", "{not-json", session_id=runtime.session_id)
 
 
 def test_extra_action_parameters_are_rejected_before_dispatch(runtime):
@@ -163,11 +211,11 @@ def test_extra_action_parameters_are_rejected_before_dispatch(runtime):
 
 def test_runtime_requires_expected_revision(runtime):
     with pytest.raises(InvalidInputError, match="expected_revision is required"):
-        runtime.act("select_character", {"template_id": "iryna"})
+        runtime.act("select_character", {"template_id": "iryna"}, session_id=runtime.session_id)
 
 
 def test_affordance_id_authorizes_the_matching_action(runtime):
-    state = _result(runtime.get("session"))
+    state = _result(runtime.get("session", session_id=runtime.session_id))
     affordance = next(
         item
         for item in state["affordances"]
@@ -177,6 +225,7 @@ def test_affordance_id_authorizes_the_matching_action(runtime):
     response = runtime.act(
         "select_character",
         {"template_id": "iryna"},
+        session_id=runtime.session_id,
         expected_revision=state["state_revision"],
         affordance_id=affordance["id"],
     )
@@ -193,10 +242,11 @@ def test_action_response_has_typed_events_and_affordances(runtime):
 
 
 def test_stale_revision_cannot_mutate_session(runtime):
-    revision = runtime.get("session").state_revision
+    revision = runtime.get("session", session_id=runtime.session_id).state_revision
     runtime.act(
         "select_character",
         {"template_id": "iryna"},
+        session_id=runtime.session_id,
         expected_revision=revision,
     )
 
@@ -204,6 +254,7 @@ def test_stale_revision_cannot_mutate_session(runtime):
         runtime.act(
             "select_character",
             {"template_id": "chuck"},
+            session_id=runtime.session_id,
             expected_revision=revision,
         )
 
@@ -220,7 +271,7 @@ def test_missing_resources_raise_typed_exceptions(runtime):
 
 
 def test_json_adapter_preserves_legacy_success_and_error_payloads(runtime):
-    adapter = JsonGameRuntimeAdapter(runtime)
+    adapter = JsonGameRuntimeAdapter(runtime, session_id=runtime.session_id)
 
     success = json.loads(adapter.search("locations", '{"sector": 3}'))
     failure = json.loads(adapter.act("select_character", "{not-json"))

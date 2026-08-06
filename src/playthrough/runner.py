@@ -77,7 +77,9 @@ def main():
         print()
 
         t0 = time.monotonic()
-        runtime = JsonGameRuntimeAdapter(GameRuntime(db_path=db_path))
+        runtime_core = GameRuntime(db_path=db_path)
+        session_id = runtime_core.create_session().data["id"]
+        runtime = JsonGameRuntimeAdapter(runtime_core, session_id=session_id)
         client = OpenAI(base_url=args.api_url, api_key=args.api_key, timeout=300.0)
 
         is_ollama = "localhost" in args.api_url or "127.0.0.1" in args.api_url
@@ -114,7 +116,9 @@ def main():
 
     # --- Phase 1: Director plays the game ---
     t0 = time.monotonic()
-    runtime = JsonGameRuntimeAdapter(GameRuntime(db_path=args.db))
+    runtime_core = GameRuntime(db_path=args.db)
+    session_id = runtime_core.create_session().data["id"]
+    runtime = JsonGameRuntimeAdapter(runtime_core, session_id=session_id)
     director = Director(runtime, strategy)
     beats = director.run_full_game()
     director_time = time.monotonic() - t0

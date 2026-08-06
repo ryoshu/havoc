@@ -25,8 +25,9 @@ class JsonGameRuntimeAdapter:
     and evaluation callers can continue to parse JSON strings in the meantime.
     """
 
-    def __init__(self, runtime: GameRuntime):
+    def __init__(self, runtime: GameRuntime, session_id: str = ""):
         self.runtime = runtime
+        self.session_id = session_id
 
     @property
     def ctx(self):
@@ -38,11 +39,24 @@ class JsonGameRuntimeAdapter:
 
     @property
     def default_session_id(self) -> str:
-        return self.runtime.default_session_id
+        """Compatibility name for callers that explicitly provision a session."""
+        return self.session_id
 
     @property
     def _pending_rolls(self) -> dict[str, dict]:
         return self.runtime._pending_rolls
+
+    def create_session(self) -> str:
+        """Provision a session for a CLI/playthrough entry point.
+
+        The returned handle is intentionally not stored as an implicit default;
+        callers must pass it on every stateful request.
+        """
+        response = self.runtime.create_session()
+        return self._serialize(response)
+
+    def _resolve_session_id(self, session_id: str) -> str:
+        return session_id or self.session_id
 
     @staticmethod
     def _parse_mapping(value: str | Mapping[str, Any] | None, name: str) -> dict[str, Any]:
@@ -90,9 +104,9 @@ class JsonGameRuntimeAdapter:
         try:
             return self._serialize(operation())
         except DomainError as error:
-            sid = session_id or self.default_session_id
-            affordances = compute_affordances(self.ctx, sid)
-            session = self.ctx.get_session(sid)
+            sid = self._resolve_session_id(session_id)
+            affordances = compute_affordances(self.ctx, sid) if sid else []
+            session = self.ctx.get_session(sid) if sid else None
             response = format_error(
                 error,
                 affordances,
@@ -104,8 +118,8 @@ class JsonGameRuntimeAdapter:
 
     def get(self, resource_type: str, id: str = "", session_id: str = "") -> str:
         return self._invoke(
-            lambda: self.runtime.get(resource_type, id, session_id),
-            session_id,
+            lambda: self.runtime.get(resource_type, id, self._resolve_session_id(session_id)),
+            self._resolve_session_id(session_id),
         )
 
     def search(
@@ -118,9 +132,9 @@ class JsonGameRuntimeAdapter:
             lambda: self.runtime.search(
                 resource_type,
                 self._parse_mapping(filters, "filters"),
-                session_id,
+                self._resolve_session_id(session_id),
             ),
-            session_id,
+            self._resolve_session_id(session_id),
         )
 
     def act(
@@ -134,17 +148,17 @@ class JsonGameRuntimeAdapter:
         def operation():
             revision = expected_revision
             if revision is None:
-                sid = session_id or self.default_session_id
+                sid = self._resolve_session_id(session_id)
                 revision = self.runtime.get("session", session_id=sid).state_revision
             return self.runtime.act(
                 action,
                 self._parse_mapping(params, "params"),
-                session_id,
+                self._resolve_session_id(session_id),
                 revision,
                 affordance_id,
             )
 
         return self._invoke(
             operation,
-            session_id,
+            self._resolve_session_id(session_id),
         )
