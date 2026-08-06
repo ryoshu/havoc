@@ -140,6 +140,7 @@ class JsonGameRuntimeAdapter:
         session_id: str = "",
         expected_revision: int | None = None,
         affordance_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> str:
         def operation():
             revision = expected_revision
@@ -152,6 +153,7 @@ class JsonGameRuntimeAdapter:
                 self._resolve_session_id(session_id),
                 revision,
                 affordance_id,
+                idempotency_key,
             )
 
         return self._invoke(

@@ -12,22 +12,16 @@ from mcp.server.caching import CacheHint
 from mcp.types import ToolAnnotations
 from mcp.server.transport_security import TransportSecuritySettings
 
+from .commands.execution import execute as execute_action
 from .commands.kernel import compute_affordances
-from .commands.kernel import dispatch as kernel_dispatch
-from .commands.schema import validate_parameters
 from .compat import JsonGameRuntimeAdapter
 from .context import ONTOLOGY_PATH, GameContext
 from .domain import (
-    DomainError,
     HavocEngine,
-    InvalidParameterError,
     InvalidInputError,
     ResourceNotFoundError,
-    StaleStateError,
-    UnavailableActionError,
     UnsupportedOperationError,
 )
-from .models import DecisionRecord
 from .responses import (
     ActionResponse,
     ResourceResponse,
@@ -222,182 +216,22 @@ class GameRuntime:
         session_id: str = "",
         expected_revision: int | None = None,
         affordance_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> ActionResponse:
-        """Execute one state transition under the runtime connection lock."""
-        with self.ctx.db.connection_lock:
-            return self._act_impl(
-                action,
-                params,
-                session_id,
-                expected_revision,
-                affordance_id,
-            )
+        """Execute one action through the execution service (PR 5).
 
-    def _act_impl(
-        self,
-        action: str,
-        params: Mapping[str, Any] | None = None,
-        session_id: str = "",
-        expected_revision: int | None = None,
-        affordance_id: str | None = None,
-    ) -> ActionResponse:
-        """Execute an action discovered via affordances."""
+        This method's only job is request shaping and response formatting;
+        `commands.execution.execute` owns every mutation guarantee
+        (revalidation, transaction, idempotency, decision provenance) and
+        needs nothing from `GameRuntime` or MCP to do it.
+        """
         sid = self._require_session_id(session_id)
         parsed = self._require_mapping(params, "params")
-
-        session_before = self.ctx.get_session(sid)
-        if not session_before:
-            raise ResourceNotFoundError(
-                f"Session {sid} not found.",
-                details={"resource_type": "session", "id": sid},
-            )
-        if expected_revision is None:
-            raise InvalidInputError(
-                "expected_revision is required for mutating actions.",
-                details={"parameter": "expected_revision"},
-            )
-        if (
-            isinstance(expected_revision, bool)
-            or not isinstance(expected_revision, int)
-        ):
-            raise InvalidInputError(
-                "expected_revision must be an integer.",
-                details={"parameter": "expected_revision"},
-            )
-
-        pre_affordances = compute_affordances(self.ctx, sid)
-        if affordance_id:
-            candidates = [a for a in pre_affordances if a.id == affordance_id]
-            if candidates and candidates[0].action != action:
-                raise UnavailableActionError(
-                    f"Affordance {affordance_id} does not authorize action {action}.",
-                    details={"affordance_id": affordance_id, "action": action},
-                )
-        else:
-            candidates = [a for a in pre_affordances if a.action == action]
-        if not candidates:
-            raise UnavailableActionError(
-                f"Action {action} is not currently available.",
-                details={
-                    "action": action,
-                    "affordance_id": affordance_id,
-                    "state_revision": session_before.state_revision,
-                },
-            )
-        validated = [
-            (candidate, validate_parameters(candidate, parsed))
-            for candidate in candidates
-        ]
-        matching = [candidate for candidate, errors in validated if not errors]
-        if not matching:
-            parameter_errors = min((errors for _, errors in validated), key=len)
-            raise InvalidParameterError(
-                f"Invalid parameters for {action}: {'; '.join(parameter_errors)}.",
-                details={"action": action, "errors": parameter_errors},
-            )
-        if expected_revision != session_before.state_revision:
-            raise StaleStateError(
-                f"Session {sid} is at revision {session_before.state_revision}, "
-                f"not {expected_revision}.",
-                details={
-                    "session_id": sid,
-                    "expected_revision": expected_revision,
-                    "current_revision": session_before.state_revision,
-                },
-            )
-        try:
-            result, events = self._dispatch_and_record(
-                sid,
-                action,
-                parsed,
-                expected_revision,
-                session_before,
-                pre_affordances,
-            )
-            affordances = compute_affordances(self.ctx, sid)
-            return self._format_action_response(result, affordances, events, sid)
-        except KeyError as error:
-            missing = str(error.args[0]) if error.args else "unknown"
-            raise InvalidInputError(
-                f"Missing required action parameter: {missing}.",
-                details={"action": action, "parameter": missing},
-            ) from error
-
-    def _dispatch_and_record(
-        self,
-        session_id: str,
-        action: str,
-        params: dict,
-        expected_revision: int,
-        session_before,
-        pre_affordances: list,
-    ):
-        """Atomically claim a revision, mutate state, and record the decision."""
-        with self.ctx.db.transaction():
-            if not self.ctx.db.claim_session_revision(session_id, expected_revision):
-                current = self.ctx.get_session(session_id)
-                current_revision = current.state_revision if current else None
-                raise StaleStateError(
-                    f"Session {session_id} changed while the action was being validated.",
-                    details={
-                        "session_id": session_id,
-                        "expected_revision": expected_revision,
-                        "current_revision": current_revision,
-                    },
-                )
-
-            phase_before = session_before.phase.value
-            actor_id = session_before.active_character_id or "system"
-            actor_name = ""
-            if actor_id != "system":
-                actor_char = self.ctx.db.get_character(actor_id)
-                actor_name = actor_char.name if actor_char else ""
-
-            affordances_snapshot = [
-                {
-                    "id": a.id,
-                    "action": a.action,
-                    "description": a.description,
-                    "schema": a.schema_,
-                    "constraints": a.constraints,
-                }
-                for a in pre_affordances
-            ]
-            affordances_not_taken = [
-                a.action for a in pre_affordances if a.action != action
-            ]
-
-            result, events = self._dispatch_action(session_id, action, params)
-            session_after = self.ctx.get_session(session_id)
-            phase_after = session_after.phase.value if session_after else phase_before
-            result_data = result if isinstance(result, dict) else {}
-            decision = DecisionRecord(
-                session_id=session_id,
-                actor_id=actor_id,
-                actor_name=actor_name,
-                action=action,
-                params=params,
-                affordances_snapshot=affordances_snapshot,
-                affordances_not_taken=list(set(affordances_not_taken)),
-                result_summary=result_data.get("message", "")[:200],
-                events=[e.model_dump() for e in events],
-                phase_before=phase_before,
-                phase_after=phase_after,
-            )
-            self.ctx.db.record_decision(decision)
-            return result, events
-
-    def _dispatch_action(self, session_id: str, action: str, params: dict):
-        """Revalidate and execute `action` through the command-policy kernel.
-
-        Every command's phase/binding/precondition/mutation logic lives in
-        its own module under `src/gia/commands/` (ADR-0001); this method no
-        longer duplicates any of it, per PR 4's exit criteria.
-        """
-        session = self.ctx.get_session(session_id)
-        if not session:
-            raise DomainError(f"Session {session_id} not found.")
-        return kernel_dispatch(self.ctx, session, action, params)
+        result, events = execute_action(
+            self.ctx, sid, action, parsed, expected_revision, affordance_id, idempotency_key,
+        )
+        affordances = compute_affordances(self.ctx, sid)
+        return self._format_action_response(result, affordances, events, sid)
 
 
 # ---------------------------------------------------------------------------
@@ -598,8 +432,11 @@ def mcp_act(
     params: dict[str, Any] | None = None,
     session_id: str = "",
     affordance_id: str | None = None,
+    idempotency_key: str | None = None,
 ) -> ActionResponse:
-    return _default.act(action, params, session_id, expected_revision, affordance_id)
+    return _default.act(
+        action, params, session_id, expected_revision, affordance_id, idempotency_key,
+    )
 
 
 # Legacy JSON entry points remain explicit and undecorated. They are used by
@@ -636,6 +473,7 @@ def act(
     session_id: str = "",
     expected_revision: int | None = None,
     affordance_id: str | None = None,
+    idempotency_key: str | None = None,
 ) -> str:
     """Execute an action discovered via affordances. Returns result + next affordances.
 
@@ -643,7 +481,7 @@ def act(
     params: JSON string of action parameters
     session_id: required
     """
-    return _legacy.act(action, params, session_id, expected_revision, affordance_id)
+    return _legacy.act(action, params, session_id, expected_revision, affordance_id, idempotency_key)
 
 
 def _allowed_hosts(raw_hosts: list[str], port: int) -> list[str]:
