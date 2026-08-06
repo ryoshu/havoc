@@ -1,4 +1,4 @@
-"""MCP server — 3 generic tools (get, search, act) for the TTRPG backend."""
+"""GAS 2.0 MCP server — get, search, and capability-ID act."""
 
 from __future__ import annotations
 
@@ -11,18 +11,21 @@ from mcp.server import MCPServer
 from mcp.server.caching import CacheHint
 from mcp.types import ToolAnnotations
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.shared.exceptions import MCPError
 
 from .commands.execution import execute as execute_action
 from .commands.kernel import compute_affordances, project_capability_set
 from .compat import JsonGameRuntimeAdapter
 from .context import ONTOLOGY_PATH, GameContext
 from .domain import (
+    DomainError,
     HavocEngine,
     InvalidInputError,
     ResourceNotFoundError,
     ScopeMismatchError,
     UnsupportedOperationError,
 )
+from .gas import GasActionResponse, GasResourceResponse, GasRuntime
 from .policy import PolicyProvider, RequestContext
 from .responses import (
     ActionResponse,
@@ -259,7 +262,7 @@ class GameRuntime:
 
     def act(
         self,
-        action: str,
+        action: str = "",
         params: Mapping[str, Any] | None = None,
         session_id: str = "",
         expected_revision: int | None = None,
@@ -305,6 +308,7 @@ def _configured_db_path() -> str:
 
 _default = GameRuntime(db_path=_configured_db_path())
 _legacy = JsonGameRuntimeAdapter(_default)
+_gas = GasRuntime(_default)
 ctx = _default.ctx
 engine = _default.engine
 
@@ -314,12 +318,13 @@ engine = _default.engine
 mcp = MCPServer(
     name="gia-eat-the-reich",
     title="GIA — EAT THE REICH",
-    description="Affordance-driven TTRPG backend for the EAT THE REICH campaign.",
+    description="Capability-driven TTRPG backend for the EAT THE REICH campaign.",
     instructions=(
         "Create a session before stateful requests. Pass the returned session_id "
-        "on every get, search, and act call that reads or mutates game state. "
-        "Use only actions advertised in affordances and include expected_revision "
-        "for mutations."
+        "in the session resource URI and on act/search scope fields. Read the "
+        "commands returned by get/search, then call act with the capability_id, "
+        "expected_revision, input, and idempotency_key. Capability IDs are "
+        "references, not bearer authorization."
     ),
     version="0.2.0",
     cache_hints={
@@ -444,57 +449,84 @@ MUTATION_ANNOTATIONS = ToolAnnotations(
 @mcp.tool(
     name="create_session",
     title="Create game session",
-    description="Create an isolated game session and return its handle and initial affordances.",
+    description="Create an isolated game session and return its handle and initial GAS capability set.",
     annotations=MUTATION_ANNOTATIONS,
     structured_output=True,
 )
-def mcp_create_session() -> ResourceResponse:
-    return _default.create_session()
+def mcp_create_session() -> GasResourceResponse:
+    return _gas.create_session()
+
+
+def _call_gas(operation):
+    """Translate typed domain failures into stable MCP protocol errors."""
+    try:
+        return operation()
+    except DomainError as error:
+        raise MCPError(
+            -32000,
+            error.code,
+            {
+                "code": error.code,
+                "message": str(error),
+                "details": error.details,
+            },
+        ) from error
 
 
 @mcp.tool(
     name="get",
     title="Get game resource",
-    description="Read a game resource. Immutable knowledge can be read without a session; stateful resources require session_id.",
+    description="Read a GAS resource URI. Stateful URIs carry their session scope; immutable knowledge needs no session.",
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
-def mcp_get(resource_type: ResourceType, id: str = "", session_id: str = "") -> ResourceResponse:
-    return _default.get(resource_type, id, session_id)
+def mcp_get(
+    resource_uri: str,
+    view: str | None = None,
+    at_revision: int | None = None,
+) -> GasResourceResponse:
+    return _call_gas(lambda: _gas.get(resource_uri, view, at_revision))
 
 
 @mcp.tool(
     name="search",
     title="Search game knowledge",
-    description="Search immutable game knowledge, optionally including session affordances.",
+    description="Search game knowledge with a typed query. Results carry links and the contextual GAS command set when scoped.",
     annotations=READ_ONLY_ANNOTATIONS,
     structured_output=True,
 )
 def mcp_search(
     resource_type: SearchType,
-    filters: dict[str, Any] | None = None,
+    query: dict[str, Any] | None = None,
+    cursor: str | None = None,
+    limit: int | None = None,
     session_id: str = "",
-) -> ResourceResponse:
-    return _default.search(resource_type, filters, session_id)
+) -> GasResourceResponse:
+    return _call_gas(lambda: _gas.search(resource_type, query, cursor, limit, session_id=session_id))
 
 
 @mcp.tool(
     name="act",
     title="Execute game action",
-    description="Execute an action currently authorized by the session affordances.",
+    description="Execute a previously advertised GAS capability. The capability ID binds the command, target, actor, scope, revision, and policy; action names are not accepted.",
     annotations=MUTATION_ANNOTATIONS,
     structured_output=True,
 )
 def mcp_act(
-    action: ActionName,
+    capability_id: str,
     expected_revision: int,
-    params: dict[str, Any] | None = None,
+    input: dict[str, Any],
+    idempotency_key: str,
     session_id: str = "",
-    affordance_id: str | None = None,
-    idempotency_key: str | None = None,
-) -> ActionResponse:
-    return _default.act(
-        action, params, session_id, expected_revision, affordance_id, idempotency_key,
+) -> GasActionResponse:
+    return _call_gas(
+        lambda: _gas.act(
+            capability_id,
+            expected_revision,
+            input,
+            idempotency_key,
+            session_id=session_id,
+        )
     )
 
 

@@ -375,16 +375,16 @@ def test_deterministic_playthrough_completes_through_the_kernel():
     This is the PR 4 analogue of "compare legacy vs. kernel playthroughs":
     there is only the kernel path left, so this instead proves that full
     path is sound end to end, not just per-action in isolation."""
-    from src.gia.compat import JsonGameRuntimeAdapter
+    from src.gia.gas import GasRuntime
     from src.playthrough.config import PlaythroughStrategy
     from src.playthrough.director import Director
 
     runtime_core = GameRuntime()
     try:
         session_id = runtime_core.create_session().data["id"]
-        adapter = JsonGameRuntimeAdapter(runtime_core, session_id=session_id)
+        runtime = GasRuntime(runtime_core, session_id=session_id)
         strategy = PlaythroughStrategy(characters=["iryna", "chuck"])
-        director = Director(adapter, strategy)
+        director = Director(runtime, strategy)
 
         beats = director.run_full_game()
 

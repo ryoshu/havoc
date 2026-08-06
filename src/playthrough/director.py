@@ -1,14 +1,15 @@
 """Director — deterministic state machine that plays the game without an LLM.
 
-Calls the temporary JSON runtime adapter, reads affordances, picks optimal
-actions, and records NarrativeBeat objects at key moments.
+The Director is a first-party GAS 2.0 consumer: it reads contextual
+capabilities, selects a capability ID, and sends only ``capability_id`` plus
+typed input to ``act``.  The temporary JSON adapter is accepted only as a
+migration convenience for older callers.
 """
 
 from __future__ import annotations
 
-import json
-
 from src.gia.compat import JsonGameRuntimeAdapter
+from src.gia.gas import GasRuntime
 
 from .config import NarrativeBeat, PlaythroughStrategy
 
@@ -16,14 +17,17 @@ from .config import NarrativeBeat, PlaythroughStrategy
 class Director:
     """Plays a full game mechanically, collecting narrative beats."""
 
-    def __init__(self, runtime: JsonGameRuntimeAdapter, strategy: PlaythroughStrategy):
-        self.rt = runtime
+    def __init__(self, runtime: GasRuntime | JsonGameRuntimeAdapter, strategy: PlaythroughStrategy):
+        # Keep old test/evaluation entry points usable while ensuring the
+        # Director itself always consumes the typed GAS surface.
+        self.rt = runtime.gas if isinstance(runtime, JsonGameRuntimeAdapter) else runtime
         self.strategy = strategy
-        self.session_id = runtime.default_session_id
+        self.session_id = self.rt.default_session_id
         self.beats: list[NarrativeBeat] = []
         self._char_index = 0  # for rotating characters
         self._visited_locations: set[str] = set()
         self._locations_advanced = 0
+        self._idempotency_counter = 0
 
     def run_full_game(self) -> list[NarrativeBeat]:
         """Run setup, then scenes until mission_complete or TPK."""
@@ -150,10 +154,10 @@ class Director:
 
     def _heal_if_possible(self):
         """Spend blood to heal injured characters between scenes."""
-        affordances = self._get_affordances()
-        for aff in affordances:
-            if aff["action"] == "heal":
-                schema = aff.get("schema", {})
+        commands = self._get_commands()
+        for command in commands:
+            if command["command"] == "heal":
+                schema = self._schema_properties(command.get("input_schema", {}))
                 char_id = schema.get("character_id", {}).get("const")
                 cats = schema.get("category", {}).get("enum", [])
                 if char_id and cats:
@@ -187,12 +191,13 @@ class Director:
 
     def _pick_threat(self) -> str | None:
         """Pick the highest-attack active threat from affordances."""
-        affordances = self._get_affordances()
-        threats = [a for a in affordances if a["action"] == "engage_threat"]
+        commands = self._get_commands()
+        threats = [a for a in commands if a["command"] == "engage_threat"]
         if not threats:
             return None
         # Pick highest rating from schema const
-        return threats[0].get("schema", {}).get("threat_name", {}).get("const", "")
+        schema = self._schema_properties(threats[0].get("input_schema", {}))
+        return schema.get("threat_name", {}).get("const", "")
 
     def _pick_best_stat(self) -> str:
         """Pick the character's best stat, or the configured preference."""
@@ -240,19 +245,21 @@ class Director:
 
     def _pick_next_location(self) -> str | None:
         """Pick next location from affordances (prefer unvisited, then lower sector)."""
-        affordances = self._get_affordances()
-        locations = [a for a in affordances if a["action"] == "choose_next_location"]
+        commands = self._get_commands()
+        locations = [a for a in commands if a["command"] == "choose_next_location"]
         if not locations:
             return None
 
         # Prefer unvisited locations
         for loc in locations:
-            loc_id = loc.get("schema", {}).get("location_id", {}).get("const", "")
+            schema = self._schema_properties(loc.get("input_schema", {}))
+            loc_id = schema.get("location_id", {}).get("const", "")
             if loc_id and loc_id not in self._visited_locations:
                 return loc_id
 
         # All visited — pick first (will loop, but that's the map)
-        return locations[0].get("schema", {}).get("location_id", {}).get("const")
+        schema = self._schema_properties(locations[0].get("input_schema", {}))
+        return schema.get("location_id", {}).get("const")
 
     def _maybe_switch_character(self):
         """Rotate to next alive character."""
@@ -274,19 +281,45 @@ class Director:
     # ------------------------------------------------------------------
 
     def _act(self, action: str, params: dict | None = None) -> dict:
-        """Call runtime.act and return parsed result."""
-        params_str = json.dumps(params) if params else "{}"
-        result_str = self.rt.act(action, params_str, self.session_id)
-        return json.loads(result_str)
+        """Select a current capability and execute it through GAS 2.0."""
+        state = self.rt.get(f"gia://session/{self.session_id}")
+        values = params or {}
+        candidates = [command for command in state.commands if command.command == action]
+        for candidate in candidates:
+            if self._schema_accepts(candidate.input_schema, values):
+                self._idempotency_counter += 1
+                result = self.rt.act(
+                    candidate.id,
+                    state.state_revision,
+                    values,
+                    f"director-{self._idempotency_counter}",
+                    session_id=self.session_id,
+                )
+                return result.model_dump(mode="json")
+        raise RuntimeError(f"No current GAS capability accepts {action} with {values!r}.")
+
+    @staticmethod
+    def _schema_accepts(schema: dict, values: dict) -> bool:
+        properties = Director._schema_properties(schema)
+        for name, value in values.items():
+            rule = properties.get(name, {})
+            if "const" in rule and rule["const"] != value:
+                return False
+            if "enum" in rule and value not in rule["enum"]:
+                return False
+        return True
+
+    @staticmethod
+    def _schema_properties(schema: dict) -> dict:
+        return schema.get("properties", schema)
 
     def _get_phase(self) -> str:
         session = self.rt.ctx.get_session(self.session_id)
         return session.phase.value if session else "mission_complete"
 
-    def _get_affordances(self) -> list[dict]:
-        result_str = self.rt.get("session", session_id=self.session_id)
-        result = json.loads(result_str)
-        return result.get("affordances", [])
+    def _get_commands(self) -> list[dict]:
+        result = self.rt.get(f"gia://session/{self.session_id}")
+        return [command.model_dump(mode="json") for command in result.commands]
 
     def _all_dead(self) -> bool:
         chars = self.rt.ctx.db.get_session_characters(self.session_id)

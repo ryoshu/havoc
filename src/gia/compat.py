@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import warnings
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from .affordances import compute_affordances
 from .domain import DomainError, InvalidInputError
 from .responses import ResourceResponse, format_error
+from .gas import GasRuntime
 
 if TYPE_CHECKING:
     from .server import GameRuntime
@@ -18,16 +20,27 @@ ResponseT = TypeVar("ResponseT", bound=ResourceResponse)
 
 
 class JsonGameRuntimeAdapter:
-    """Preserve the original JSON-string API around a typed ``GameRuntime``.
+    """Temporary ``gas-legacy`` JSON adapter around a typed runtime.
 
-    This adapter is intentionally temporary. MCP v2 transports will consume the
-    typed runtime directly after the server migration, while legacy playthrough
-    and evaluation callers can continue to parse JSON strings in the meantime.
+    GAS 2.0 callers should use :class:`gia.gas.GasRuntime` directly.  This
+    adapter remains only for the Director/evaluation migration window and emits
+    a deprecation warning on every legacy operation.  The deletion milestone is
+    PR 13, after all first-party JSON callers have moved to GAS 2.0.
     """
 
     def __init__(self, runtime: GameRuntime, session_id: str = ""):
         self.runtime = runtime
         self.session_id = session_id
+        self.gas = GasRuntime(runtime, session_id=session_id)
+
+    @staticmethod
+    def _warn_legacy() -> None:
+        warnings.warn(
+            "JsonGameRuntimeAdapter is the deprecated gas-legacy compatibility "
+            "path; migrate callers to gia.gas.GasRuntime before PR13.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
 
     @property
     def ctx(self):
@@ -48,6 +61,7 @@ class JsonGameRuntimeAdapter:
         The returned handle is intentionally not stored as an implicit default;
         callers must pass it on every stateful request.
         """
+        self._warn_legacy()
         response = self.runtime.create_session()
         return self._serialize(response)
 
@@ -123,6 +137,7 @@ class JsonGameRuntimeAdapter:
             return json.dumps(self._legacy_payload(payload), indent=2)
 
     def get(self, resource_type: str, id: str = "", session_id: str = "") -> str:
+        self._warn_legacy()
         return self._invoke(
             lambda: self.runtime.get(resource_type, id, self._resolve_session_id(session_id)),
             self._resolve_session_id(session_id),
@@ -134,6 +149,7 @@ class JsonGameRuntimeAdapter:
         filters: str | Mapping[str, Any] | None = None,
         session_id: str = "",
     ) -> str:
+        self._warn_legacy()
         return self._invoke(
             lambda: self.runtime.search(
                 resource_type,
@@ -152,6 +168,7 @@ class JsonGameRuntimeAdapter:
         affordance_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> str:
+        self._warn_legacy()
         def operation():
             revision = expected_revision
             if revision is None:
@@ -170,3 +187,8 @@ class JsonGameRuntimeAdapter:
             operation,
             self._resolve_session_id(session_id),
         )
+
+
+# Explicit migration name for callers that want to make the legacy boundary
+# visible in their own imports without changing the old class name yet.
+GasLegacyAdapter = JsonGameRuntimeAdapter
