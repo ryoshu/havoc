@@ -147,10 +147,11 @@ def _simplify_param(spec) -> str | list | dict:
 class AutoGasRuntime(EnforcedGasMixin):
     """Encapsulates auto dealership eval state for a single runtime instance."""
 
-    def __init__(self, db_path: str = ":memory:", mode: str = "gas-advisory"):
+    def __init__(self, db_path: str = ":memory:", mode: str = "gas-advisory", *, advertise_capabilities: bool | None = None):
         self.ctx = AutoContext(db_path=db_path)
         self.engine = AutoEngine()
         self.mode = mode
+        self.advertise_capabilities = mode != "gas-generic" if advertise_capabilities is None else advertise_capabilities
         self._contract_revisions: dict[str, int] = {}
         self.default_session_id: str = ""
 
@@ -169,7 +170,10 @@ class AutoGasRuntime(EnforcedGasMixin):
     def _format(self, data, affordances) -> dict:
         if hasattr(data, "model_dump"):
             data = data.model_dump()
-        return {"data": data, "affordances": _compact_affordances(affordances)}
+        response = {"data": data}
+        if self.advertise_capabilities:
+            response["affordances"] = _compact_affordances(affordances)
+        return response
 
     # --- get ---
 
@@ -416,10 +420,10 @@ class AutoGasRuntime(EnforcedGasMixin):
             self.ctx.db.record_decision(decision)
 
             affs = compute_auto_affordances(self.ctx, sid)
-            return json.dumps({
-                "error": str(e),
-                "affordances": _compact_affordances(affs),
-            }, indent=2)
+            response = {"error": str(e)}
+            if self.advertise_capabilities:
+                response["affordances"] = _compact_affordances(affs)
+            return json.dumps(response, indent=2)
         except Exception as e:
             decision = DecisionRecord(
                 session_id=sid,
@@ -435,10 +439,10 @@ class AutoGasRuntime(EnforcedGasMixin):
             self.ctx.db.record_decision(decision)
 
             affs = compute_auto_affordances(self.ctx, sid)
-            return json.dumps({
-                "error": f"Runtime error: {e}",
-                "affordances": _compact_affordances(affs),
-            }, indent=2)
+            response = {"error": f"Runtime error: {e}"}
+            if self.advertise_capabilities:
+                response["affordances"] = _compact_affordances(affs)
+            return json.dumps(response, indent=2)
 
     def _dispatch(self, session_id, action, params, user):
         ctx = self.ctx

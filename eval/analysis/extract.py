@@ -35,12 +35,19 @@ def results_to_records(db: ResultsDB) -> list[dict]:
             "task_id": row["task_id"],
             "task_tier": row["task_tier"],
             "mode": row["mode"],
+            # Historical rows predate the condition column; their canonical
+            # mode is the only safe condition label available.
+            "condition": row.get("condition") or row["mode"],
+            "experiment_id": row.get("experiment_id", ""),
+            "run_seed": row.get("run_seed", 0),
             "model_name": model,
             "total_turns": row["total_turns"],
             "total_tokens": row["total_tokens_in"] + row["total_tokens_out"],
             "tokens_in": row["total_tokens_in"],
             "tokens_out": row["total_tokens_out"],
             "invalid_action_count": row["invalid_action_count"],
+            "invalid_request_count": row.get("invalid_request_count", 0),
+            "invalid_state_transition_count": row.get("invalid_state_transition_count", 0),
             "valid_action_count": row["valid_action_count"],
             "invalid_action_rate": row["invalid_action_rate"],
             "error_recovery_turns": row["error_recovery_turns"],
@@ -49,11 +56,12 @@ def results_to_records(db: ResultsDB) -> list[dict]:
             "elapsed_seconds": row["elapsed_seconds"],
         })
 
-    # Deduplicate: keep latest run per (model, mode, task).
+    # Deduplicate: keep latest run per (model, condition, task).  Condition is
+    # part of the key so a factorial matrix cannot silently collapse cells.
     # Records are ordered by created_at (from get_all_runs), so last wins.
     seen: dict[tuple[str, str, str], int] = {}
     for i, rec in enumerate(records):
-        key = (rec["model_name"], rec["mode"], rec["task_id"])
+        key = (rec["model_name"], rec["condition"], rec["task_id"])
         seen[key] = i  # overwrites earlier duplicates
 
     return [records[i] for i in sorted(seen.values())]

@@ -23,8 +23,17 @@ _RESULTS_DIR = _EVAL_DIR / "results"
 _DEFAULT_DB = str(_RESULTS_DIR / "eval_results.db")
 _DEFAULT_CHARTS = str(_RESULTS_DIR / "charts")
 
-from eval.harness.config import DOMAIN_DEFAULT_USER, EvalConfig, MatrixConfig, parse_mode
-from eval.harness.providers import get_available_models, get_model_by_name, print_available_models
+from eval.harness.config import DOMAIN_DEFAULT_USER, EvalConfig, MatrixConfig, ModelConfig, parse_mode
+from eval.harness.design import CONDITIONS, snapshot_design, write_snapshot
+from eval.harness.providers import (
+    ANTHROPIC_API_BASE,
+    DEEPINFRA_API_BASE,
+    OPENAI_API_BASE,
+    MODEL_CATALOG,
+    get_available_models,
+    get_model_by_name,
+    print_available_models,
+)
 from eval.harness.results_db import ResultsDB
 from eval.harness.runner import load_tasks, run_matrix, run_suite
 
@@ -107,11 +116,14 @@ def cmd_matrix(args):
         domain=domain,
         models=models,
         modes=args.modes,
+        conditions=args.conditions or [],
         task_tiers=[int(t) for t in args.tiers] if args.tiers else [1, 3],
         runs_per_cell=args.runs,
+        experiment_id=args.experiment_id or "",
     )
 
-    print(f"Matrix: {len(models)} models x {len(matrix.modes)} modes x {len(load_tasks(matrix.task_tiers, domain=domain))} tasks x {matrix.runs_per_cell} runs ({domain} domain)")
+    cells = len(matrix.conditions) if matrix.conditions else len(matrix.modes)
+    print(f"Matrix: {len(models)} models x {cells} conditions x {len(load_tasks(matrix.task_tiers, domain=domain))} tasks x {matrix.runs_per_cell} runs ({domain} domain)")
     print()
 
     db = run_matrix(matrix, args.db, batch=args.batch or "")
@@ -188,6 +200,35 @@ def cmd_list_models(args):
     print_available_models()
 
 
+def cmd_snapshot(args):
+    """Capture the immutable inputs for a reproducible PR12 matrix."""
+    api_bases = {
+        "deepinfra": DEEPINFRA_API_BASE,
+        "openai": OPENAI_API_BASE,
+        "anthropic": ANTHROPIC_API_BASE,
+    }
+    # A snapshot must pin the catalog even when no API key is configured on
+    # the machine taking it; keys are never written to the artifact.
+    models = [
+        ModelConfig(
+            name=entry.name,
+            model=entry.model_id,
+            api_base=api_bases[entry.provider],
+            api_key="",
+            tier=entry.tier,
+            is_anthropic=entry.is_anthropic,
+            provider_version=entry.provider,
+        )
+        for entry in MODEL_CATALOG
+    ]
+    snapshot = snapshot_design(
+        Path.cwd(), models=models, domains=(args.domain,),
+        task_tiers=tuple(int(t) for t in args.tiers),
+    )
+    write_snapshot(snapshot, args.output)
+    print(f"Wrote PR12 snapshot: {args.output}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="GAS Eval Framework")
     sub = parser.add_subparsers(dest="command")
@@ -209,10 +250,13 @@ def main():
     p_matrix.add_argument("--domain", default="pm", choices=["pm", "cruise", "auto"], help="Eval domain")
     p_matrix.add_argument("--models", nargs="+", default=["gpt-4o"])
     p_matrix.add_argument("--modes", nargs="+", default=["gas-advisory", "trad-15"])
+    p_matrix.add_argument("--conditions", nargs="+", choices=list(CONDITIONS), default=None,
+                          help="PR12 conditions; when set, takes precedence over --modes")
     p_matrix.add_argument("--tiers", nargs="+", default=None)
     p_matrix.add_argument("--runs", type=int, default=1, help="Runs per cell")
     p_matrix.add_argument("--db", default=_DEFAULT_DB)
     p_matrix.add_argument("--batch", default="", help="Batch label for this run")
+    p_matrix.add_argument("--experiment-id", default="", help="Stable experiment identifier")
     p_matrix.set_defaults(func=cmd_matrix)
 
     # summary
@@ -235,6 +279,13 @@ def main():
     # list-models
     p_lm = sub.add_parser("list-models", help="List available models")
     p_lm.set_defaults(func=cmd_list_models)
+
+    # snapshot
+    p_snapshot = sub.add_parser("snapshot", help="Capture PR12 reproducibility inputs")
+    p_snapshot.add_argument("--domain", default="pm", choices=["pm", "cruise", "auto"])
+    p_snapshot.add_argument("--tiers", nargs="+", default=["1", "2", "3", "4"])
+    p_snapshot.add_argument("--output", default=str(_EVAL_DIR / "designs" / "pr12-snapshot.json"))
+    p_snapshot.set_defaults(func=cmd_snapshot)
 
     args = parser.parse_args()
     if not args.command:

@@ -12,6 +12,7 @@ from eval.cruise_backend.models import (
 )
 from eval.backend.domain import DomainError
 from eval.backend.models import DecisionRecord, DomainEvent
+from eval.cruise_gas_server.affordances import compute_cruise_affordances
 
 from .tools_15 import CRUISE_TOOLS_15
 from .tools_30 import CRUISE_TOOLS_30
@@ -27,10 +28,11 @@ CRUISE_TOOL_LEVELS: dict[int | str, list[dict]] = {
 class CruiseTradRuntime:
     """Traditional runtime — one tool per operation, no affordances."""
 
-    def __init__(self, db_path: str = ":memory:", tool_level: int | str = 15):
+    def __init__(self, db_path: str = ":memory:", tool_level: int | str = 15, *, state_filtered: bool = False):
         self.ctx = CruiseContext(db_path=db_path)
         self.engine = CruiseEngine()
         self.tool_level = tool_level
+        self.state_filtered = state_filtered
         self.tools = CRUISE_TOOL_LEVELS[tool_level]
         self.name_map: dict[str, str] | None = None
         self.default_session_id: str = ""
@@ -44,8 +46,15 @@ class CruiseTradRuntime:
     def _sid(self, session_id: str) -> str:
         return session_id or self.default_session_id
 
-    def get_tool_definitions(self) -> list[dict]:
+    def get_tool_definitions(self, session_id: str = "") -> list[dict]:
         """Return OpenAI-format tool definitions for the current tool level."""
+        allowed = None
+        if self.state_filtered and session_id:
+            afforded = {a.action for a in compute_cruise_affordances(self.ctx, self._sid(session_id))}
+            allowed = {
+                t["name"] for t in self.tools
+                if t["name"].startswith(("get_", "search_", "list_")) or t["name"] in afforded
+            }
         return [
             {
                 "type": "function",
@@ -62,6 +71,7 @@ class CruiseTradRuntime:
                 },
             }
             for t in self.tools
+            if allowed is None or t["name"] in allowed
         ]
 
     def call_tool(self, tool_name: str, params: dict, session_id: str = "") -> str:

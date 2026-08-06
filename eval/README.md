@@ -1,6 +1,6 @@
 # GAS Eval Framework
 
-Compares **GAS** (3 generic tools with affordances) against **traditional tool APIs** (15/30/60 specialized tools) across frontier and open-weight LLMs on identical project-management tasks. The evaluation distinguishes `gas-advisory` (historical guidance-only behavior) from `gas-enforced` (typed contracts, current-capability validation, and revision checks at the server boundary).
+Compares **GAS** (3 generic tools with affordances) against **traditional tool APIs** (15/30/60 specialized tools) across frontier and open-weight LLMs on identical project-management tasks. The evaluation distinguishes `gas-advisory` (historical guidance-only behavior) from `gas-enforced` (typed contracts, current-capability validation, and revision checks at the server boundary). The PR12 factorial design also includes static native MCP, state-filtered native MCP, and generic `get/search/act` without advertised capabilities; see [PR12-CONTROLLED-EVALUATION.md](PR12-CONTROLLED-EVALUATION.md).
 
 **Core question:** Does constraining an LLM to 3 affordance-driven tools outperform giving it direct access to N domain-specific tools?
 
@@ -20,6 +20,38 @@ Compares **GAS** (3 generic tools with affordances) against **traditional tool A
 | GLM-5 | 85.5% | 63.3% | 65.0% | **91.7%** |
 
 *† DeepSeek trad results exclude T2 (process hung on T2 trad tasks).*
+
+## Controlled factorial study (PR12)
+
+Historical `gas` rows are canonicalized to `gas-advisory` and are not pooled
+with new cells. New matrices use the same task text, fixtures, command
+registry, policy engine, model settings, history policy, retry budget, and
+error accounting across these interface conditions:
+
+| Condition | Interface projection | Capability advertisement | Enforcement |
+|---|---|---|---|
+| `static-native` | 15 native tools | static | domain runtime |
+| `state-filtered-native` | 15 native tools | current-state filtered | domain runtime |
+| `generic` | `get/search/act` | none | advisory runtime |
+| `gas-advisory` | `get/search/act` | affordances | advisory runtime |
+| `gas-enforced` | `get/search/act` | affordances | typed reference monitor |
+
+Capture the code/fixture/harness/provider snapshot before collecting runs:
+
+```bash
+uv run python -m eval snapshot --output eval/designs/pr12-snapshot.json
+```
+
+Run the preregistered conditions with `--conditions`; this takes precedence
+over the legacy `--modes` option:
+
+```bash
+uv run python -m eval matrix --conditions static-native state-filtered-native generic gas-advisory gas-enforced --models gpt-4o --tiers 1 2 3 4 --runs 3 --experiment-id gia-gas-2.0-pr12-v1
+```
+
+Raw transcripts and structured traces are stored with each run. Reports must
+separate invalid requests from invalid state transitions, include failed runs,
+and report effect sizes/confidence intervals for preregistered comparisons.
 
 ## How It Works
 

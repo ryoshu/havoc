@@ -1,0 +1,87 @@
+{
+  "study_id": "gia-gas-2.0-pr12",
+  "study_version": "1.0",
+  "historical_label": "gas-advisory",
+  "conditions": [
+    {
+      "id": "static-native",
+      "interface_shape": "native-mcp",
+      "filtering": "static",
+      "enforcement": "runtime-domain",
+      "tool_granularity": "coarse",
+      "tool_level": 15
+    },
+    {
+      "id": "state-filtered-native",
+      "interface_shape": "native-mcp",
+      "filtering": "state",
+      "enforcement": "runtime-domain",
+      "tool_granularity": "coarse",
+      "tool_level": 15
+    },
+    {
+      "id": "generic",
+      "interface_shape": "generic-gas",
+      "filtering": "none",
+      "enforcement": "advisory-runtime",
+      "advertises_capabilities": false,
+      "tool_level": 3
+    },
+    {
+      "id": "gas-advisory",
+      "interface_shape": "generic-gas",
+      "filtering": "affordance",
+      "enforcement": "advisory-runtime",
+      "advertises_capabilities": true,
+      "tool_level": 3
+    },
+    {
+      "id": "gas-enforced",
+      "interface_shape": "generic-gas",
+      "filtering": "affordance",
+      "enforcement": "reference-monitor",
+      "advertises_capabilities": true,
+      "tool_level": 3
+    }
+  ],
+  "controls": {
+    "command_registry": "shared authoritative eval runtime",
+    "policy": "shared domain engine and role policy",
+    "fixtures": "eval/tasks/definitions/tier_1.json..tier_4.json",
+    "task_text": "exact task description from fixture",
+    "history_policy": "compact-affordances",
+    "retry_max_attempts": 6,
+    "retry_backoff_seconds": [1.0, 2.0, 4.0, 8.0, 16.0],
+    "error_accounting": "invalid requests and invalid state transitions are separate metrics",
+    "transcript_retention": true
+  },
+  "primary_hypotheses": [
+    {
+      "id": "H1-enforcement",
+      "comparison": "gas-enforced vs gas-advisory",
+      "metric": "invalid_state_transition_rate"
+    },
+    {
+      "id": "H2-filtering",
+      "comparison": "state-filtered-native vs static-native",
+      "metric": "invalid_action_rate"
+    },
+    {
+      "id": "H3-interface-shape",
+      "comparison": "gas-advisory vs generic",
+      "metric": "invalid_action_rate"
+    },
+    {
+      "id": "H4-completion",
+      "comparison": "all conditions",
+      "metric": "oracle_pass_rate"
+    }
+  ],
+  "analysis_gates": [
+    "Report confidence intervals and effect sizes for preregistered comparisons.",
+    "Disclose failed, timed-out, and excluded runs.",
+    "Do not collapse invalid requests and invalid state transitions.",
+    "Report entity/binding scaling separately from command-count scaling.",
+    "Do not make a headline claim from one domain or one model family."
+  ]
+}

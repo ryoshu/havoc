@@ -23,12 +23,17 @@ class EvalMetrics(BaseModel):
     task_tier: int = 0
     mode: str = ""  # "gas" or "trad-15" / "trad-30" / "trad-60"
     model_name: str = ""
+    condition: str = ""
+    experiment_id: str = ""
+    run_seed: int = 0
 
     # Aggregate metrics
     total_turns: int = 0
     total_tokens_in: int = 0
     total_tokens_out: int = 0
     invalid_action_count: int = 0
+    invalid_request_count: int = 0
+    invalid_state_transition_count: int = 0
     valid_action_count: int = 0
     error_recovery_turns: int = 0
     time_to_first_valid_action: int = 0
@@ -40,6 +45,8 @@ class EvalMetrics(BaseModel):
 
     # Per-turn details
     turns: list[TurnDetail] = Field(default_factory=list)
+    # Raw request/response messages are retained for preregistered analysis.
+    transcript: list[dict] = Field(default_factory=list)
 
     # Oracle details
     oracle_details: list[dict] = Field(default_factory=list)
