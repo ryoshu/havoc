@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from .controls import DEFAULT_RETRY_POLICY, HistoryPolicyName, RetryPolicy
+
 
 class ModelConfig(BaseModel):
     name: str  # display name, e.g. "GPT-4o (OpenAI)"
@@ -13,6 +15,9 @@ class ModelConfig(BaseModel):
     tier: str = "local"  # "local", "open-weights", "frontier"
     is_ollama: bool = False
     is_anthropic: bool = False
+    # Provider/model identifiers are pinned in the PR12 snapshot.  The field
+    # is optional for historical callers that only have an API model ID.
+    provider_version: str = ""
 
 
 def parse_mode(mode_str: str) -> tuple[str, int | str]:
@@ -25,6 +30,10 @@ def parse_mode(mode_str: str) -> tuple[str, int | str]:
         return "gas-advisory", 3
     if mode_str == "gas-enforced":
         return "gas-enforced", 3
+    if mode_str in {"generic", "gas-generic"}:
+        return "gas-generic", 3
+    if mode_str in {"static-native", "state-filtered-native"}:
+        return "trad", 15
     prefix, _, rest = mode_str.partition("-")
     try:
         return "trad", int(rest)
@@ -41,6 +50,15 @@ class EvalConfig(BaseModel):
     acting_user_id: str = "user-mgr-1"  # default: Carol Reyes (manager) for PM
     max_retries: int = 3
     timeout_seconds: float = 300.0
+    # PR12 study controls.  Defaults preserve the historical harness behavior.
+    condition: str = ""
+    experiment_id: str = ""
+    run_seed: int = 0
+    history_policy: HistoryPolicyName = "compact-affordances"
+    retry_policy: RetryPolicy = Field(default_factory=lambda: DEFAULT_RETRY_POLICY)
+    advertise_capabilities: bool = True
+    state_filtered: bool = False
+    retain_transcript: bool = True
 
 
 # Default acting user per domain
@@ -58,3 +76,8 @@ class MatrixConfig(BaseModel):
     modes: list[str] = Field(default_factory=lambda: ["gas-advisory", "trad-15"])
     task_tiers: list[int] = Field(default_factory=lambda: [1, 3])
     runs_per_cell: int = 1  # repeat count for statistical significance
+    # When set, PR12 conditions take precedence over ``modes``.
+    conditions: list[str] = Field(default_factory=list)
+    experiment_id: str = ""
+    history_policy: HistoryPolicyName = "compact-affordances"
+    retry_policy: RetryPolicy = Field(default_factory=lambda: DEFAULT_RETRY_POLICY)

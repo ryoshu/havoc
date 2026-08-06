@@ -16,6 +16,7 @@ from eval.tasks.seeder import seed_task
 
 from .agent import EvalAgent
 from .config import DOMAIN_DEFAULT_USER, EvalConfig, MatrixConfig, parse_mode
+from .design import CONDITIONS
 from .metrics import EvalMetrics, TurnDetail
 from .results_db import ResultsDB, _DEFAULT_DB
 
@@ -49,8 +50,11 @@ def run_single(config: EvalConfig, task: TaskDefinition) -> EvalMetrics:
         return _run_single_auto(config, task, acting_user_id)
 
     # --- PM domain (default) ---
-    if config.mode in {"gas-advisory", "gas-enforced"}:
-        runtime = EvalRuntime(mode=config.mode)
+    if config.mode in {"gas-advisory", "gas-enforced", "gas-generic"}:
+        runtime = EvalRuntime(
+            mode=config.mode,
+            advertise_capabilities=config.advertise_capabilities,
+        )
         session_id = runtime.create_session(acting_user_id=acting_user_id)
         ctx = runtime.ctx
         id_map = seed_task(ctx, session_id, task.setup)
@@ -58,7 +62,7 @@ def run_single(config: EvalConfig, task: TaskDefinition) -> EvalMetrics:
         metrics = agent.run(task.description, session_id, max_turns=task.max_turns)
     else:
         tool_level = config.tool_level
-        runtime = TradRuntime(tool_level=tool_level)
+        runtime = TradRuntime(tool_level=tool_level, state_filtered=config.state_filtered)
         session_id = runtime.create_session(acting_user_id=acting_user_id)
         ctx = runtime.ctx
         id_map = seed_task(ctx, session_id, task.setup)
@@ -80,8 +84,11 @@ def _run_single_cruise(config: EvalConfig, task: TaskDefinition, acting_user_id:
     from eval.cruise_tasks.seeder import seed_cruise_task
     from eval.cruise_tasks.oracle import check_cruise_oracle
 
-    if config.mode in {"gas-advisory", "gas-enforced"}:
-        runtime = CruiseGasRuntime(mode=config.mode)
+    if config.mode in {"gas-advisory", "gas-enforced", "gas-generic"}:
+        runtime = CruiseGasRuntime(
+            mode=config.mode,
+            advertise_capabilities=config.advertise_capabilities,
+        )
         session_id = runtime.create_session(acting_user_id=acting_user_id)
         ctx = runtime.ctx
         id_map = seed_cruise_task(ctx, session_id, task.setup)
@@ -89,7 +96,7 @@ def _run_single_cruise(config: EvalConfig, task: TaskDefinition, acting_user_id:
         metrics = agent.run(task.description, session_id, max_turns=task.max_turns)
     else:
         tool_level = config.tool_level
-        runtime = CruiseTradRuntime(tool_level=tool_level)
+        runtime = CruiseTradRuntime(tool_level=tool_level, state_filtered=config.state_filtered)
         session_id = runtime.create_session(acting_user_id=acting_user_id)
         ctx = runtime.ctx
         id_map = seed_cruise_task(ctx, session_id, task.setup)
@@ -111,8 +118,11 @@ def _run_single_auto(config: EvalConfig, task: TaskDefinition, acting_user_id: s
     from eval.auto_tasks.seeder import seed_auto_task
     from eval.auto_tasks.oracle import check_auto_oracle
 
-    if config.mode in {"gas-advisory", "gas-enforced"}:
-        runtime = AutoGasRuntime(mode=config.mode)
+    if config.mode in {"gas-advisory", "gas-enforced", "gas-generic"}:
+        runtime = AutoGasRuntime(
+            mode=config.mode,
+            advertise_capabilities=config.advertise_capabilities,
+        )
         session_id = runtime.create_session(acting_user_id=acting_user_id)
         ctx = runtime.ctx
         id_map = seed_auto_task(ctx, session_id, task.setup)
@@ -120,7 +130,7 @@ def _run_single_auto(config: EvalConfig, task: TaskDefinition, acting_user_id: s
         metrics = agent.run(task.description, session_id, max_turns=task.max_turns)
     else:
         tool_level = config.tool_level
-        runtime = AutoTradRuntime(tool_level=tool_level)
+        runtime = AutoTradRuntime(tool_level=tool_level, state_filtered=config.state_filtered)
         session_id = runtime.create_session(acting_user_id=acting_user_id)
         ctx = runtime.ctx
         id_map = seed_auto_task(ctx, session_id, task.setup)
@@ -156,13 +166,33 @@ def run_matrix(
     tasks = load_tasks(matrix.task_tiers, domain=matrix.domain)
     db = ResultsDB(results_db_path)
 
-    total_runs = len(matrix.models) * len(matrix.modes) * len(tasks) * matrix.runs_per_cell
+    if matrix.conditions:
+        condition_items = [
+            (condition_id, CONDITIONS[condition_id])
+            for condition_id in matrix.conditions
+        ]
+    else:
+        # Preserve the pre-PR12 CLI: modes remain valid historical labels.
+        condition_items = [
+            (mode, None) for mode in matrix.modes
+        ]
+
+    total_runs = len(matrix.models) * len(condition_items) * len(tasks) * matrix.runs_per_cell
     run_num = 0
 
     for model in matrix.models:
-        for mode in matrix.modes:
-            # Parse mode
-            eval_mode, tool_level = parse_mode(mode)
+        for condition_id, condition in condition_items:
+            # Parse a legacy mode or use the pinned PR12 condition spec.
+            if condition is None:
+                eval_mode, tool_level = parse_mode(condition_id)
+                if condition_id == "gas":
+                    condition_id = "gas-advisory"
+                advertise_capabilities = eval_mode != "gas-generic"
+                state_filtered = False
+            else:
+                eval_mode, tool_level = condition.mode, condition.tool_level
+                advertise_capabilities = condition.advertises_capabilities
+                state_filtered = condition.filtering == "state"
 
             config = EvalConfig(
                 domain=matrix.domain,
@@ -170,10 +200,16 @@ def run_matrix(
                 tool_level=tool_level,
                 model=model,
                 acting_user_id=DOMAIN_DEFAULT_USER.get(matrix.domain, "user-mgr-1"),
+                condition=condition_id,
+                experiment_id=matrix.experiment_id,
+                history_policy=matrix.history_policy,
+                retry_policy=matrix.retry_policy,
+                advertise_capabilities=advertise_capabilities,
+                state_filtered=state_filtered,
             )
 
             print(f"\n{'='*60}")
-            print(f"Model: {model.name} | Mode: {mode}")
+            print(f"Model: {model.name} | Condition: {condition_id}")
             print(f"{'='*60}")
 
             for run_i in range(matrix.runs_per_cell):
@@ -183,6 +219,7 @@ def run_matrix(
                 for task in tasks:
                     run_num += 1
                     print(f"  [{run_num}/{total_runs}] {task.name}...", end=" ", flush=True)
+                    config.run_seed = run_i
 
                     try:
                         metrics = run_single(config, task)
@@ -196,10 +233,14 @@ def run_matrix(
                         failed = EvalMetrics(
                             task_id=task.id,
                             task_tier=task.tier,
-                            mode=mode if eval_mode in {"gas-advisory", "gas-enforced"} else f"trad-{tool_level}",
+                            mode=eval_mode if eval_mode in {"gas-advisory", "gas-enforced", "gas-generic"} else f"trad-{tool_level}",
                             model_name=model.name,
+                            condition=condition_id,
+                            experiment_id=matrix.experiment_id,
+                            run_seed=run_i,
                             total_turns=1,
                             invalid_action_count=1,
+                            invalid_request_count=1,
                             task_completed=False,
                             oracle_passed=False,
                             turns=[TurnDetail(

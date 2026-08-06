@@ -142,8 +142,9 @@ class EvalAgent:
         self.gas_runtime = gas_runtime
         self.trad_runtime = trad_runtime
         self.is_anthropic = config.model.is_anthropic
-        self.is_gas = config.mode in {"gas-advisory", "gas-enforced"}
+        self.is_gas = config.mode in {"gas-advisory", "gas-enforced", "gas-generic"}
         self.is_gas_enforced = config.mode == "gas-enforced"
+        self.is_gas_generic = config.mode == "gas-generic"
 
         if self.is_anthropic:
             if anthropic_sdk is None:
@@ -166,7 +167,7 @@ class EvalAgent:
             )
             self.anthropic_client = None
 
-    def _get_tools(self) -> list[dict]:
+    def _get_tools(self, session_id: str = "") -> list[dict]:
         """Get tool definitions for the agent."""
         if self.is_gas:
             domain = self.config.domain
@@ -185,6 +186,9 @@ class EvalAgent:
                 search_types = ["issues", "projects", "sprints", "users", "comments"]
                 get_desc = "Retrieve a resource by type and ID. Returns data + available affordances. resource_type: issue, project, sprint, user, comment, session."
                 search_desc = "Search resources. Returns results + affordances. resource_type: issues, projects, sprints, users, comments. filters: JSON string."
+            if self.is_gas_generic:
+                get_desc = get_desc.replace(" + available affordances", "")
+                search_desc = search_desc.replace(" + affordances", "")
             tools = [
                 {
                     "type": "function",
@@ -220,7 +224,11 @@ class EvalAgent:
                     "type": "function",
                     "function": {
                         "name": "act",
-                        "description": "Execute an action from the affordances list. Returns result + next affordances.",
+                        "description": (
+                            "Execute an action by name. Returns the result."
+                            if self.is_gas_generic
+                            else "Execute an action from the affordances list. Returns result + next affordances."
+                        ),
                         "parameters": {
                             "type": "object",
                             "properties": {
@@ -247,7 +255,7 @@ class EvalAgent:
                         function["parameters"]["required"] = ["action", "expected_revision"]
             return tools
         else:
-            return self.trad_runtime.get_tool_definitions()
+            return self.trad_runtime.get_tool_definitions(session_id=session_id)
 
     def _execute_tool(self, tool_name: str, args: dict, session_id: str) -> str:
         """Execute a tool call against the appropriate runtime."""
@@ -351,23 +359,46 @@ class EvalAgent:
                     actions.add(action)
         return actions
 
+    @staticmethod
+    def _classify_invalid_error(error: object) -> str:
+        """Classify invalid calls without conflating request and state errors."""
+        code = error.get("code", "") if isinstance(error, dict) else ""
+        text = str(error).lower()
+        if code in {"stale_state", "invalid_transition", "permission_denied", "policy_denied"}:
+            return "state_transition"
+        if any(token in text for token in ("transition", "not allowed", "permission", "stale")):
+            return "state_transition"
+        return "request"
+
     def run(self, task_description: str, session_id: str, max_turns: int = 50) -> EvalMetrics:
         """Run the agent on a task. Returns collected metrics."""
         metrics = EvalMetrics(
             mode=self.config.mode if self.is_gas else f"trad-{self.config.tool_level}",
             model_name=self.config.model.name,
+            condition=self.config.condition or self.config.mode,
+            experiment_id=self.config.experiment_id,
+            run_seed=self.config.run_seed,
         )
 
         domain = self.config.domain
         if domain == "cruise":
             system = CRUISE_SYSTEM_PROMPT
-            system += CRUISE_GAS_ADDENDUM if self.is_gas else CRUISE_TRAD_ADDENDUM
+            if self.is_gas_generic:
+                system += "\nYou have generic get, search, and act tools. Responses do not advertise valid actions; infer the next request from returned data and task state.\n"
+            else:
+                system += CRUISE_GAS_ADDENDUM if self.is_gas else CRUISE_TRAD_ADDENDUM
         elif domain == "auto":
             system = AUTO_SYSTEM_PROMPT
-            system += AUTO_GAS_ADDENDUM if self.is_gas else AUTO_TRAD_ADDENDUM
+            if self.is_gas_generic:
+                system += "\nYou have generic get, search, and act tools. Responses do not advertise valid actions; infer the next request from returned data and task state.\n"
+            else:
+                system += AUTO_GAS_ADDENDUM if self.is_gas else AUTO_TRAD_ADDENDUM
         else:
             system = SYSTEM_PROMPT
-            system += GAS_SYSTEM_ADDENDUM if self.is_gas else TRAD_SYSTEM_ADDENDUM
+            if self.is_gas_generic:
+                system += "\nYou have generic get, search, and act tools. Responses do not advertise valid actions; infer the next request from returned data and task state.\n"
+            else:
+                system += GAS_SYSTEM_ADDENDUM if self.is_gas else TRAD_SYSTEM_ADDENDUM
         if self.is_gas_enforced:
             system += GAS_ENFORCED_ADDENDUM
 
@@ -376,7 +407,6 @@ class EvalAgent:
             {"role": "user", "content": task_description},
         ]
 
-        tools = self._get_tools()
         t0 = time.monotonic()
         turn = 0
         consecutive_errors = 0
@@ -389,6 +419,9 @@ class EvalAgent:
             turn += 1
             turn_detail = TurnDetail(turn_number=turn)
             t_turn = time.monotonic()
+            # State-filtered native MCP refreshes the tool list after each
+            # response; all other conditions return the same definitions.
+            tools = self._get_tools(session_id)
 
             try:
                 extra_kwargs = {}
@@ -401,6 +434,7 @@ class EvalAgent:
                 turn_detail.was_valid = False
                 metrics.turns.append(turn_detail)
                 metrics.invalid_action_count += 1
+                metrics.invalid_request_count += 1
                 break
 
             turn_detail.latency_ms = (time.monotonic() - t_turn) * 1000
@@ -465,6 +499,10 @@ class EvalAgent:
                         if not turn_detail.error_message:
                             turn_detail.error_message = str(result_data["error"])
                         metrics.invalid_action_count += 1
+                        if self._classify_invalid_error(result_data["error"]) == "state_transition":
+                            metrics.invalid_state_transition_count += 1
+                        else:
+                            metrics.invalid_request_count += 1
                         consecutive_errors += 1
                         if pending_error_turn is None:
                             pending_error_turn = turn
@@ -492,7 +530,7 @@ class EvalAgent:
 
                     # Strip affordances from prior tool responses to avoid O(n²) context growth.
                     # Only the latest tool response needs the full affordance array.
-                    if self.is_gas:
+                    if self.is_gas and self.config.history_policy == "compact-affordances":
                         self._prune_prior_affordances(messages)
 
                     messages.append({
@@ -518,6 +556,8 @@ class EvalAgent:
 
         metrics.total_turns = turn
         metrics.elapsed_seconds = time.monotonic() - t0
+        if self.config.retain_transcript:
+            metrics.transcript = json.loads(json.dumps(messages, default=str))
         return metrics
 
     # -- Anthropic format conversion helpers --
@@ -676,7 +716,10 @@ class EvalAgent:
 
     def _call_with_retry(self, messages, tools, extra_kwargs):
         """Call LLM with retry logic. Respects rate-limit Retry-After hints."""
-        max_attempts = max(1, self.config.max_retries) + 3  # extra headroom for 429s
+        max_attempts = min(
+            self.config.retry_policy.max_attempts,
+            max(1, self.config.max_retries) + 3,
+        )
         for attempt in range(max_attempts):
             try:
                 if self.is_anthropic:
@@ -691,16 +734,18 @@ class EvalAgent:
             except RateLimitError as e:
                 if attempt == max_attempts - 1:
                     raise
-                wait = self._parse_retry_after(e) or (2 ** attempt)
+                wait = self.config.retry_policy.delay_for(
+                    attempt, self._parse_retry_after(e)
+                )
                 wait = max(wait, 1.0) + 0.5  # pad slightly
                 time.sleep(wait)
             except (APITimeoutError, InternalServerError) as e:
                 if attempt == max_attempts - 1:
                     raise
-                time.sleep(2 ** attempt)
+                time.sleep(self.config.retry_policy.delay_for(attempt))
             except Exception as e:
                 if self.is_anthropic and attempt < max_attempts - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(self.config.retry_policy.delay_for(attempt))
                     continue
                 raise
 

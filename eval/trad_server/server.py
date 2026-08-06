@@ -20,6 +20,7 @@ from .tools_30 import TOOLS_30
 from .tools_60 import TOOLS_60
 from .tools_60_poly import POLY_TO_CANONICAL, TOOLS_60_POLY
 from .tools_distractor import TOOLS_120D, TOOLS_240D, TOOLS_480D
+from eval.gas_server.affordances import compute_affordances
 
 TOOL_LEVELS: dict[int | str, list[dict]] = {
     15: TOOLS_15, 30: TOOLS_30, 60: TOOLS_60, "60-poly": TOOLS_60_POLY,
@@ -30,10 +31,17 @@ TOOL_LEVELS: dict[int | str, list[dict]] = {
 class TradRuntime:
     """Traditional runtime — one tool per operation, no affordances."""
 
-    def __init__(self, db_path: str = ":memory:", tool_level: int | str = 15):
+    def __init__(
+        self,
+        db_path: str = ":memory:",
+        tool_level: int | str = 15,
+        *,
+        state_filtered: bool = False,
+    ):
         self.ctx = EvalContext(db_path=db_path)
         self.engine = ProjectEngine()
         self.tool_level = tool_level
+        self.state_filtered = state_filtered
         self.tools = TOOL_LEVELS[tool_level]
         self.name_map: dict[str, str] | None = (
             POLY_TO_CANONICAL if tool_level == "60-poly" else None
@@ -49,8 +57,68 @@ class TradRuntime:
     def _sid(self, session_id: str) -> str:
         return session_id or self.default_session_id
 
-    def get_tool_definitions(self) -> list[dict]:
+    _READ_TOOL_PREFIXES = ("get_", "search_", "list_")
+    _AFFORDANCE_ALIASES: dict[str, set[str]] = {
+        # Coarse native tool names represent several command-kernel actions.
+        "update_issue": {"transition_issue", "change_priority", "assign_issue", "add_label", "remove_label"},
+        "close_issue": {"transition_issue"},
+        "reopen_issue": {"transition_issue"},
+        "approve_pr": {"approve_issue"},
+        "complete_review": {"approve_issue"},
+        "start_review": {"submit_for_review"},
+        "request_changes": {"request_changes"},
+        "set_issue_title": {"update_issue"},
+        "set_issue_description": {"update_issue"},
+        "set_issue_priority": {"change_priority"},
+        "set_issue_assignee": {"assign_issue"},
+        "set_issue_status": {"transition_issue"},
+    }
+
+    def _filtered_tool_names(self, session_id: str) -> set[str]:
+        """Return native tools applicable to the current state.
+
+        Reads stay visible because they are how a native-MCP agent discovers
+        state. Mutation tools are filtered from the same server-authoritative
+        affordance computation used by GAS; this is an interface projection,
+        not a second authorization path.
+        """
+        sid = self._sid(session_id)
+        affordances = list(compute_affordances(self.ctx, sid))
+        afforded = {a.action for a in affordances}
+        names: set[str] = set()
+        for tool in self.tools:
+            name = tool["name"]
+            if name.startswith(self._READ_TOOL_PREFIXES):
+                names.add(name)
+                continue
+            # Close/reopen are native aliases for a transition, but only the
+            # exact target status should be projected as available.
+            if name == "close_issue":
+                if any(
+                    a.action == "transition_issue"
+                    and isinstance(a.schema_.get("new_status"), dict)
+                    and "closed" in a.schema_["new_status"].get("enum", [])
+                    for a in affordances
+                ):
+                    names.add(name)
+                continue
+            if name == "reopen_issue":
+                if any(
+                    a.action == "transition_issue"
+                    and isinstance(a.schema_.get("new_status"), dict)
+                    and "open" in a.schema_["new_status"].get("enum", [])
+                    for a in affordances
+                ):
+                    names.add(name)
+                continue
+            aliases = self._AFFORDANCE_ALIASES.get(name, {name})
+            if aliases & afforded:
+                names.add(name)
+        return names
+
+    def get_tool_definitions(self, session_id: str = "") -> list[dict]:
         """Return OpenAI-format tool definitions for the current tool level."""
+        allowed = self._filtered_tool_names(session_id) if self.state_filtered and session_id else None
         return [
             {
                 "type": "function",
@@ -67,6 +135,7 @@ class TradRuntime:
                 },
             }
             for t in self.tools
+            if allowed is None or t["name"] in allowed
         ]
 
     def call_tool(self, tool_name: str, params: dict, session_id: str = "") -> str:

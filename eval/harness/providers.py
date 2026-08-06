@@ -144,6 +144,7 @@ def get_available_models() -> list[ModelConfig]:
             api_key=api_key,
             tier=entry.tier,
             is_anthropic=entry.is_anthropic,
+            provider_version=entry.provider,
         ))
 
     return models
