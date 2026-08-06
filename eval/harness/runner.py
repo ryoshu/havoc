@@ -24,6 +24,8 @@ def load_tasks(tiers: list[int] | None = None, domain: str = "pm") -> list[TaskD
     """Load task definitions from JSON files."""
     if domain == "cruise":
         tasks_dir = Path(__file__).parent.parent / "cruise_tasks" / "definitions"
+    elif domain == "auto":
+        tasks_dir = Path(__file__).parent.parent / "auto_tasks" / "definitions"
     else:
         tasks_dir = Path(__file__).parent.parent / "tasks" / "definitions"
     tasks = []
@@ -43,6 +45,8 @@ def run_single(config: EvalConfig, task: TaskDefinition) -> EvalMetrics:
 
     if config.domain == "cruise":
         return _run_single_cruise(config, task, acting_user_id)
+    if config.domain == "auto":
+        return _run_single_auto(config, task, acting_user_id)
 
     # --- PM domain (default) ---
     if config.mode == "gas":
@@ -93,6 +97,37 @@ def _run_single_cruise(config: EvalConfig, task: TaskDefinition, acting_user_id:
         metrics = agent.run(task.description, session_id, max_turns=task.max_turns)
 
     oracle_passed, oracle_details = check_cruise_oracle(ctx, session_id, task.oracle, id_map=id_map)
+    metrics.task_id = task.id
+    metrics.task_tier = task.tier
+    metrics.oracle_passed = oracle_passed
+    metrics.oracle_details = oracle_details
+    return metrics
+
+
+def _run_single_auto(config: EvalConfig, task: TaskDefinition, acting_user_id: str) -> EvalMetrics:
+    """Run a single auto domain eval."""
+    from eval.auto_gas_server.server import AutoGasRuntime
+    from eval.auto_trad_server.server import AutoTradRuntime
+    from eval.auto_tasks.seeder import seed_auto_task
+    from eval.auto_tasks.oracle import check_auto_oracle
+
+    if config.mode == "gas":
+        runtime = AutoGasRuntime()
+        session_id = runtime.create_session(acting_user_id=acting_user_id)
+        ctx = runtime.ctx
+        id_map = seed_auto_task(ctx, session_id, task.setup)
+        agent = EvalAgent(config, gas_runtime=runtime)
+        metrics = agent.run(task.description, session_id, max_turns=task.max_turns)
+    else:
+        tool_level = config.tool_level
+        runtime = AutoTradRuntime(tool_level=tool_level)
+        session_id = runtime.create_session(acting_user_id=acting_user_id)
+        ctx = runtime.ctx
+        id_map = seed_auto_task(ctx, session_id, task.setup)
+        agent = EvalAgent(config, trad_runtime=runtime)
+        metrics = agent.run(task.description, session_id, max_turns=task.max_turns)
+
+    oracle_passed, oracle_details = check_auto_oracle(ctx, session_id, task.oracle, id_map=id_map)
     metrics.task_id = task.id
     metrics.task_tier = task.tier
     metrics.oracle_passed = oracle_passed

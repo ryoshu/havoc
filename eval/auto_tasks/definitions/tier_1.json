@@ -1,0 +1,119 @@
+[
+  {
+    "id": "t1-01",
+    "tier": 1,
+    "name": "Register a customer",
+    "description": "Register a new customer named 'Sarah Johnson' with phone '555-0101', email 'sarah@email.com', and driver's license 'DL-12345'.",
+    "setup": {},
+    "oracle": [
+      {"type": "customer_exists", "name_contains": "Sarah"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-02",
+    "tier": 1,
+    "name": "Schedule a test drive",
+    "description": "Schedule a test drive for customer 'cust-01' on vehicle 'veh-camry-new' at '2026-04-15T10:00:00'.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-camry-new"}],
+      "customers": [{"id": "cust-01", "name": "Alex Brown", "email": "alex@email.com", "phone": "555-0202", "drivers_license": "DL-99999"}]
+    },
+    "oracle": [
+      {"type": "test_drive_exists", "customer_id": "cust-01", "vehicle_id": "veh-camry-new"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-03",
+    "tier": 1,
+    "name": "Create a deal",
+    "description": "Create a deal for customer 'cust-02' on vehicle 'veh-civic-used'.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-civic-used"}],
+      "customers": [{"id": "cust-02", "name": "Maya Chen", "email": "maya@email.com", "phone": "555-0303", "drivers_license": "DL-88888"}]
+    },
+    "oracle": [
+      {"type": "deal_exists", "customer_id": "cust-02", "vehicle_id": "veh-civic-used"},
+      {"type": "vehicle_status", "vehicle_id": "veh-civic-used", "expected": "reserved"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-04",
+    "tier": 1,
+    "name": "Make an offer on a deal",
+    "description": "Make a $30,000 offer on deal 'deal-01'.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-camry-new"}],
+      "customers": [{"id": "cust-03", "name": "Jordan Lee", "email": "jordan@email.com", "phone": "555-0404", "drivers_license": "DL-77777"}],
+      "deals": [{"id": "deal-01", "customer_id": "cust-03", "vehicle_alias": "veh-camry-new", "status": "negotiating"}]
+    },
+    "oracle": [
+      {"type": "offer_exists", "deal_id": "deal-01", "amount_gte": 30000}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-05",
+    "tier": 1,
+    "name": "Accept an offer",
+    "description": "Accept the pending offer 'off-01' on deal 'deal-02'.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-camry-new"}],
+      "customers": [{"id": "cust-04", "name": "Taylor Swift", "email": "taylor@email.com", "phone": "555-0505", "drivers_license": "DL-66666"}],
+      "deals": [{"id": "deal-02", "customer_id": "cust-04", "vehicle_alias": "veh-camry-new", "status": "negotiating"}],
+      "offers": [{"id": "off-01", "deal_id": "deal-02", "amount": 31000, "status": "pending"}]
+    },
+    "oracle": [
+      {"type": "offer_status", "offer_id": "off-01", "expected": "accepted"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-06",
+    "tier": 1,
+    "name": "Search available vehicles",
+    "description": "Find all available vehicles. There should be at least 3.",
+    "setup": {
+      "vehicles": [
+        {"template_id": "veh-camry-new"},
+        {"template_id": "veh-f150-new"},
+        {"template_id": "veh-civic-used"}
+      ]
+    },
+    "oracle": [
+      {"type": "no_backend_errors"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-07",
+    "tier": 1,
+    "name": "Add a trade-in",
+    "description": "Add a trade-in vehicle (2020 Honda Civic, VIN 'TRADE001', 45000 miles, 'good' condition) to deal 'deal-03'.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-f150-new"}],
+      "customers": [{"id": "cust-07", "name": "Morgan Blake", "email": "morgan@email.com", "phone": "555-0707", "drivers_license": "DL-44444"}],
+      "deals": [{"id": "deal-03", "customer_id": "cust-07", "vehicle_alias": "veh-f150-new", "status": "negotiating"}]
+    },
+    "oracle": [
+      {"type": "trade_in_status", "deal_id": "deal-03", "expected": "pending_appraisal"}
+    ],
+    "max_turns": 10
+  },
+  {
+    "id": "t1-08",
+    "tier": 1,
+    "name": "Submit credit application",
+    "description": "Submit a credit application for customer 'cust-05' requesting $30,000.",
+    "acting_user_id": "user-fin-1",
+    "setup": {
+      "customers": [{"id": "cust-05", "name": "Chris Park", "email": "chris@email.com", "phone": "555-0808", "drivers_license": "DL-33333", "credit_status": "not_started"}]
+    },
+    "oracle": [
+      {"type": "credit_status", "customer_id": "cust-05", "expected": "submitted"}
+    ],
+    "max_turns": 10
+  }
+]

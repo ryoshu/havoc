@@ -1,0 +1,10 @@
+[
+  {"id": "user-mgr-1", "name": "Diana Torres", "email": "diana@autodealer.com", "role": "manager"},
+  {"id": "user-mgr-2", "name": "Frank Morrison", "email": "frank@autodealer.com", "role": "manager"},
+  {"id": "user-sales-1", "name": "Jake Palmer", "email": "jake@autodealer.com", "role": "salesperson"},
+  {"id": "user-sales-2", "name": "Priya Sharma", "email": "priya@autodealer.com", "role": "salesperson"},
+  {"id": "user-sales-3", "name": "Marcus Lee", "email": "marcus@autodealer.com", "role": "salesperson"},
+  {"id": "user-fin-1", "name": "Rachel Nguyen", "email": "rachel@autodealer.com", "role": "finance"},
+  {"id": "user-fin-2", "name": "David Kim", "email": "david@autodealer.com", "role": "finance"},
+  {"id": "user-recep-1", "name": "Olivia Brooks", "email": "olivia@autodealer.com", "role": "receptionist"}
+]

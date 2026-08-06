@@ -1,0 +1,127 @@
+[
+  {
+    "id": "t2-01",
+    "tier": 2,
+    "name": "Full deal workflow",
+    "description": "Complete a full deal: register a new customer (name: 'Lisa Grant', email: 'lisa@email.com', phone: '555-1001', license: 'DL-20001'), create a deal on vehicle 'veh-camry-new', make an offer at $30,000, accept it, move to financing, submit credit for $30,000 and approve for $30,000, approve the deal, then close it with $5,000 down payment.",
+    "acting_user_id": "user-mgr-1",
+    "setup": {
+      "vehicles": [{"template_id": "veh-camry-new"}]
+    },
+    "oracle": [
+      {"type": "deal_exists", "vehicle_id": "veh-camry-new", "status": "closed"},
+      {"type": "vehicle_status", "vehicle_id": "veh-camry-new", "expected": "sold"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t2-02",
+    "tier": 2,
+    "name": "Negotiation sequence",
+    "description": "Negotiate on deal 'deal-neg': reject the current pending offer 'off-neg' at $25,000, then make a counter offer at $28,000. The customer rejects that (reject offer), so make another offer at $31,000, then accept it.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-camry-new"}],
+      "customers": [{"id": "cust-neg", "name": "Pat Reeves", "email": "pat@email.com", "phone": "555-1002", "drivers_license": "DL-20002"}],
+      "deals": [{"id": "deal-neg", "customer_id": "cust-neg", "vehicle_alias": "veh-camry-new", "status": "negotiating"}],
+      "offers": [{"id": "off-neg", "deal_id": "deal-neg", "amount": 25000, "status": "pending"}]
+    },
+    "oracle": [
+      {"type": "offer_exists", "deal_id": "deal-neg", "status": "accepted", "amount_gte": 30000}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t2-03",
+    "tier": 2,
+    "name": "Trade-in with deal",
+    "description": "On deal 'deal-ti': add a trade-in (2019 Toyota Corolla, VIN 'TI-VIN-001', 55000 miles, 'good' condition), appraise it at $8,000, accept the trade-in, then apply the credit to the deal.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-f150-new"}],
+      "customers": [{"id": "cust-ti", "name": "Dana White", "email": "dana@email.com", "phone": "555-1003", "drivers_license": "DL-20003"}],
+      "deals": [{"id": "deal-ti", "customer_id": "cust-ti", "vehicle_alias": "veh-f150-new", "status": "negotiating"}]
+    },
+    "oracle": [
+      {"type": "trade_in_status", "deal_id": "deal-ti", "expected": "applied"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t2-04",
+    "tier": 2,
+    "name": "Test drive to deal",
+    "description": "Schedule a test drive for customer 'cust-td' on vehicle 'veh-mustang-new' at '2026-04-20T14:00:00'. Complete the test drive, then create a deal for the same customer on the same vehicle.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-mustang-new"}],
+      "customers": [{"id": "cust-td", "name": "Jamie Fox", "email": "jamie@email.com", "phone": "555-1004", "drivers_license": "DL-20004"}]
+    },
+    "oracle": [
+      {"type": "test_drive_exists", "customer_id": "cust-td", "vehicle_id": "veh-mustang-new", "status": "completed"},
+      {"type": "deal_exists", "customer_id": "cust-td", "vehicle_id": "veh-mustang-new"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t2-05",
+    "tier": 2,
+    "name": "Deal with financing",
+    "description": "On deal 'deal-fin': make an offer at $36,000, accept it, move to financing, submit credit application for customer 'cust-fin' requesting $36,000, approve credit for $36,000, approve the deal, then close it with $6,000 down payment.",
+    "acting_user_id": "user-mgr-1",
+    "setup": {
+      "vehicles": [{"template_id": "veh-accord-new"}],
+      "customers": [{"id": "cust-fin", "name": "Robin Chase", "email": "robin@email.com", "phone": "555-1005", "drivers_license": "DL-20005", "credit_status": "not_started"}],
+      "deals": [{"id": "deal-fin", "customer_id": "cust-fin", "vehicle_alias": "veh-accord-new", "status": "negotiating"}]
+    },
+    "oracle": [
+      {"type": "deal_exists", "vehicle_id": "veh-accord-new", "status": "closed"}
+    ],
+    "max_turns": 20
+  },
+  {
+    "id": "t2-06",
+    "tier": 2,
+    "name": "Customer management",
+    "description": "Register a new customer (name: 'Sam Rivera', email: 'sam@email.com', phone: '555-0000', license: 'DL-20006'). Then update their phone to '555-1006'. Finally, schedule a test drive for them on vehicle 'veh-rav4-new' at '2026-04-22T11:00:00'.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-rav4-new"}]
+    },
+    "oracle": [
+      {"type": "customer_exists", "name_contains": "Sam"},
+      {"type": "test_drive_exists", "vehicle_id": "veh-rav4-new"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t2-07",
+    "tier": 2,
+    "name": "Offer renegotiation",
+    "description": "On deal 'deal-renego': reject the current pending offer 'off-renego' at $40,000, then make a new offer at $42,000, then accept it.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-model3-used"}],
+      "customers": [{"id": "cust-renego", "name": "Casey Jones", "email": "casey@email.com", "phone": "555-1007", "drivers_license": "DL-20007"}],
+      "deals": [{"id": "deal-renego", "customer_id": "cust-renego", "vehicle_alias": "veh-model3-used", "status": "negotiating"}],
+      "offers": [{"id": "off-renego", "deal_id": "deal-renego", "amount": 40000, "status": "pending"}]
+    },
+    "oracle": [
+      {"type": "offer_exists", "deal_id": "deal-renego", "status": "accepted", "amount_gte": 42000}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t2-08",
+    "tier": 2,
+    "name": "Multiple test drives",
+    "description": "Schedule 2 test drives for customer 'cust-multi' on different vehicles: 'veh-camry-new' at '2026-04-25T09:00:00' and 'veh-accord-new' at '2026-04-25T14:00:00'. Complete both test drives.",
+    "setup": {
+      "vehicles": [
+        {"template_id": "veh-camry-new"},
+        {"template_id": "veh-accord-new"}
+      ],
+      "customers": [{"id": "cust-multi", "name": "Alex Kim", "email": "alexk@email.com", "phone": "555-1008", "drivers_license": "DL-20008"}]
+    },
+    "oracle": [
+      {"type": "test_drive_exists", "customer_id": "cust-multi", "vehicle_id": "veh-camry-new", "status": "completed"},
+      {"type": "test_drive_exists", "customer_id": "cust-multi", "vehicle_id": "veh-accord-new", "status": "completed"}
+    ],
+    "max_turns": 15
+  }
+]

@@ -32,7 +32,7 @@ def parse_mode(mode_str: str) -> tuple[str, int | str]:
 
 class EvalConfig(BaseModel):
     """Configuration for a single eval run."""
-    domain: str = "pm"  # "pm" or "cruise"
+    domain: str = "pm"  # "pm", "cruise", or "auto"
     mode: str  # "gas" or "trad"
     tool_level: int | str = 3  # 3 for GAS, 15/30/60/"60-poly" for trad
     model: ModelConfig
@@ -45,12 +45,13 @@ class EvalConfig(BaseModel):
 DOMAIN_DEFAULT_USER: dict[str, str] = {
     "pm": "user-mgr-1",      # Carol Reyes (manager)
     "cruise": "user-agent-1",  # Sophie Chen (agent)
+    "auto": "user-sales-1",   # Jake Morrison (salesperson)
 }
 
 
 class MatrixConfig(BaseModel):
     """Configuration for a full eval matrix run."""
-    domain: str = "pm"  # "pm" or "cruise"
+    domain: str = "pm"  # "pm", "cruise", or "auto"
     models: list[ModelConfig] = Field(default_factory=list)
     modes: list[str] = Field(default_factory=lambda: ["gas", "trad-15"])
     task_tiers: list[int] = Field(default_factory=lambda: [1, 3])

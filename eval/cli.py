@@ -194,7 +194,7 @@ def main():
 
     # run
     p_run = sub.add_parser("run", help="Run eval suite with a single config")
-    p_run.add_argument("--domain", default="pm", choices=["pm", "cruise"], help="Eval domain (pm or cruise)")
+    p_run.add_argument("--domain", default="pm", choices=["pm", "cruise", "auto"], help="Eval domain (pm or cruise)")
     p_run.add_argument("--mode", default="gas", help="gas, trad-15, trad-30, trad-60, trad-60-poly, trad-120d, trad-240d, trad-480d")
     p_run.add_argument("--model", default="gpt-4o", help="Model name or alias")
     p_run.add_argument("--tiers", nargs="+", default=None, help="Task tiers to run")
@@ -206,7 +206,7 @@ def main():
 
     # matrix
     p_matrix = sub.add_parser("matrix", help="Run full eval matrix")
-    p_matrix.add_argument("--domain", default="pm", choices=["pm", "cruise"], help="Eval domain")
+    p_matrix.add_argument("--domain", default="pm", choices=["pm", "cruise", "auto"], help="Eval domain")
     p_matrix.add_argument("--models", nargs="+", default=["gpt-4o"])
     p_matrix.add_argument("--modes", nargs="+", default=["gas", "trad-15"])
     p_matrix.add_argument("--tiers", nargs="+", default=None)
@@ -228,7 +228,7 @@ def main():
 
     # list-tasks
     p_lt = sub.add_parser("list-tasks", help="List available tasks")
-    p_lt.add_argument("--domain", default="pm", choices=["pm", "cruise"], help="Eval domain")
+    p_lt.add_argument("--domain", default="pm", choices=["pm", "cruise", "auto"], help="Eval domain")
     p_lt.add_argument("--tiers", nargs="+", default=None)
     p_lt.set_defaults(func=cmd_list_tasks)
 

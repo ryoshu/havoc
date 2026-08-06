@@ -1,0 +1,10 @@
+[
+  {"id": "veh-camry-new", "make": "Toyota", "model": "Camry", "year": 2026, "trim": "XLE", "vin": "1T2BK3DKXRU000001", "color": "Silver", "msrp": 32000.00, "invoice_price": 28800.00, "mileage": 15, "condition": "new", "features": ["sunroof", "leather", "adaptive_cruise"]},
+  {"id": "veh-f150-new", "make": "Ford", "model": "F-150", "year": 2026, "trim": "Lariat", "vin": "1FTFW1E87NFA00002", "color": "Blue", "msrp": 58000.00, "invoice_price": 51500.00, "mileage": 8, "condition": "new", "features": ["4x4", "towing_pkg", "bed_liner"]},
+  {"id": "veh-civic-used", "make": "Honda", "model": "Civic", "year": 2023, "trim": "Sport", "vin": "2HGFC2F59PH000003", "color": "Red", "msrp": 22500.00, "invoice_price": 18500.00, "mileage": 28000, "condition": "used", "features": ["apple_carplay", "lane_assist"]},
+  {"id": "veh-model3-used", "make": "Tesla", "model": "Model 3", "year": 2024, "trim": "Long Range", "vin": "5YJ3E1EA5PF000004", "color": "White", "msrp": 42000.00, "invoice_price": 36500.00, "mileage": 12000, "condition": "used", "features": ["autopilot", "premium_audio"]},
+  {"id": "veh-accord-new", "make": "Honda", "model": "Accord", "year": 2026, "trim": "Touring", "vin": "1HGCV2F96RA000005", "color": "Black", "msrp": 38000.00, "invoice_price": 34200.00, "mileage": 5, "condition": "new", "features": ["heads_up_display", "wireless_charging"]},
+  {"id": "veh-rav4-new", "make": "Toyota", "model": "RAV4", "year": 2026, "trim": "XLE Premium", "vin": "2T3A1RFV8RW000006", "color": "Green", "msrp": 36500.00, "invoice_price": 32800.00, "mileage": 10, "condition": "new", "features": ["awd", "panoramic_roof"]},
+  {"id": "veh-bmw3-used", "make": "BMW", "model": "3 Series", "year": 2023, "trim": "330i", "vin": "3MW5R1J04P8000007", "color": "Gray", "msrp": 44000.00, "invoice_price": 38000.00, "mileage": 22000, "condition": "used", "features": ["sport_pkg", "navigation"]},
+  {"id": "veh-mustang-new", "make": "Ford", "model": "Mustang", "year": 2026, "trim": "GT", "vin": "1FA6P8CF7R5000008", "color": "Yellow", "msrp": 45000.00, "invoice_price": 40500.00, "mileage": 3, "condition": "new", "features": ["v8", "performance_pkg", "brembo_brakes"]}
+]

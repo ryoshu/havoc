@@ -84,6 +84,43 @@ You have multiple specialized tools for different operations.
 """
 
 
+# --- Auto domain prompts ---
+
+AUTO_SYSTEM_PROMPT = """\
+You are an automotive dealership assistant. You have access to tools for managing \
+vehicle inventory, customer records, test drives, deals, offers, trade-ins, and \
+credit applications. Complete the task described by the user.
+
+Rules:
+- Use the tools provided to accomplish the task.
+- Read the tool results carefully and use the information to decide your next action.
+- If a tool call fails, read the error message and adjust your approach.
+- When the task is complete, respond with "TASK COMPLETE" in your message.
+- Be efficient: take the most direct path to completing the task.
+- Deals go through: pending → negotiating → finalized → delivered (or cancelled).
+- Offers go through: pending → accepted/rejected/countered/expired.
+- Trade-ins go through: pending → appraised → accepted/rejected.
+- Credit apps go through: pending → approved/denied.
+- A deal needs an accepted offer before it can be finalized.
+- Offer price cannot go below the vehicle's invoice price (price floor).
+"""
+
+AUTO_GAS_ADDENDUM = """
+You have 3 tools: get, search, and act.
+- Every response includes an "affordances" array showing valid actions for the current state.
+- Use the affordances to discover what actions are available.
+- The "act" tool executes actions listed in the affordances.
+- Copy action names and parameter values exactly from the affordances.
+"""
+
+AUTO_TRAD_ADDENDUM = """
+You have multiple specialized tools for different operations.
+- Read the tool descriptions carefully to understand what each tool does.
+- Pay attention to constraints mentioned in tool descriptions.
+- Deals, offers, trade-ins, and credit applications have specific lifecycle constraints.
+"""
+
+
 class EvalAgent:
     """LLM agent that drives eval tasks via structured tool calling."""
 
@@ -123,12 +160,17 @@ class EvalAgent:
     def _get_tools(self) -> list[dict]:
         """Get tool definitions for the agent."""
         if self.is_gas:
-            is_cruise = self.config.domain == "cruise"
-            if is_cruise:
+            domain = self.config.domain
+            if domain == "cruise":
                 get_types = ["cruise", "booking", "passenger", "payment", "user", "session"]
                 search_types = ["cruises", "bookings", "passengers", "payments", "users"]
                 get_desc = "Retrieve a resource by type and ID. Returns data + available affordances. resource_type: cruise, booking, passenger, payment, user, session."
                 search_desc = "Search resources. Returns results + affordances. resource_type: cruises, bookings, passengers, payments, users. filters: JSON string."
+            elif domain == "auto":
+                get_types = ["vehicle", "customer", "test_drive", "deal", "offer", "trade_in", "user", "session"]
+                search_types = ["vehicles", "customers", "test_drives", "deals", "offers", "trade_ins", "users"]
+                get_desc = "Retrieve a resource by type and ID. Returns data + available affordances. resource_type: vehicle, customer, test_drive, deal, offer, trade_in, user, session."
+                search_desc = "Search resources. Returns results + affordances. resource_type: vehicles, customers, test_drives, deals, offers, trade_ins, users. filters: JSON string."
             else:
                 get_types = ["issue", "project", "sprint", "user", "comment", "session"]
                 search_types = ["issues", "projects", "sprints", "users", "comments"]
@@ -269,10 +311,13 @@ class EvalAgent:
             model_name=self.config.model.name,
         )
 
-        is_cruise = self.config.domain == "cruise"
-        if is_cruise:
+        domain = self.config.domain
+        if domain == "cruise":
             system = CRUISE_SYSTEM_PROMPT
             system += CRUISE_GAS_ADDENDUM if self.is_gas else CRUISE_TRAD_ADDENDUM
+        elif domain == "auto":
+            system = AUTO_SYSTEM_PROMPT
+            system += AUTO_GAS_ADDENDUM if self.is_gas else AUTO_TRAD_ADDENDUM
         else:
             system = SYSTEM_PROMPT
             system += GAS_SYSTEM_ADDENDUM if self.is_gas else TRAD_SYSTEM_ADDENDUM

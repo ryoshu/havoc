@@ -1,0 +1,115 @@
+[
+  {
+    "id": "t4-01",
+    "tier": 4,
+    "name": "Full deal with trade-in and financing",
+    "description": "As manager: register customer 'Nora Fleming' (email: 'nora@email.com', phone: '555-4001', license: 'DL-40001'). Schedule a test drive on vehicle 'veh-f150-new' at '2026-04-28T10:00:00', complete it. Create a deal. Add a trade-in (2019 Chevy Silverado, VIN 'TRADE401', 65000 miles, 'good' condition), appraise at $12,000, accept, apply credit. Make an offer at $50,000, reject it, counter at $54,000, accept. Move to financing, submit credit for $42,000, approve for $42,000, approve the deal, close with $10,000 down payment.",
+    "acting_user_id": "user-mgr-1",
+    "setup": {
+      "vehicles": [{"template_id": "veh-f150-new"}]
+    },
+    "oracle": [
+      {"type": "deal_exists", "vehicle_id": "veh-f150-new", "status": "closed"},
+      {"type": "vehicle_status", "vehicle_id": "veh-f150-new", "expected": "sold"},
+      {"type": "deal_count", "filters": {"status": "closed"}, "expected": 1}
+    ],
+    "max_turns": 30
+  },
+  {
+    "id": "t4-02",
+    "tier": 4,
+    "name": "Deal falls through, re-deal",
+    "description": "As manager: create a deal for customer 'cust-fall1' on vehicle 'veh-accord-new'. Make an offer at $36,000, accept it. Move to financing, submit credit for customer 'cust-fall1' requesting $36,000, but deny credit. Mark the deal as lost (the vehicle should become available again). Then create a new deal for customer 'cust-fall2' on the same vehicle 'veh-accord-new'.",
+    "acting_user_id": "user-mgr-1",
+    "setup": {
+      "vehicles": [{"template_id": "veh-accord-new"}],
+      "customers": [
+        {"id": "cust-fall1", "name": "Omar Hassan", "email": "omar@email.com", "phone": "555-4002", "drivers_license": "DL-40002", "credit_status": "not_started"},
+        {"id": "cust-fall2", "name": "Priya Sharma", "email": "priya@email.com", "phone": "555-4003", "drivers_license": "DL-40003"}
+      ]
+    },
+    "oracle": [
+      {"type": "deal_exists", "customer_id": "cust-fall1", "status": "lost"},
+      {"type": "deal_exists", "customer_id": "cust-fall2", "vehicle_id": "veh-accord-new"},
+      {"type": "vehicle_status", "vehicle_id": "veh-accord-new", "expected": "reserved"}
+    ],
+    "max_turns": 25
+  },
+  {
+    "id": "t4-03",
+    "tier": 4,
+    "name": "Multi-vehicle test drives, buy one",
+    "description": "As manager: customer 'cust-multi3' test drives 3 vehicles: 'veh-camry-new' at '2026-05-01T09:00:00', 'veh-accord-new' at '2026-05-01T11:00:00', 'veh-rav4-new' at '2026-05-01T14:00:00'. Complete all 3 test drives. Create a deal on 'veh-accord-new'. Make an offer at $35,000, accept it. Move to financing, submit credit requesting $35,000, approve for $35,000, approve deal, close with $5,000 down. Verify the other 2 vehicles remain available.",
+    "acting_user_id": "user-mgr-1",
+    "setup": {
+      "vehicles": [
+        {"template_id": "veh-camry-new"},
+        {"template_id": "veh-accord-new"},
+        {"template_id": "veh-rav4-new"}
+      ],
+      "customers": [{"id": "cust-multi3", "name": "Yuki Tanaka", "email": "yuki@email.com", "phone": "555-4004", "drivers_license": "DL-40004", "credit_status": "not_started"}]
+    },
+    "oracle": [
+      {"type": "test_drive_exists", "customer_id": "cust-multi3", "vehicle_id": "veh-camry-new", "status": "completed"},
+      {"type": "test_drive_exists", "customer_id": "cust-multi3", "vehicle_id": "veh-accord-new", "status": "completed"},
+      {"type": "test_drive_exists", "customer_id": "cust-multi3", "vehicle_id": "veh-rav4-new", "status": "completed"},
+      {"type": "deal_exists", "vehicle_id": "veh-accord-new", "status": "closed"},
+      {"type": "vehicle_status", "vehicle_id": "veh-camry-new", "expected": "available"},
+      {"type": "vehicle_status", "vehicle_id": "veh-rav4-new", "expected": "available"}
+    ],
+    "max_turns": 30
+  },
+  {
+    "id": "t4-04",
+    "tier": 4,
+    "name": "Trade-in declined, renegotiate",
+    "description": "On deal 'deal-tidec': add a trade-in (2017 Nissan Altima, VIN 'TRADE404', 85000 miles, 'fair' condition), appraise it at $3,000. The customer declines the trade-in. Then make a new offer at $40,000 without trade-in credit, accept the offer, move to financing, submit credit for customer 'cust-tidec' requesting $40,000, approve for $40,000, approve deal, close with $8,000 down.",
+    "acting_user_id": "user-mgr-1",
+    "setup": {
+      "vehicles": [{"template_id": "veh-model3-used"}],
+      "customers": [{"id": "cust-tidec", "name": "Lena Kovac", "email": "lena@email.com", "phone": "555-4005", "drivers_license": "DL-40005", "credit_status": "not_started"}],
+      "deals": [{"id": "deal-tidec", "customer_id": "cust-tidec", "vehicle_alias": "veh-model3-used", "status": "negotiating"}]
+    },
+    "oracle": [
+      {"type": "trade_in_status", "deal_id": "deal-tidec", "expected": "declined"},
+      {"type": "deal_exists", "vehicle_id": "veh-model3-used", "status": "closed"}
+    ],
+    "max_turns": 25
+  },
+  {
+    "id": "t4-05",
+    "tier": 4,
+    "name": "Manager price override",
+    "description": "As manager: a salesperson negotiated offer 'off-mgr' at $29,000 on deal 'deal-mgr' but could not accept it because it is within 5% of the invoice price ($28,800). Accept the near-floor offer as manager, then move to financing, submit credit for customer 'cust-mgr' requesting $29,000, approve for $29,000, approve the deal, and close with $4,000 down.",
+    "acting_user_id": "user-mgr-1",
+    "setup": {
+      "vehicles": [{"template_id": "veh-camry-new"}],
+      "customers": [{"id": "cust-mgr", "name": "Felix Durand", "email": "felix@email.com", "phone": "555-4006", "drivers_license": "DL-40006", "credit_status": "not_started"}],
+      "deals": [{"id": "deal-mgr", "customer_id": "cust-mgr", "vehicle_alias": "veh-camry-new", "status": "negotiating"}],
+      "offers": [{"id": "off-mgr", "deal_id": "deal-mgr", "amount": 29000, "status": "pending"}]
+    },
+    "oracle": [
+      {"type": "offer_status", "offer_id": "off-mgr", "expected": "accepted"},
+      {"type": "deal_exists", "vehicle_id": "veh-camry-new", "status": "closed"}
+    ],
+    "max_turns": 25
+  },
+  {
+    "id": "t4-06",
+    "tier": 4,
+    "name": "Conditional credit, close with adjusted financing",
+    "description": "As finance user: deal 'deal-cond' is in financing status with an accepted offer at $44,000. Customer 'cust-cond' has conditional credit approval. Approve the deal and close it with $9,000 down payment.",
+    "acting_user_id": "user-fin-1",
+    "setup": {
+      "vehicles": [{"template_id": "veh-bmw3-used"}],
+      "customers": [{"id": "cust-cond", "name": "Mira Volkov", "email": "mira@email.com", "phone": "555-4007", "drivers_license": "DL-40007", "credit_status": "conditional", "pre_approved_amount": 35000}],
+      "deals": [{"id": "deal-cond", "customer_id": "cust-cond", "vehicle_alias": "veh-bmw3-used", "status": "financing"}],
+      "offers": [{"id": "off-cond", "deal_id": "deal-cond", "amount": 44000, "status": "accepted"}]
+    },
+    "oracle": [
+      {"type": "deal_status", "deal_id": "deal-cond", "expected": "closed"},
+      {"type": "credit_status", "customer_id": "cust-cond", "expected": "conditional"}
+    ],
+    "max_turns": 25
+  }
+]

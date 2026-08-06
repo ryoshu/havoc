@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auto Domain — Entity & Affordance Graph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Serif&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #08090c;
+    --surface: #111318;
+    --border: #1f2230;
+    --border-accent: #2d3148;
+    --text: #e8eaf0;
+    --text-secondary: #9295a5;
+    --text-dim: #5c5f72;
+    --accent: #7c6aef;
+    --accent-glow: #9384f7;
+    --green: #34d399;
+    --red: #f87171;
+    --amber: #fbbf24;
+    --cyan: #22d3ee;
+    --auto-color: #f59e0b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  .page { max-width: 1600px; margin: 0 auto; padding: 2rem 2.5rem 4rem; }
+
+  .header { margin-bottom: 2rem; }
+  .header-eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem; font-weight: 500;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--auto-color); margin-bottom: 0.5rem;
+  }
+  h1 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 2.5rem; font-weight: 400;
+    line-height: 1.1; letter-spacing: -0.02em;
+  }
+  h1 em { font-style: italic; color: var(--accent-glow); }
+  .subtitle { color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.5rem; }
+
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem; }
+
+  .graph-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  svg { display: block; width: 100%; height: 700px; }
+
+  .panel {
+    display: flex; flex-direction: column; gap: 1.25rem;
+  }
+
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.25rem;
+  }
+
+  .info-card h3 {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem; font-weight: 500;
+    color: var(--text-dim); text-transform: uppercase;
+    letter-spacing: 0.12em; margin-bottom: 0.75rem;
+  }
+
+  .legend-item {
+    display: flex; align-items: center; gap: 0.6rem;
+    margin-bottom: 0.5rem; font-size: 0.8rem;
+  }
+  .legend-dot {
+    width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0;
+  }
+  .legend-label { color: var(--text-secondary); }
+
+  .state-list { list-style: none; }
+  .state-list li {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem; color: var(--text-secondary);
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .state-list li:last-child { border-bottom: none; }
+  .state-arrow { color: var(--accent); margin: 0 0.25rem; }
+
+  .role-tag {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem; font-weight: 500;
+    margin-right: 0.25rem; margin-bottom: 0.25rem;
+  }
+  .role-mgr { background: rgba(124,106,239,0.15); color: var(--accent-glow); }
+  .role-sales { background: rgba(52,211,153,0.15); color: var(--green); }
+  .role-fin { background: rgba(34,211,238,0.15); color: var(--cyan); }
+  .role-recep { background: rgba(251,191,36,0.15); color: var(--amber); }
+
+  .constraint-list { list-style: none; }
+  .constraint-list li {
+    font-size: 0.75rem; color: var(--text-secondary);
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: flex-start; gap: 0.4rem;
+  }
+  .constraint-list li:last-child { border-bottom: none; }
+  .constraint-icon { color: var(--red); font-size: 0.7rem; flex-shrink: 0; margin-top: 0.15rem; }
+
+  /* Tooltip */
+  .tooltip {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--border-accent);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-size: 0.75rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    max-width: 280px;
+    z-index: 10;
+  }
+  .tooltip.visible { opacity: 1; }
+  .tooltip-title { font-weight: 700; color: var(--text); margin-bottom: 0.25rem; }
+  .tooltip-detail { color: var(--text-secondary); }
+
+  @media (max-width: 1000px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="header">
+  <div class="header-eyebrow">Automotive Dealership Domain</div>
+  <h1>Entity &amp; <em>Affordance Graph</em></h1>
+  <p class="subtitle">
+    Entity relationships, state machines, role-based access control, and domain constraints.
+    Hover nodes and edges for details.
+  </p>
+</header>
+
+<div class="layout">
+  <div class="graph-card">
+    <svg id="graph" viewBox="0 0 900 700"></svg>
+    <div class="tooltip" id="tooltip">
+      <div class="tooltip-title" id="ttTitle"></div>
+      <div class="tooltip-detail" id="ttDetail"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="info-card">
+      <h3>Entity Types</h3>
+      <div class="legend-item"><div class="legend-dot" style="background:#60a5fa"></div><span class="legend-label">Vehicle</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#34d399"></div><span class="legend-label">Customer</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div><span class="legend-label">Deal</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div><span class="legend-label">Offer</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div><span class="legend-label">Trade-In</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#22d3ee"></div><span class="legend-label">Test Drive</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#9295a5"></div><span class="legend-label">User (Staff)</span></div>
+    </div>
+
+    <div class="info-card">
+      <h3>Role Access</h3>
+      <span class="role-tag role-mgr">Manager</span>
+      <span class="role-tag role-sales">Salesperson</span>
+      <span class="role-tag role-fin">Finance</span>
+      <span class="role-tag role-recep">Receptionist</span>
+      <p style="font-size:0.7rem; color:var(--text-dim); margin-top:0.5rem">
+        Manager inherits sales + finance.<br>
+        Receptionist: customers + test drives only.<br>
+        Finance: credit + deal approval only.
+      </p>
+    </div>
+
+    <div class="info-card">
+      <h3>Deal Lifecycle</h3>
+      <ul class="state-list">
+        <li>negotiating <span class="state-arrow">&rarr;</span> financing <span class="state-arrow">&rarr;</span> approved <span class="state-arrow">&rarr;</span> closed</li>
+        <li>any <span class="state-arrow">&rarr;</span> lost</li>
+      </ul>
+      <h3 style="margin-top:0.75rem">Offer Lifecycle</h3>
+      <ul class="state-list">
+        <li>pending <span class="state-arrow">&rarr;</span> accepted | rejected | countered | expired</li>
+      </ul>
+      <h3 style="margin-top:0.75rem">Trade-In Lifecycle</h3>
+      <ul class="state-list">
+        <li>pending_appraisal <span class="state-arrow">&rarr;</span> appraised <span class="state-arrow">&rarr;</span> accepted <span class="state-arrow">&rarr;</span> applied</li>
+        <li>appraised <span class="state-arrow">&rarr;</span> declined</li>
+      </ul>
+      <h3 style="margin-top:0.75rem">Credit Lifecycle</h3>
+      <ul class="state-list">
+        <li>not_started <span class="state-arrow">&rarr;</span> submitted <span class="state-arrow">&rarr;</span> approved | denied | conditional</li>
+      </ul>
+    </div>
+
+    <div class="info-card">
+      <h3>Domain Constraints</h3>
+      <ul class="constraint-list">
+        <li><span class="constraint-icon">&#x2717;</span> Cannot accept offer below invoice price</li>
+        <li><span class="constraint-icon">&#x2717;</span> Near-floor offers require manager</li>
+        <li><span class="constraint-icon">&#x2717;</span> Cannot approve deal without credit approval</li>
+        <li><span class="constraint-icon">&#x2717;</span> Cannot apply unappraised trade-in</li>
+        <li><span class="constraint-icon">&#x2717;</span> Cannot double-book test drive</li>
+        <li><span class="constraint-icon">&#x2717;</span> Cannot create deal on sold vehicle</li>
+        <li><span class="constraint-icon">&#x2717;</span> Receptionist cannot create deals</li>
+        <li><span class="constraint-icon">&#x2717;</span> Finance cannot make offers</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const svg = document.getElementById('graph');
+const tooltip = document.getElementById('tooltip');
+const ttTitle = document.getElementById('ttTitle');
+const ttDetail = document.getElementById('ttDetail');
+
+// Entity nodes
+const nodes = [
+  { id: 'vehicle',    label: 'Vehicle',    x: 150, y: 200, color: '#60a5fa', r: 42,
+    tip: '8 vehicles (new/used). States: available → reserved → sold | unavailable. Has MSRP, invoice price, features.' },
+  { id: 'customer',   label: 'Customer',   x: 450, y: 100, color: '#34d399', r: 42,
+    tip: 'Walk-in or registered. Has credit score, license, credit status lifecycle. Required for deals and test drives.' },
+  { id: 'deal',       label: 'Deal',       x: 450, y: 350, color: '#f59e0b', r: 48,
+    tip: 'Central entity. Links customer ↔ vehicle ↔ salesperson. Lifecycle: negotiating → financing → approved → closed | lost.' },
+  { id: 'offer',      label: 'Offer',      x: 250, y: 500, color: '#f87171', r: 36,
+    tip: 'Price proposals on a deal. Can be accepted, rejected, countered. Floor price and near-floor constraints enforced.' },
+  { id: 'trade_in',   label: 'Trade-In',   x: 650, y: 500, color: '#a78bfa', r: 36,
+    tip: 'Customer\'s existing vehicle for credit. Must be appraised before acceptance. Applied as credit to deal.' },
+  { id: 'test_drive', label: 'Test Drive', x: 150, y: 420, color: '#22d3ee', r: 36,
+    tip: 'Scheduled for customer + vehicle. No double-booking. Customer needs license. Any role can manage.' },
+  { id: 'user',       label: 'User',       x: 750, y: 200, color: '#9295a5', r: 36,
+    tip: '8 staff: 2 managers, 3 sales, 2 finance, 1 receptionist. Role determines available affordances.' },
+  { id: 'credit',     label: 'Credit App', x: 700, y: 100, color: '#e879f9', r: 32,
+    tip: 'Embedded in customer. Lifecycle: not_started → submitted → approved/denied/conditional. Finance+ only.' },
+];
+
+// Relationship edges
+const edges = [
+  { from: 'deal', to: 'customer',   label: 'customer_id', tip: 'Deal is for this customer' },
+  { from: 'deal', to: 'vehicle',    label: 'vehicle_id',  tip: 'Deal is for this vehicle (reserves it)' },
+  { from: 'deal', to: 'user',       label: 'salesperson_id', tip: 'Salesperson managing the deal' },
+  { from: 'offer', to: 'deal',      label: 'deal_id',     tip: 'Offer belongs to a deal. Multiple offers per deal.' },
+  { from: 'trade_in', to: 'deal',   label: 'deal_id',     tip: 'Trade-in applied to a deal as credit' },
+  { from: 'trade_in', to: 'customer', label: 'customer_id', tip: 'Trade-in belongs to this customer' },
+  { from: 'test_drive', to: 'customer', label: 'customer_id', tip: 'Customer taking the test drive' },
+  { from: 'test_drive', to: 'vehicle', label: 'vehicle_id', tip: 'Vehicle being test driven' },
+  { from: 'test_drive', to: 'user', label: 'salesperson_id', tip: 'Salesperson accompanying' },
+  { from: 'credit', to: 'customer', label: 'embedded', tip: 'Credit status is a property of the customer', dashed: true },
+  { from: 'offer', to: 'user',      label: 'offered_by',  tip: 'Who made the offer' },
+];
+
+const nodeMap = {};
+nodes.forEach(n => nodeMap[n.id] = n);
+
+// Draw edges
+edges.forEach(e => {
+  const a = nodeMap[e.from], b = nodeMap[e.to];
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const nx = dx/dist, ny = dy/dist;
+  const x1 = a.x + nx * a.r, y1 = a.y + ny * a.r;
+  const x2 = b.x - nx * b.r, y2 = b.y - ny * b.r;
+
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+  line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+  line.setAttribute('stroke', '#2d3148');
+  line.setAttribute('stroke-width', e.dashed ? '1' : '1.5');
+  if (e.dashed) line.setAttribute('stroke-dasharray', '4,4');
+  svg.appendChild(line);
+
+  // Edge label
+  const mx = (x1+x2)/2, my = (y1+y2)/2;
+  const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  text.setAttribute('x', mx); text.setAttribute('y', my - 6);
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('fill', '#5c5f72');
+  text.setAttribute('font-size', '9');
+  text.setAttribute('font-family', "'DM Mono', monospace");
+  text.textContent = e.label;
+  svg.appendChild(text);
+
+  // Invisible wide line for hover
+  const hitLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  hitLine.setAttribute('x1', x1); hitLine.setAttribute('y1', y1);
+  hitLine.setAttribute('x2', x2); hitLine.setAttribute('y2', y2);
+  hitLine.setAttribute('stroke', 'transparent');
+  hitLine.setAttribute('stroke-width', '12');
+  hitLine.style.cursor = 'pointer';
+  hitLine.addEventListener('mouseenter', (ev) => {
+    line.setAttribute('stroke', '#9384f7');
+    line.setAttribute('stroke-width', '2.5');
+    showTooltip(ev, e.label, e.tip);
+  });
+  hitLine.addEventListener('mousemove', (ev) => moveTooltip(ev));
+  hitLine.addEventListener('mouseleave', () => {
+    line.setAttribute('stroke', '#2d3148');
+    line.setAttribute('stroke-width', e.dashed ? '1' : '1.5');
+    hideTooltip();
+  });
+  svg.appendChild(hitLine);
+});
+
+// Draw nodes
+nodes.forEach(n => {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.style.cursor = 'pointer';
+
+  // Glow
+  const glow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  glow.setAttribute('cx', n.x); glow.setAttribute('cy', n.y);
+  glow.setAttribute('r', n.r + 4);
+  glow.setAttribute('fill', 'none');
+  glow.setAttribute('stroke', n.color);
+  glow.setAttribute('stroke-width', '0');
+  glow.setAttribute('opacity', '0.3');
+  g.appendChild(glow);
+
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('cx', n.x); circle.setAttribute('cy', n.y);
+  circle.setAttribute('r', n.r);
+  circle.setAttribute('fill', n.color + '18');
+  circle.setAttribute('stroke', n.color);
+  circle.setAttribute('stroke-width', '1.5');
+  g.appendChild(circle);
+
+  const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  text.setAttribute('x', n.x); text.setAttribute('y', n.y + 1);
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('dominant-baseline', 'middle');
+  text.setAttribute('fill', n.color);
+  text.setAttribute('font-size', n.r > 40 ? '12' : '10');
+  text.setAttribute('font-weight', '600');
+  text.setAttribute('font-family', "'Plus Jakarta Sans', system-ui, sans-serif");
+  text.textContent = n.label;
+  g.appendChild(text);
+
+  g.addEventListener('mouseenter', (ev) => {
+    glow.setAttribute('stroke-width', '3');
+    circle.setAttribute('stroke-width', '2.5');
+    showTooltip(ev, n.label, n.tip);
+  });
+  g.addEventListener('mousemove', (ev) => moveTooltip(ev));
+  g.addEventListener('mouseleave', () => {
+    glow.setAttribute('stroke-width', '0');
+    circle.setAttribute('stroke-width', '1.5');
+    hideTooltip();
+  });
+
+  svg.appendChild(g);
+});
+
+// Tooltip functions
+function showTooltip(ev, title, detail) {
+  ttTitle.textContent = title;
+  ttDetail.textContent = detail;
+  tooltip.classList.add('visible');
+  moveTooltip(ev);
+}
+function moveTooltip(ev) {
+  const rect = svg.closest('.graph-card').getBoundingClientRect();
+  tooltip.style.left = (ev.clientX - rect.left + 12) + 'px';
+  tooltip.style.top = (ev.clientY - rect.top - 10) + 'px';
+}
+function hideTooltip() {
+  tooltip.classList.remove('visible');
+}
+</script>
+</body>
+</html>

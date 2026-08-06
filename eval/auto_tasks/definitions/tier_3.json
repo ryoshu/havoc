@@ -1,0 +1,136 @@
+[
+  {
+    "id": "t3-01",
+    "tier": 3,
+    "name": "Cannot accept below floor price",
+    "description": "Try to accept offer 'off-low' at $25,000 on deal 'deal-floor'. It should fail because $25,000 is below the invoice price of $28,800. Then reject that offer, make a new offer at $29,500, and accept it.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-camry-new"}],
+      "customers": [{"id": "cust-floor", "name": "Blake Turner", "email": "blake@email.com", "phone": "555-3001", "drivers_license": "DL-30001"}],
+      "deals": [{"id": "deal-floor", "customer_id": "cust-floor", "vehicle_alias": "veh-camry-new", "status": "negotiating"}],
+      "offers": [{"id": "off-low", "deal_id": "deal-floor", "amount": 25000, "status": "pending"}]
+    },
+    "oracle": [
+      {"type": "offer_exists", "deal_id": "deal-floor", "status": "accepted", "amount_gte": 29000}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t3-02",
+    "tier": 3,
+    "name": "Cannot approve deal without credit approval",
+    "description": "Try to approve deal 'deal-nocred' which is in 'financing' status, but customer 'cust-nocred' has credit_status 'not_started'. The approval should fail. Then submit credit for $35,000, approve credit for $35,000, and approve the deal.",
+    "acting_user_id": "user-fin-1",
+    "setup": {
+      "vehicles": [{"template_id": "veh-accord-new"}],
+      "customers": [{"id": "cust-nocred", "name": "Drew Morgan", "email": "drew@email.com", "phone": "555-3002", "drivers_license": "DL-30002", "credit_status": "not_started"}],
+      "deals": [{"id": "deal-nocred", "customer_id": "cust-nocred", "vehicle_alias": "veh-accord-new", "status": "financing"}],
+      "offers": [{"id": "off-nocred", "deal_id": "deal-nocred", "amount": 35000, "status": "accepted"}]
+    },
+    "oracle": [
+      {"type": "deal_status", "deal_id": "deal-nocred", "expected": "approved"},
+      {"type": "credit_status", "customer_id": "cust-nocred", "expected": "approved"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t3-03",
+    "tier": 3,
+    "name": "Cannot apply unappraised trade-in",
+    "description": "Try to apply trade-in credit for trade-in 'ti-unapp' on deal 'deal-tiapp'. It should fail because the trade-in is still 'pending_appraisal'. Then appraise it at $6,000, accept it, and apply the credit.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-f150-new"}],
+      "customers": [{"id": "cust-tiapp", "name": "Quinn Ellis", "email": "quinn@email.com", "phone": "555-3003", "drivers_license": "DL-30003"}],
+      "deals": [{"id": "deal-tiapp", "customer_id": "cust-tiapp", "vehicle_alias": "veh-f150-new", "status": "negotiating"}],
+      "trade_ins": [{"id": "ti-unapp", "deal_id": "deal-tiapp", "customer_id": "cust-tiapp", "make": "Ford", "model": "Focus", "year": 2018, "vin": "TIVIN003", "mileage": 60000, "condition": "fair", "status": "pending_appraisal"}]
+    },
+    "oracle": [
+      {"type": "trade_in_status", "trade_in_id": "ti-unapp", "expected": "applied"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t3-04",
+    "tier": 3,
+    "name": "Cannot double-book test drive",
+    "description": "Vehicle 'veh-camry-new' already has a test drive scheduled at '2026-04-15T10:00:00'. Try scheduling another test drive for customer 'cust-td2' on the same vehicle at '2026-04-15T10:15:00'. It should fail due to a time conflict. Then schedule it at '2026-04-15T14:00:00' instead.",
+    "setup": {
+      "vehicles": [{"template_id": "veh-camry-new"}],
+      "customers": [
+        {"id": "cust-td1", "name": "Avery Hall", "email": "avery@email.com", "phone": "555-3004", "drivers_license": "DL-30004"},
+        {"id": "cust-td2", "name": "Riley Scott", "email": "riley@email.com", "phone": "555-3005", "drivers_license": "DL-30005"}
+      ],
+      "test_drives": [{"id": "td-existing", "customer_id": "cust-td1", "vehicle_alias": "veh-camry-new", "scheduled_time": "2026-04-15T10:00:00", "status": "scheduled"}]
+    },
+    "oracle": [
+      {"type": "test_drive_exists", "customer_id": "cust-td2", "vehicle_id": "veh-camry-new", "status": "scheduled"}
+    ],
+    "max_turns": 15
+  },
+  {
+    "id": "t3-05",
+    "tier": 3,
+    "name": "Receptionist cannot create deal",
+    "description": "As receptionist, try to create a deal for customer 'cust-recep' on vehicle 'veh-civic-used'. It should fail because receptionists cannot create deals. Verify no deal was created.",
+    "acting_user_id": "user-recep-1",
+    "setup": {
+      "vehicles": [{"template_id": "veh-civic-used"}],
+      "customers": [{"id": "cust-recep", "name": "Harper Lane", "email": "harper@email.com", "phone": "555-3006", "drivers_license": "DL-30006"}]
+    },
+    "oracle": [
+      {"type": "deal_count", "expected": 0}
+    ],
+    "max_turns": 5
+  },
+  {
+    "id": "t3-06",
+    "tier": 3,
+    "name": "Finance cannot make offers",
+    "description": "As finance user, try to make an offer of $30,000 on deal 'deal-finoff'. It should fail because finance users cannot make offers. Verify no offer was created on the deal.",
+    "acting_user_id": "user-fin-1",
+    "setup": {
+      "vehicles": [{"template_id": "veh-camry-new"}],
+      "customers": [{"id": "cust-finoff", "name": "Skyler Reed", "email": "skyler@email.com", "phone": "555-3007", "drivers_license": "DL-30007"}],
+      "deals": [{"id": "deal-finoff", "customer_id": "cust-finoff", "vehicle_alias": "veh-camry-new", "status": "negotiating"}]
+    },
+    "oracle": [
+      {"type": "offer_count", "deal_id": "deal-finoff", "expected": 0}
+    ],
+    "max_turns": 5
+  },
+  {
+    "id": "t3-07",
+    "tier": 3,
+    "name": "Near-floor requires manager",
+    "description": "As salesperson, try to accept offer 'off-nearfloor' at $29,000 on deal 'deal-nearfloor'. The vehicle invoice price is $28,800, so $29,000 is within 5% of invoice and requires manager approval. The accept should fail. Verify the offer remains pending.",
+    "acting_user_id": "user-sales-1",
+    "setup": {
+      "vehicles": [{"template_id": "veh-camry-new"}],
+      "customers": [{"id": "cust-nearfloor", "name": "Emery Nash", "email": "emery@email.com", "phone": "555-3008", "drivers_license": "DL-30008"}],
+      "deals": [{"id": "deal-nearfloor", "customer_id": "cust-nearfloor", "vehicle_alias": "veh-camry-new", "status": "negotiating"}],
+      "offers": [{"id": "off-nearfloor", "deal_id": "deal-nearfloor", "amount": 29000, "status": "pending"}]
+    },
+    "oracle": [
+      {"type": "offer_status", "offer_id": "off-nearfloor", "expected": "pending"}
+    ],
+    "max_turns": 5
+  },
+  {
+    "id": "t3-08",
+    "tier": 3,
+    "name": "Cannot create deal on sold vehicle",
+    "description": "Try to create a deal for customer 'cust-sold' on vehicle 'veh-sold' which is already sold. It should fail. Then create a deal on the available vehicle 'veh-civic-used' instead.",
+    "setup": {
+      "vehicles": [
+        {"id": "veh-sold", "make": "Honda", "model": "Accord", "year": 2025, "trim": "Sport", "vin": "SOLD001", "color": "Black", "msrp": 38000, "invoice_price": 34200, "mileage": 0, "condition": "new", "status": "sold"},
+        {"template_id": "veh-civic-used"}
+      ],
+      "customers": [{"id": "cust-sold", "name": "Kai Patel", "email": "kai@email.com", "phone": "555-3009", "drivers_license": "DL-30009"}]
+    },
+    "oracle": [
+      {"type": "deal_exists", "customer_id": "cust-sold", "vehicle_id": "veh-civic-used"},
+      {"type": "vehicle_status", "vehicle_id": "veh-sold", "expected": "sold"}
+    ],
+    "max_turns": 15
+  }
+]
