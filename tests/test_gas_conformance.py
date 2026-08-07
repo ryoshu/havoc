@@ -193,6 +193,24 @@ def test_act_rejects_a_stale_expected_revision(case: ConformanceCase, service: G
         _mutate(case, service, session_id, created.state_revision + 1, command, "conformance-stale")
 
 
+def test_act_on_an_unknown_session_is_rejected_as_resource_not_found(case: ConformanceCase, service: GasService):
+    """Regression test: a first version of the eval GasBackend adapters
+    checked capability_id offer-status before session existence, so acting
+    on a nonexistent session reported invalid_input ("capability_id is not
+    currently offered") instead of resource_not_found — because computing
+    the currently-offered set for an unknown session quietly returns an
+    empty set rather than raising anything itself. The fake and Havoc
+    backends both already get this right; every backend must."""
+    with pytest.raises(ResourceNotFoundError):
+        service.act(
+            "not-a-real-capability-id",
+            0,
+            {},
+            "conformance-unknown-session",
+            session_id="does-not-exist",
+        )
+
+
 def test_act_rejects_a_capability_id_that_is_not_currently_offered(case: ConformanceCase, service: GasService):
     created = service.create_session()
     session_id = created.data["id"]

@@ -112,6 +112,18 @@ class _EvalEnforcedGasBackend:
         untrusted_rationale: str | None,
         sensitive_fields: tuple[str, ...],
     ) -> BackendMutation:
+        # Must run before the capability_id check below: _contract_affordances()
+        # on an unknown session quietly returns [] (see
+        # eval.gas_server.affordances.compute_affordances and its cruise/auto
+        # equivalents), which would otherwise make current_ids empty and
+        # report a *missing session* as "capability_id is not currently
+        # offered" (invalid_input) instead of resource_not_found — the fake
+        # and Havoc backends both raise resource_not_found for this case.
+        if not self.runtime.ctx.get_session(session_id):
+            raise ResourceNotFoundError(
+                f"Session '{session_id}' not found.",
+                details={"resource_type": "session", "id": session_id},
+            )
         action = capability_id.split("::", 1)[0]
         # act_enforced() below only checks whether `action` names a
         # currently-offered command — it never sees `capability_id` at all,
