@@ -30,7 +30,9 @@ capability set. The generated tool binds the capability ID and scope in its
 handler closure, publishes the command's input schema under `input`, and maps
 effect metadata to MCP annotations. The handler accepts only the execution
 envelope (`input`, `expected_revision`, `idempotency_key`, and `session_id`) and
-delegates to a caller-provided invoker such as `GasRuntime.act`.
+delegates to a caller-provided invoker such as the `GasService.act` produced by
+`gia.server.build_gas_service(runtime)` (PR 19 removed the old `GasRuntime.act`
+this used to name).
 
 `NativeMcpRenderer`/`NativeMcpTool` live in `gas_mcp.native` as of PR 17
 (`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`) — MCP transport moved out of
@@ -41,12 +43,14 @@ from `gas_mcp` directly.
 
 ```python
 from gia.renderers import NativeMcpRenderer  # or: from gas_mcp import NativeMcpRenderer
+from gia.server import build_gas_service
 
+gas_service = build_gas_service(runtime)
 renderer = NativeMcpRenderer()
 renderer.install(
     context_specific_mcp_server,
     runtime.capability_set(session_id),
-    lambda **request: gas.act(**request),
+    lambda **request: gas_service.act(**request),
 )
 ```
 

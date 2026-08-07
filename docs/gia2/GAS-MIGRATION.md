@@ -28,20 +28,33 @@ execution-scope handle required by the session model. It is not an
 authorization input; the server-derived actor, tenant, scope, current policy,
 and capability ID are still revalidated by the reference monitor.
 
-## Legacy callers
+## Building a GAS surface
 
-`JsonGameRuntimeAdapter` is the explicit `gas-legacy` boundary for callers that
-still need JSON strings, action names, and `affordances`. Its methods emit a
-`DeprecationWarning` and are intentionally not registered as MCP tools. Use
-`GasRuntime` for new code. The adapter is scheduled for deletion in PR 19
-("Migrate callers and remove compatibility paths",
-`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`) after a repository-wide usage
-search confirms that first-party Director, playthrough, and evaluation
-callers have migrated.
+`JsonGameRuntimeAdapter` (JSON strings, action names, and flattened
+`affordances`) and its successor `GasRuntime` (a hand-rolled GAS 2.0
+implementation) were both removed in PR 19 ("Migrate callers and remove
+compatibility paths", `docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`) once a
+repository-wide usage search confirmed every first-party Director,
+playthrough, demo, agent, and test caller had migrated off them.
 
-The adapter and GAS 2.0 delegate to the same `GameRuntime`, command registry,
-policy provider, and execution service. It cannot add an action or bypass the
-capability revalidation path.
+The current, sole path is `gia.server.build_gas_service(runtime: GameRuntime)
+-> GasService`: it composes a `GiaGasAdapter` over the runtime's application
+ports and wraps it in `gas_protocol.service.GasService`. This is the exact
+composition the live MCP server (`havoc_server.app`) and the Director
+(`src.playthrough.director`) both build from — there is no separate
+"legacy" or "GAS 2.0" adapter to choose between anymore.
+
+```python
+from gia.server import GameRuntime, build_gas_service
+
+runtime = GameRuntime()
+gas = build_gas_service(runtime)
+session = gas.create_session()
+```
+
+`GasService` delegates to the same `GameRuntime`, command registry, policy
+provider, and execution service as any other caller. It cannot add an
+action or bypass the capability revalidation path.
 
 ## Locality and recovery
 

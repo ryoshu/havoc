@@ -207,6 +207,31 @@ def test_act_rejects_a_capability_id_that_is_not_currently_offered(case: Conform
         )
 
 
+def test_act_rejects_a_forged_suffix_on_an_otherwise_valid_action_name(case: ConformanceCase, service: GasService):
+    """A capability_id must be validated in full, not just its action-name
+    prefix. Regression test: the eval GasBackend adapters mint ids as
+    "<action>::<opaque-token>" so act() can recover which action to
+    dispatch — but a first version of that adapter recovered the action by
+    splitting on "::" and never checked the token against anything, so
+    "<valid-action>::forged" executed successfully. Every backend must
+    reject this, not just a fully-bogus id with no valid prefix at all
+    (covered above)."""
+    created = service.create_session()
+    session_id = created.data["id"]
+    command = _find_command(created.commands, case.mutating_action)
+    forged_id = f"{command.command}::forged-suffix-not-a-real-target"
+    params = {**_consts_from_schema(command.input_schema), **case.extra_input}
+
+    with pytest.raises(InvalidInputError):
+        service.act(
+            forged_id,
+            created.state_revision,
+            params,
+            "conformance-forged-suffix",
+            session_id=session_id,
+        )
+
+
 def test_why_not_reports_an_unavailable_command(service: GasService):
     created = service.create_session()
     session_id = created.data["id"]

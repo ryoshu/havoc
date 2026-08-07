@@ -32,7 +32,7 @@ from gas_protocol.errors import (
     StaleStateError,
 )
 
-from eval.gas_server.contracts import GasErrorResponse
+from eval.gas_server.contracts import GasErrorResponse, contract_affordances
 
 # eval's own contract error vocabulary (eval/gas_server/contracts.py's
 # GasContractError.code strings) translated onto gas_protocol's stable
@@ -113,6 +113,23 @@ class _EvalEnforcedGasBackend:
         sensitive_fields: tuple[str, ...],
     ) -> BackendMutation:
         action = capability_id.split("::", 1)[0]
+        # act_enforced() below only checks whether `action` names a
+        # currently-offered command — it never sees `capability_id` at all,
+        # since eval's own contract has no capability-id concept. Without
+        # this exact-match check here, a forged id that merely keeps a
+        # valid action's name as its "::"-prefix (e.g.
+        # "create_issue::forged-suffix") would silently execute: the
+        # forged suffix is otherwise discarded on the line above and never
+        # validated against anything.
+        current_ids = {
+            f"{affordance.action}::{affordance.id}"
+            for affordance in contract_affordances(self.runtime._contract_affordances(session_id))
+        }
+        if capability_id not in current_ids:
+            raise InvalidInputError(
+                "capability_id is not currently offered in this session.",
+                details={"parameter": "capability_id"},
+            )
         response = self.runtime.act_enforced(
             action,
             dict(input),
