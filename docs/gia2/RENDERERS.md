@@ -15,7 +15,7 @@ capability IDs.
 The `DebugRenderer` is the smallest inspection surface:
 
 ```python
-from gia.renderers import DebugRenderer
+from gia_core.renderers import DebugRenderer
 
 payload = DebugRenderer().render(runtime.capability_set(session_id))
 ```
@@ -34,15 +34,17 @@ delegates to a caller-provided invoker such as the `GasService.act` produced by
 `gia.server.build_gas_service(runtime)` (PR 19 removed the old `GasRuntime.act`
 this used to name).
 
-`NativeMcpRenderer`/`NativeMcpTool` live in `gas_mcp.native` as of PR 17
-(`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`) — MCP transport moved out of
-`src/gia/` entirely. `gia.renderers.NativeMcpRenderer` (the import below)
-is now a thin, silent re-export shim over `gas_mcp.native`, kept so
-existing imports don't need to change; new code should prefer importing
-from `gas_mcp` directly.
+`NativeMcpRenderer`/`NativeMcpTool` live in `havoc_server.native_mcp` as of
+RS-03 (`docs/GIA-REPOSITORY-SPLIT-PLAN.md`) — moved there from
+`gas_mcp.native` (PR 17's home for it) because nothing outside Havoc ever
+consumed it: keeping a `gia_core.CapabilitySet`-dependent renderer in the
+supposedly GIA-free `gas_mcp` package contradicted that package's own goal,
+and there was no second real consumer to justify a standalone reusable
+`gia_mcp` package either. No compatibility shim was left at the old
+`gas_mcp.native` or `gia.renderers.native_mcp` paths.
 
 ```python
-from gia.renderers import NativeMcpRenderer  # or: from gas_mcp import NativeMcpRenderer
+from havoc_server.native_mcp import NativeMcpRenderer
 from gia.server import build_gas_service
 
 gas_service = build_gas_service(runtime)

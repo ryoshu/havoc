@@ -137,13 +137,20 @@ def _run_probe(probe: str) -> list[str]:
 
 
 def test_gas_mcp_does_not_import_havoc_domain():
-    """gas-mcp | gas-protocol, MCP SDK | Havoc, databases, GIA policy internals."""
+    """gas-mcp | gas-protocol, MCP SDK | Havoc, databases, GIA policy internals.
+
+    Also proves the RS-03 acceptance criterion (docs/GIA-REPOSITORY-SPLIT-PLAN.md):
+    ``gas_mcp`` no longer loads ``gia_core`` at all now that the native
+    per-capability renderer (the one thing that used to pull ``gia_core.
+    CapabilitySet`` in) moved to ``havoc_server.native_mcp``.
+    """
     probe = (
         "import sys\n"
         "import gas_mcp\n"
         "forbidden_prefixes = ("
         "'gia.server', 'gia.context', 'gia.db', 'gia.graph', 'gia.domain',\n"
-        "    'gia.application', 'gia.commands', 'havoc_domain',\n"
+        "    'gia.application', 'gia.commands', 'havoc_domain', 'gia_core',\n"
+        "    'havoc_server', 'gia_mcp',\n"
         ")\n"
         "hits = sorted(\n"
         "    name for name in sys.modules\n"

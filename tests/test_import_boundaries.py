@@ -86,16 +86,17 @@ def test_bare_legacy_submodule_imports_are_not_silently_unbucketed():
     provenance}`, not their bare `gia.*` equivalents. RS-02
     (docs/GIA-REPOSITORY-SPLIT-PLAN.md) later moved those three packages to
     `src/gia_core/` outright with no shim left at the old `gia.*` path (see
-    BUCKET_PREFIXES' RS-02 note), so this test now covers the paths that
-    still live under `src/gia/`: `gia.server` and the MCP-dependent
-    `gia.renderers.native_mcp`, plus `havoc_domain`'s own bare form."""
+    BUCKET_PREFIXES' RS-02 note), and RS-03 moved the MCP-dependent
+    `gia.renderers.native_mcp` to `havoc_server.native_mcp` the same way, so
+    this test now covers the one path that still lives under `src/gia/`:
+    `gia.server`, plus `havoc_domain`'s own bare form."""
     assert checker.bucket_for("gia_core.capabilities.models") == "gia_core"
     assert checker.bucket_for("gia_core.policy") == "gia_core"
     assert checker.bucket_for("gia_core.provenance") == "gia_core"
     assert checker.bucket_for("havoc_domain.context") == "havoc_domain"
     assert checker.bucket_for("havoc_domain.commands.kernel") == "havoc_domain"
     assert checker.bucket_for("gia.server") == "composition_root"
-    assert checker.bucket_for("gia.renderers.native_mcp") == "mcp_transport"
+    assert checker.bucket_for("havoc_server.native_mcp") == "composition_root"
 
 
 def test_forbidden_edge_via_bare_legacy_import_is_detected(tmp_path):
