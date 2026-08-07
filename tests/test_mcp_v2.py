@@ -115,8 +115,15 @@ async def _exercise_server() -> None:
                 },
             )
         assert error.value.code == -32000
-        assert error.value.message == "action_unavailable"
-        assert error.value.data["code"] == "action_unavailable"
+        # PR 17: the live server now runs on GiaGasAdapter/GasService rather
+        # than the deprecated GasRuntime, so capability rejections surface
+        # GAS's own stable error vocabulary rather than gia_core's raw
+        # domain code. UnavailableActionError deliberately maps to
+        # invalid_input, not a stale-state code, because it also covers
+        # forged/unauthorized capability IDs that a bare refresh-and-retry
+        # would not fix (see gia_gas_adapter.adapter._ERROR_MAP).
+        assert error.value.message == "invalid_input"
+        assert error.value.data["code"] == "invalid_input"
 
 
 def test_mcp_v2_in_memory_client_contract():

@@ -32,8 +32,15 @@ effect metadata to MCP annotations. The handler accepts only the execution
 envelope (`input`, `expected_revision`, `idempotency_key`, and `session_id`) and
 delegates to a caller-provided invoker such as `GasRuntime.act`.
 
+`NativeMcpRenderer`/`NativeMcpTool` live in `gas_mcp.native` as of PR 17
+(`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`) — MCP transport moved out of
+`src/gia/` entirely. `gia.renderers.NativeMcpRenderer` (the import below)
+is now a thin, silent re-export shim over `gas_mcp.native`, kept so
+existing imports don't need to change; new code should prefer importing
+from `gas_mcp` directly.
+
 ```python
-from gia.renderers import NativeMcpRenderer
+from gia.renderers import NativeMcpRenderer  # or: from gas_mcp import NativeMcpRenderer
 
 renderer = NativeMcpRenderer()
 renderer.install(

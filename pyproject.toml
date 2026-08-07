@@ -3,8 +3,14 @@ name = "gia"
 version = "0.2.0"
 description = "Affordance-driven TTRPG backend — Eat the Reich (Havoc Engine)"
 requires-python = ">=3.11"
+# `mcp[cli]` moved to the `mcp` optional-dependency group below in PR 17
+# (`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`): the reusable cores
+# (`gia_core`, `gas_protocol`, `gia_gas_adapter`, and now bare `gia` itself
+# — `src/gia/server.py`'s `mcp`/`_allowed_hosts` re-export is lazy, see its
+# module docstring) must install and import without MCP. Anything that
+# needs to actually run the MCP server (`gas_mcp`, `havoc_server`, or
+# `uv run python -m src.gia.server`) needs the `mcp` extra.
 dependencies = [
-    "mcp[cli]>=2.0,<3",
     "openai>=1.0.0",
     "certifi>=2024.2.2",
     "pydantic>=2.0.0",
@@ -17,6 +23,9 @@ dependencies = [
 test = [
     "pytest>=8.0.0",
     "pytest-timeout>=2.3.0",
+]
+mcp = [
+    "mcp[cli]>=2.0,<3",
 ]
 
 [build-system]
@@ -42,7 +51,20 @@ build-backend = "hatchling.build"
 # (`gia.capabilities`/`gia.policy`) at runtime — both already ship, so this
 # adds no new transitive gap.
 #
-# The other three target namespaces from docs/gia2/DEPENDENCY-BOUNDARIES.md
-# stay unpackaged — still empty placeholders — per that doc's packaging
-# note.
-packages = ["src/gia", "src/gia_core", "src/gas_protocol", "src/gia_gas_adapter"]
+# `gas_mcp` and `havoc_server` (PR 17) ship for the same reason: both
+# stopped being empty placeholders. `gas_mcp` needs the `mcp` extra
+# installed to actually import (it registers MCP tools); `havoc_server`
+# additionally needs `gia`/`gia_gas_adapter`/`gas_protocol`, all of which
+# already ship.
+#
+# `havoc_domain` is the one remaining target namespace from
+# docs/gia2/DEPENDENCY-BOUNDARIES.md that stays unpackaged — still an empty
+# placeholder until PR 18 moves concrete Havoc game code into it.
+packages = [
+    "src/gia",
+    "src/gia_core",
+    "src/gas_protocol",
+    "src/gia_gas_adapter",
+    "src/gas_mcp",
+    "src/havoc_server",
+]
