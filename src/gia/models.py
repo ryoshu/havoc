@@ -1,6 +1,6 @@
 """Pydantic models for the Eat the Reich TTRPG domain.
 
-``Affordance`` and ``DomainEvent`` moved to ``src.gia_core.contracts`` (PR
+``Affordance`` and ``DomainEvent`` moved to ``gia_core.contracts`` (PR
 14 of the GIA/GAS 2.0 plan) — neither ever referenced a Havoc concept. They
 are re-exported here so every existing ``from .models import Affordance,
 DomainEvent`` import keeps working unchanged.
@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import Enum
 from pydantic import BaseModel, Field
 
-from ..gia_core.contracts import Affordance, DomainEvent
+from gia_core.contracts import Affordance, DomainEvent
 
 
 # --- Enums ---

@@ -1,6 +1,6 @@
 """Havoc-specific JSON-schema wiring (PR 4 of the GIA/GAS 2.0 plan).
 
-The generic JSON-schema machinery moved to ``src.gia_core.schema`` (PR 14)
+The generic JSON-schema machinery moved to ``gia_core.schema`` (PR 14)
 — it takes an ``optional_parameters`` set explicitly rather than assuming
 one. This module binds that parameter to ``OPTIONAL_PARAMETERS``, the
 kernel-wide set of Havoc input-schema fields that are optional (currently
@@ -15,10 +15,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...gia_core.contracts import Affordance
-from ...gia_core.schema import JSON_SCHEMA_URI, schema_errors, validate_parameters
-from ...gia_core.schema import finalize_affordances as _finalize_affordances_generic
-from ...gia_core.schema import normalize_schema as _normalize_schema_generic
+from gia_core.contracts import Affordance
+from gia_core.schema import JSON_SCHEMA_URI, schema_errors, validate_parameters
+from gia_core.schema import finalize_affordances as _finalize_affordances_generic
+from gia_core.schema import normalize_schema as _normalize_schema_generic
 
 OPTIONAL_PARAMETERS = frozenset({"equipment_names", "ability_name", "bonus_dice"})
 

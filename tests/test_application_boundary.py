@@ -1,12 +1,13 @@
 """Tests for the GIA application boundary (PR 14 of the GIA/GAS 2.0 plan).
 
-Imports only `src.gia_core.*` and the concrete Havoc-backed implementation
+Imports only `gia_core.*` and the concrete Havoc-backed implementation
 (`src.gia.application.HavocGiaApplication`, `src.gia.context.GameContext`,
 `src.gia.policy`) — never `src.gia.server`, `src.gia.gas`, or `mcp` — so
 this file itself is evidence for the exit criterion "GIA tests run without
 constructing an MCP server or GAS runtime." (`GameRuntime` is imported only
 by the one test that explicitly proves the facade and the direct boundary
-path are equivalent — see its own docstring.)
+path are equivalent — see its own docstring.) See the import block below
+for why `gia_core` is imported by its bare name rather than `src.gia_core`.
 
 Each test reuses an idiom already proven elsewhere in the suite
 (`test_execution_service.py`'s idempotency/rollback/concurrency tests,
@@ -26,14 +27,27 @@ from src.gia.context import GameContext
 from src.gia.db import GameDB
 from src.gia.models import GamePhase, InjuryState
 from src.gia.policy import Actor, RequestContext
-from src.gia_core.errors import (
+
+# `gia_core` deliberately imported by its bare (installed-package) name, not
+# `src.gia_core` — `src/gia/application.py` (imported above via `src.gia.*`)
+# reaches `gia_core` through an *absolute* `from gia_core... import` (it has
+# to: `gia`/`gia_core` are siblings in the installed wheel with no shared
+# parent package, so a relative import can't cross that boundary — see
+# docs/gia2/DEPENDENCY-BOUNDARIES.md's PR 14 status note). That binds the
+# exception/DTO classes this test needs to compare/catch under the bare
+# `gia_core.*` identity in `sys.modules`. Importing them here as
+# `src.gia_core.*` instead would load a second, distinct copy of the same
+# module under a different dotted name — same class *names*, different
+# class *objects* — so `pytest.raises(StaleStateError)` would silently
+# never match what `commands/execution.py` actually raises.
+from gia_core.errors import (
     IdempotencyConflictError,
     PolicyChangedError,
     ScopeMismatchError,
     StaleStateError,
 )
-from src.gia_core.ports import CapabilityAuthority, ResourceProvider
-from src.gia_core.requests import (
+from gia_core.ports import CapabilityAuthority, ResourceProvider
+from gia_core.requests import (
     ExecuteRequest,
     GetRequest,
     ProjectRequest,

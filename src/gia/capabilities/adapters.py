@@ -12,7 +12,7 @@ capabilities without routing through transport-specific ``Affordance`` ids.
 
 from __future__ import annotations
 
-from ...gia_core.contracts import Affordance
+from gia_core.contracts import Affordance
 from .ids import compute_binding_key, compute_capability_id
 from .legacy_effects import effect_metadata_for
 from .models import Capability, CapabilitySet, Link, ResourceRef

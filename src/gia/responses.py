@@ -1,6 +1,6 @@
 """Transport-neutral response envelopes for the GIA runtime.
 
-The envelope types and builders moved to ``src.gia_core.responses`` (PR 14
+The envelope types and builders moved to ``gia_core.responses`` (PR 14
 of the GIA/GAS 2.0 plan) — none of them ever referenced a Havoc concept.
 They are re-exported here so every existing
 ``from .responses import ResourceResponse, format_response, ...`` import
@@ -10,7 +10,7 @@ the one Havoc-concrete function that used to live alongside them.
 
 from __future__ import annotations
 
-from ..gia_core.responses import (
+from gia_core.responses import (
     ActionResponse,
     ErrorDetail,
     ErrorResponse,

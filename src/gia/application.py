@@ -23,7 +23,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from ..gia_core.requests import (
+from gia_core.requests import (
     DiagnoseRequest,
     DiagnoseResult,
     ExecuteRequest,

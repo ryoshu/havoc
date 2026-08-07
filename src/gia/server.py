@@ -20,7 +20,7 @@ from .domain import DomainError, HavocEngine
 from .gas import GasActionResponse, GasResourceResponse, GasRuntime, WhyNotResponse
 from .policy import PolicyProvider, RequestContext
 from .responses import ActionResponse, ResourceResponse, format_action_response, format_response
-from ..gia_core.requests import ExecuteRequest, GetRequest, ProjectRequest, SearchRequest
+from gia_core.requests import ExecuteRequest, GetRequest, ProjectRequest, SearchRequest
 
 
 class GameRuntime:

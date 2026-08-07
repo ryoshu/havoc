@@ -1,7 +1,7 @@
 """Domain logic — Havoc Engine mechanics for Eat the Reich.
 
 The domain-neutral error hierarchy that used to live in this module has
-moved to ``src.gia_core.errors`` (PR 14 of the GIA/GAS 2.0 plan); it is
+moved to ``gia_core.errors`` (PR 14 of the GIA/GAS 2.0 plan); it is
 re-exported here so every existing ``from .domain import DomainError, ...``
 import keeps working unchanged. This module now holds only ``HavocEngine``,
 the concrete game-mechanics half PR 18 will relocate to ``havoc-domain``.
@@ -13,7 +13,7 @@ import random
 import uuid
 from datetime import datetime, timezone
 
-from ..gia_core.errors import (
+from gia_core.errors import (
     DomainError,
     IdempotencyConflictError,
     InvalidInputError,
