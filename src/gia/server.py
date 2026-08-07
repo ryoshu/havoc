@@ -142,18 +142,33 @@ class GameRuntime:
 # ---------------------------------------------------------------------------
 # Module-level runtime. Stateful requests must carry their session handle;
 # importing this module does not create a game.
+#
+# Constructed through `gia._runtime_cache` (always the same, single bare
+# module regardless of whether *this* file is currently executing as
+# `gia.server` or `src.gia.server`) rather than directly, so the singleton
+# is canonical across both import paths — see that module's docstring.
 # ---------------------------------------------------------------------------
+
+import gia._runtime_cache as _runtime_cache  # noqa: E402
+
 
 def _configured_db_path() -> str:
     """Return the database path used by the module-level runtime."""
     return os.environ.get("GIA_DB_PATH", ":memory:")
 
 
-_default = GameRuntime(db_path=_configured_db_path())
-_legacy = JsonGameRuntimeAdapter(_default)
-_gas = GasRuntime(_default)
-ctx = _default.ctx
-engine = _default.engine
+if not hasattr(_runtime_cache, "_default"):
+    _runtime_cache._default = GameRuntime(db_path=_configured_db_path())
+    _runtime_cache._legacy = JsonGameRuntimeAdapter(_runtime_cache._default)
+    _runtime_cache._gas = GasRuntime(_runtime_cache._default)
+    _runtime_cache.ctx = _runtime_cache._default.ctx
+    _runtime_cache.engine = _runtime_cache._default.engine
+
+_default = _runtime_cache._default
+_legacy = _runtime_cache._legacy
+_gas = _runtime_cache._gas
+ctx = _runtime_cache.ctx
+engine = _runtime_cache.engine
 
 
 ActionName = Literal[

@@ -136,6 +136,38 @@ def test_module_runtime_database_path_is_configurable(monkeypatch, tmp_path):
     assert _configured_db_path() == str(db_path)
 
 
+def test_legacy_json_path_and_mcp_share_the_canonical_module_runtime():
+    """Regression test for a PR 17 review finding.
+
+    `gia.server` and `src.gia.server` are distinct module objects in this
+    repository's import setup (repo root and the editable install both put
+    `gia` on `sys.path`). Without `gia._runtime_cache` canonicalizing the
+    module-level singleton across that duality, a session created through
+    `src.gia.server.create_session()` (the legacy JSON path, backed by
+    `_default`/`_legacy`) would not be visible to `src.gia.server.mcp`
+    (re-exported from `havoc_server`, which bare-imports `gia.server`) —
+    surfacing as `resource_not_found` instead of the session's state.
+    """
+    import gia.server as bare_server
+    from src.gia import server as prefixed_server
+
+    assert bare_server._default is prefixed_server._default
+    assert bare_server.ctx is prefixed_server.ctx
+
+    session = json.loads(prefixed_server.create_session())
+    session_id = session["data"]["id"]
+
+    async def _read_via_mcp() -> None:
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "get", {"resource_uri": f"gia://session/{session_id}"}
+            )
+            assert result.is_error is False
+            assert _text(result)["data"]["id"] == session_id
+
+    anyio.run(_read_via_mcp)
+
+
 def test_stateless_streamable_http_request_accepts_configured_host_port():
     allowed_hosts = _allowed_hosts(["127.0.0.1", "localhost"], 8000)
     assert allowed_hosts == ["127.0.0.1:8000", "localhost:8000"]

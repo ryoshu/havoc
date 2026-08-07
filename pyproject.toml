@@ -20,12 +20,23 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+mcp = [
+    "mcp[cli]>=2.0,<3",
+]
+# `test` pulls in the `mcp` extra (rather than just pytest) because the test
+# suite itself covers MCP transport (tests/test_mcp_v2.py, test_gas_mcp.py,
+# test_havoc_server.py, test_renderers.py, ...) and imports `mcp` directly.
+# `uv sync --locked --extra test` is this repo's one documented setup
+# command (CLAUDE.md, docs/OPERATIONS.md); it must be sufficient to collect
+# and run the full suite. This does not weaken PR 17's "reusable cores
+# install without mcp" claim — that claim is about `gia_core`/`gas_protocol`/
+# `gia_gas_adapter`/bare `gia` with *no* extras installed, verified via a
+# clean-venv wheel install (see docs/gia2/DEPENDENCY-BOUNDARIES.md's "PR 17
+# status"), not about this dev-only test convenience group.
 test = [
     "pytest>=8.0.0",
     "pytest-timeout>=2.3.0",
-]
-mcp = [
-    "mcp[cli]>=2.0,<3",
+    "gia[mcp]",
 ]
 
 [build-system]

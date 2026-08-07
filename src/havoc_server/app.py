@@ -49,7 +49,11 @@ def build_mcp_server(runtime: GameRuntime | None = None) -> tuple[MCPServer, Gam
     as the legacy JSON entry points (`gia.server.create_session`/`get`/
     `search`/`act`, still used by `compat.py`/the Director/playthrough) —
     two independently constructed `GameRuntime`s would each open their own
-    `:memory:` SQLite database and silently diverge. Callers that want an
+    `:memory:` SQLite database and silently diverge. `gia.server`'s
+    singleton is itself canonicalized across the `gia.server`/
+    `src.gia.server` import-path duality via `gia._runtime_cache` (see that
+    module's docstring), so this stays correct regardless of which spelling
+    a caller used to reach `gia.server` first. Callers that want an
     isolated server (tests) pass their own `runtime`.
     """
     runtime = runtime if runtime is not None else _gia_server._default

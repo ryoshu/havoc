@@ -8,8 +8,13 @@ From the repository root, install the locked runtime and test dependencies:
 uv sync --locked --extra test
 ```
 
-The project targets Python 3.11 or newer and pins MCP Python SDK v2 through
-`mcp[cli]>=2.0,<3` in `pyproject.toml` and `uv.lock`.
+The project targets Python 3.11 or newer. MCP Python SDK v2
+(`mcp[cli]>=2.0,<3`) is an optional dependency (the `mcp` extra) so the
+reusable cores (`gia_core`, `gas_protocol`, `gia_gas_adapter`, and bare
+`gia`) install and import without it; the `test` extra above pulls it in
+transitively (`gia[mcp]`) because the test suite itself covers MCP
+transport. To install just the MCP runtime without test tooling, use
+`uv sync --locked --extra mcp`.
 
 ## Database path
 
