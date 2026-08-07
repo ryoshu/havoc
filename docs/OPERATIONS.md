@@ -81,6 +81,9 @@ A client can still send any string or JSON payload on the wire. “Enforced”
 means those non-current capabilities are rejected at the server boundary, not
 that a language model is physically unable to produce malformed text.
 
+See `docs/specs/GIA-THREAT-MODEL.md` for the full boundary of what this
+guarantee does, and does not, cover.
+
 ## State, resources, and compatibility
 
 Session state and affordances are mutable and belong on MCP tools. Immutable

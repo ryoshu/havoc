@@ -69,8 +69,12 @@ Large command sets are bounded by a deterministic page budget. A response
 with `complete=false` carries `next_cursor`; target-heavy pages also expose
 non-executable `binding_templates` that point clients toward search followed
 by a target-local `get`. Cursors bind the resource, query, scope, state
-revision, and policy version. Reusing one after any of those versions changes
-returns the typed `stale_view` error, so clients should restart discovery.
+revision, and policy version. Reusing one after the resource, query, or
+scope it was minted against no longer matches the request returns the
+typed `invalid_input` error — the cursor was never valid for this request.
+Reusing one after only the state revision or policy version has since
+advanced returns the typed `stale_view` error; in that case clients should
+restart discovery. See `docs/specs/GAS-PROTOCOL.md` §7 for the full rule.
 
 `why_not` is a diagnostic read. It reports structured reasons and prerequisites
 for an unavailable command but always returns an empty executable command set;

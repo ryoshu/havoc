@@ -1,13 +1,18 @@
 # GIA: Grounded Interaction Architecture
 
-> **This document describes the current (1.x) implementation.** GIA/GAS 2.0
-> is in progress — see `docs/GIA-GAS-2.0-IMPLEMENTATION-PLAN.md` for the
-> target architecture and `docs/adr/` for the architectural decisions being
-> held constant across that migration. Some claims below (e.g. "3 tools"
-> as the architecture rather than one interface choice) are narrowed or
-> reframed by that plan. This
-> file stays as-is until the 2.0 cutover (PR 13) rewrites it; it is not
-> being kept in sync with the migration in the meantime.
+> **This document describes the pre-2.0 (1.x) implementation and is a
+> historical record, not current guidance.** The GIA/GAS separation
+> (`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`, PRs 13–20) is complete as
+> of PR 19; the file paths named below (`src/gia/domain.py`,
+> `src/gia/affordances.py`, `src/gia/server.py`'s module-level
+> `get`/`search`/`act` functions) were moved or deleted during that
+> migration and no longer exist. For current, narrower-scoped claims, read
+> `docs/specs/GIA-ARCHITECTURE.md`, `docs/specs/GAS-PROTOCOL.md`,
+> `docs/specs/GIA-GAS-INTEGRATION.md`, and `docs/specs/GIA-THREAT-MODEL.md`
+> instead — in particular, this file's "3 tools" framing is narrowed by
+> ADR-0010 and `docs/specs/GAS-PROTOCOL.md` §1 to one renderer's interface
+> choice, not the architecture itself. This file is kept only as a record
+> of the 1.x design; it is not updated to track the current codebase.
 
 ## The Problem
 
