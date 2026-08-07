@@ -13,33 +13,27 @@ from mcp.types import ToolAnnotations
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.shared.exceptions import MCPError
 
-from .commands.execution import execute as execute_action
-from .commands.kernel import compute_affordances, project_capability_set
+from .application import HavocGiaApplication
 from .compat import JsonGameRuntimeAdapter
 from .context import ONTOLOGY_PATH, GameContext
-from .domain import (
-    DomainError,
-    HavocEngine,
-    InvalidInputError,
-    ResourceNotFoundError,
-    ScopeMismatchError,
-    UnsupportedOperationError,
-)
+from .domain import DomainError, HavocEngine
 from .gas import GasActionResponse, GasResourceResponse, GasRuntime, WhyNotResponse
 from .policy import PolicyProvider, RequestContext
-from .responses import (
-    ActionResponse,
-    ResourceResponse,
-    format_action_response,
-    format_response,
-)
+from .responses import ActionResponse, ResourceResponse, format_action_response, format_response
+from ..gia_core.requests import ExecuteRequest, GetRequest, ProjectRequest, SearchRequest
 
 
 class GameRuntime:
-    """Encapsulates game state for a single runtime instance.
+    """Thin delegating facade over the GIA application boundary (PR 14).
 
-    Holds a GameContext, HavocEngine, and transient roll state.
-    Sessions are created explicitly and are never selected implicitly.
+    Holds a `GameContext` and `HavocEngine` (kept for backward
+    compatibility — several tests and adapters reach into `runtime.ctx`
+    directly) plus a `HavocGiaApplication`, which owns every authorization,
+    applicability, and mutation guarantee. This class's only job is
+    building request DTOs and mapping their results back onto the existing
+    `ResourceResponse`/`ActionResponse` wire shapes so every external
+    consumer (`GasRuntime`, `JsonGameRuntimeAdapter`, the MCP tool
+    functions) keeps working unchanged.
     """
 
     def __init__(
@@ -52,86 +46,19 @@ class GameRuntime:
         self.request_context = request_context or RequestContext.system()
         self.ctx = GameContext(db_path=db_path, policy_provider=policy_provider)
         self.engine = HavocEngine()
+        self._application = HavocGiaApplication(self.ctx, request_context=self.request_context)
 
     def create_session(self) -> ResourceResponse:
         """Create an isolated game session and return its initial state."""
-        session = self.ctx.db.create_session(
-            tenant_id=self.request_context.tenant_id,
-            policy_version=self.ctx.policy_provider.version,
-        )
-        return self._format_response(
-            session,
-            compute_affordances(self.ctx, session.id, self.request_context),
-            session.id,
-        )
-
-    def _assert_session_scope(self, session_id: str):
-        session = self.ctx.get_session(session_id)
-        if session and session.tenant_id != self.request_context.tenant_id:
-            # Deliberately avoid returning the session's tenant or existence.
-            raise ScopeMismatchError("The requested scope is not available.")
-        return session
+        result = self._application.create_session()
+        return format_response(result.data, result.affordances, state_revision=result.state_revision)
 
     def capability_set(self, session_id: str):
         """Return the contextual GIA capability IR for this runtime actor."""
-        sid = self._require_session_id(session_id)
-        session = self._assert_session_scope(sid)
-        if not session:
-            raise ResourceNotFoundError(
-                f"Session {sid} not found.",
-                details={"resource_type": "session", "id": sid},
-            )
-        return project_capability_set(self.ctx, session, self.request_context)
+        return self._application.project(ProjectRequest(session_id=session_id))
 
     # Explicit name for callers that prefer a getter-shaped API.
     get_capability_set = capability_set
-
-    @staticmethod
-    def _require_session_id(session_id: str) -> str:
-        if not isinstance(session_id, str) or not session_id.strip():
-            raise InvalidInputError(
-                "session_id is required for stateful operations.",
-                details={"parameter": "session_id"},
-            )
-        return session_id
-
-    def _state_revision(self, session_id: str | None) -> int | None:
-        if not session_id:
-            return None
-        session = self.ctx.get_session(session_id)
-        return session.state_revision if session else None
-
-    def _format_response(self, data: Any, affordances: list, session_id: str | None) -> ResourceResponse:
-        return format_response(
-            data,
-            affordances,
-            state_revision=self._state_revision(session_id),
-        )
-
-    def _format_action_response(
-        self,
-        data: Any,
-        affordances: list,
-        events: list,
-        session_id: str,
-    ) -> ActionResponse:
-        return format_action_response(
-            data,
-            affordances,
-            events,
-            state_revision=self._state_revision(session_id),
-        )
-
-    @staticmethod
-    def _require_mapping(
-        value: Mapping[str, Any] | None,
-        parameter_name: str,
-    ) -> dict[str, Any]:
-        if value is None:
-            return {}
-        if not isinstance(value, Mapping):
-            raise InvalidInputError(f"{parameter_name} must be a mapping.")
-        return dict(value)
 
     def get(
         self,
@@ -140,73 +67,10 @@ class GameRuntime:
         session_id: str = "",
     ) -> ResourceResponse:
         """Retrieve a resource by type and ID."""
-        sid = session_id.strip() if isinstance(session_id, str) else ""
-        if resource_type == "session":
-            sid = self._require_session_id(sid)
-            target_id = id or sid
-            session = self.ctx.get_session(target_id)
-            if not session:
-                raise ResourceNotFoundError(
-                    f"Session {target_id} not found.",
-                    details={"resource_type": "session", "id": target_id},
-                )
-            self._assert_session_scope(target_id)
-            affordances = compute_affordances(self.ctx, target_id, self.request_context)
-            return self._format_response(session, affordances, target_id)
-        if resource_type == "character":
-            sid = self._require_session_id(sid)
-            char = self.ctx.db.get_character(id)
-            if not char or char.session_id != sid:
-                raise ResourceNotFoundError(
-                    f"Character {id} not found.",
-                    details={"resource_type": "character", "id": id},
-                )
-            sheet = self.ctx.get_character_sheet(id)
-            self._assert_session_scope(sid)
-            affordances = compute_affordances(self.ctx, sid, self.request_context)
-            return self._format_response(sheet, affordances, sid)
-        if resource_type == "character_template":
-            template = self.ctx.get_character_template(id)
-            if not template:
-                raise ResourceNotFoundError(
-                    f"Character template {id} not found.",
-                    details={"resource_type": "character_template", "id": id},
-                )
-            return self._format_response(template, [], None)
-        if resource_type == "location":
-            loc = self.ctx.get_location_template(id)
-            if not loc:
-                raise ResourceNotFoundError(
-                    f"Location {id} not found.",
-                    details={"resource_type": "location", "id": id},
-                )
-            return self._format_response(loc, [], None)
-        if resource_type == "scene":
-            sid = self._require_session_id(sid)
-            scene = self.ctx.get_active_scene(sid)
-            if not scene:
-                raise ResourceNotFoundError(
-                    "No active scene.",
-                    details={"resource_type": "scene", "session_id": sid},
-                )
-            self._assert_session_scope(sid)
-            affordances = compute_affordances(self.ctx, sid, self.request_context)
-            return self._format_response(scene, affordances, sid)
-        if resource_type == "enemy":
-            enemy = self.ctx.get_enemy_template(id)
-            if not enemy:
-                raise ResourceNotFoundError(
-                    f"Enemy {id} not found.",
-                    details={"resource_type": "enemy", "id": id},
-                )
-            return self._format_response(enemy, [], None)
-        if resource_type == "rules":
-            rules = self.ctx.graph.get_rules()
-            return self._format_response(rules, [], None)
-        raise UnsupportedOperationError(
-            f"Unknown resource type: {resource_type}",
-            details={"operation": "get", "resource_type": resource_type},
+        result = self._application.get(
+            GetRequest(resource_type=resource_type, id=id, session_id=session_id)
         )
+        return format_response(result.data, result.affordances, state_revision=result.state_revision)
 
     def search(
         self,
@@ -215,50 +79,10 @@ class GameRuntime:
         session_id: str = "",
     ) -> ResourceResponse:
         """Search or browse resources."""
-        sid = session_id.strip() if isinstance(session_id, str) else ""
-        parsed = self._require_mapping(filters, "filters")
-        if resource_type == "characters":
-            templates = self.ctx.get_all_character_templates()
-            results = [{"id": t.id, "name": t.name, "description": t.description[:100]} for t in templates]
-            affordances = compute_affordances(
-                self.ctx, self._require_session_id(sid),
-                self.request_context,
-            ) if sid else []
-            return self._format_response(results, affordances, sid or None)
-        if resource_type == "locations":
-            locations = self.ctx.get_all_locations()
-            if "sector" in parsed:
-                locations = [l for l in locations if l.sector == parsed["sector"]]
-            results = [
-                {
-                    "id": l.id, "name": l.name, "sector": l.sector,
-                    "objective": l.objective.name, "objective_rating": l.objective.rating,
-                }
-                for l in locations
-            ]
-            affordances = compute_affordances(
-                self.ctx, self._require_session_id(sid),
-                self.request_context,
-            ) if sid else []
-            return self._format_response(results, affordances, sid or None)
-        if resource_type == "enemies":
-            results = self.ctx.graph.get_all_enemies()
-            affordances = compute_affordances(
-                self.ctx, self._require_session_id(sid),
-                self.request_context,
-            ) if sid else []
-            return self._format_response(results, affordances, sid or None)
-        if resource_type == "ubermenschen":
-            results = self.ctx.graph.get_ubermenschen()
-            affordances = compute_affordances(
-                self.ctx, self._require_session_id(sid),
-                self.request_context,
-            ) if sid else []
-            return self._format_response(results, affordances, sid or None)
-        raise UnsupportedOperationError(
-            f"Unknown search type: {resource_type}",
-            details={"operation": "search", "resource_type": resource_type},
+        result = self._application.search(
+            SearchRequest(resource_type=resource_type, filters=filters, session_id=session_id)
         )
+        return format_response(result.data, result.affordances, state_revision=result.state_revision)
 
     def act(
         self,
@@ -280,32 +104,32 @@ class GameRuntime:
         """Execute one action through the execution service (PR 5).
 
         This method's only job is request shaping and response formatting;
-        `commands.execution.execute` owns every mutation guarantee
-        (revalidation, transaction, idempotency, decision provenance) and
-        needs nothing from `GameRuntime` or MCP to do it.
+        `commands.execution.execute` (via `HavocGiaApplication.execute`)
+        owns every mutation guarantee (revalidation, transaction,
+        idempotency, decision provenance) and needs nothing from
+        `GameRuntime` or MCP to do it.
         """
-        sid = self._require_session_id(session_id)
-        parsed = self._require_mapping(params, "params")
-        context = request_context or self.request_context
-        result, events = execute_action(
-            self.ctx,
-            sid,
-            action,
-            parsed,
-            expected_revision,
-            affordance_id,
-            idempotency_key,
-            request_context=context,
-            capability_id=capability_id,
-            policy_version=policy_version,
-            request_id=request_id,
-            client_metadata=client_metadata,
-            model_metadata=model_metadata,
-            untrusted_rationale=untrusted_rationale,
-            sensitive_fields=sensitive_fields,
+        result = self._application.execute(
+            ExecuteRequest(
+                session_id=session_id,
+                action=action,
+                params=params,
+                expected_revision=expected_revision,
+                affordance_id=affordance_id,
+                idempotency_key=idempotency_key,
+                request_context=request_context,
+                capability_id=capability_id,
+                policy_version=policy_version,
+                request_id=request_id,
+                client_metadata=client_metadata,
+                model_metadata=model_metadata,
+                untrusted_rationale=untrusted_rationale,
+                sensitive_fields=sensitive_fields,
+            )
         )
-        affordances = compute_affordances(self.ctx, sid, context)
-        return self._format_action_response(result, affordances, events, sid)
+        return format_action_response(
+            result.data, result.affordances, result.events, state_revision=result.state_revision
+        )
 
 
 # ---------------------------------------------------------------------------

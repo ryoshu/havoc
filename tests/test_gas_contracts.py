@@ -12,6 +12,8 @@ from src.gia.gas import GasRuntime
 from src.gia.policy import Scope
 from src.gia.server import GameRuntime
 
+from .helpers import _command
+
 
 @pytest.fixture
 def gas_runtime():
@@ -21,15 +23,6 @@ def gas_runtime():
         yield gas
     finally:
         runtime.ctx.db.close()
-
-
-def _command(response, name: str, **constants):
-    candidates = [command for command in response.commands if command.command == name]
-    for command in candidates:
-        properties = command.input_schema.get("properties", {})
-        if all(properties.get(key, {}).get("const") == value for key, value in constants.items()):
-            return command
-    raise AssertionError(f"No {name} capability matches {constants!r}")
 
 
 def test_gas_response_separates_links_commands_and_context(gas_runtime):

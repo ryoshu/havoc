@@ -26,10 +26,6 @@ Review the resulting diff like any other characterization-test update.
 from __future__ import annotations
 
 import json
-import os
-import re
-from pathlib import Path
-from typing import Any
 
 from src.gia.commands.execution import execute
 from src.gia.commands.kernel import project_capability_set
@@ -41,95 +37,16 @@ from src.gia.domain import (
     UnavailableActionError,
 )
 from src.gia.gas import GasRuntime
-from src.gia.policy import Actor, RequestContext
 from src.gia.server import GameRuntime
 
-FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "gia_gas_pr13"
-
-_ID_PATTERN = re.compile(r"\b(?:gs|ch|sc|dr|dc|req|outbox|cap)-[0-9a-f]{6,}\b")
-_OPAQUE_KEYS = {"created_at", "timestamp", "next_cursor", "cursor"}
-
-
-def _normalize(value: Any, placeholders: dict[str, str], counters: dict[str, int]) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: ("<OPAQUE>" if key in _OPAQUE_KEYS and val is not None else _normalize(val, placeholders, counters))
-            for key, val in value.items()
-        }
-    if isinstance(value, list):
-        return [_normalize(item, placeholders, counters) for item in value]
-    if isinstance(value, str):
-        def replace(match: re.Match) -> str:
-            token = match.group(0)
-            if token not in placeholders:
-                prefix = token.split("-", 1)[0]
-                counters[prefix] = counters.get(prefix, 0) + 1
-                placeholders[token] = f"{prefix}-ID{counters[prefix]}"
-            return placeholders[token]
-
-        return _ID_PATTERN.sub(replace, value)
-    return value
-
-
-_ORDER_INDEPENDENT_KEYS = {"commands", "binding_templates"}
-
-
-def _sort_key(item: Any) -> str:
-    if isinstance(item, dict):
-        item = {key: value for key, value in item.items() if key != "id"}
-    return json.dumps(item, sort_keys=True, default=str)
-
-
-def _canonicalize_order(value: Any) -> Any:
-    """Sort `commands`/`binding_templates` lists before id-normalization.
-
-    A `CapabilitySet` is a set (ADR-0003) — its wire order is an
-    implementation detail of dict/DB iteration, not part of the contract,
-    and varies run to run. Sorting by every field except the (also
-    run-varying) id gives a stable order to normalize placeholder ids
-    against. `data`/`events`/`links` are left untouched: their order is
-    part of what these fixtures characterize.
-    """
-    if isinstance(value, dict):
-        canonicalized = {key: _canonicalize_order(val) for key, val in value.items()}
-        for key in _ORDER_INDEPENDENT_KEYS:
-            if isinstance(canonicalized.get(key), list):
-                canonicalized[key] = sorted(canonicalized[key], key=_sort_key)
-        return canonicalized
-    if isinstance(value, list):
-        return [_canonicalize_order(item) for item in value]
-    return value
-
-
-def normalize(payload: Any) -> Any:
-    canonical = _canonicalize_order(payload)
-    return _normalize(canonical, placeholders={}, counters={})
-
-
-def _assert_matches_fixture(name: str, payload: Any) -> None:
-    normalized = normalize(payload)
-    path = FIXTURES_DIR / f"{name}.json"
-    if os.environ.get("GIA_UPDATE_FIXTURES"):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(normalized, indent=2, sort_keys=True) + "\n")
-    expected = json.loads(path.read_text())
-    assert normalized == expected, (
-        f"{name} fixture drifted from tests/fixtures/gia_gas_pr13/{name}.json — "
-        "see this file's module docstring to regenerate after an intentional change."
-    )
-
-
-def _error_payload(error: Exception) -> dict[str, Any]:
-    return {"error_code": error.code, "message": str(error), "details": error.details}
-
-
-def _command(response, name: str, **constants):
-    candidates = [command for command in response.commands if command.command == name]
-    for command in candidates:
-        properties = command.input_schema.get("properties", {})
-        if all(properties.get(key, {}).get("const") == value for key, value in constants.items()):
-            return command
-    raise AssertionError(f"No {name} capability matches {constants!r}")
+from .helpers import (
+    FIXTURES_DIR,
+    _assert_matches_fixture,
+    _command,
+    _error_payload,
+    normalize,
+    tenant_runtime,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -335,14 +252,9 @@ def test_unknown_and_unavailable_capability_errors_are_indistinguishable():
 # ---------------------------------------------------------------------------
 
 
-def _tenant_runtime(tmp_path, subject: str, tenant: str) -> tuple[GameRuntime, RequestContext]:
-    context = RequestContext(Actor(subject), tenant)
-    return GameRuntime(str(tmp_path / "state.db"), request_context=context), context
-
-
 def test_scope_mismatch_golden_fixture(tmp_path):
-    runtime_a, context_a = _tenant_runtime(tmp_path, "actor-a", "tenant-a")
-    runtime_b, context_b = _tenant_runtime(tmp_path, "actor-b", "tenant-b")
+    runtime_a, context_a = tenant_runtime(tmp_path, "actor-a", "tenant-a")
+    runtime_b, context_b = tenant_runtime(tmp_path, "actor-b", "tenant-b")
     try:
         session_id = runtime_a.create_session().data["id"]
         capability = project_capability_set(
@@ -372,7 +284,7 @@ def test_policy_changed_golden_fixture(tmp_path):
     passing a value that disagrees with the live one raises
     PolicyChangedError before any resolution or mutation runs (see
     `src/gia/commands/execution.py::_execute_locked`)."""
-    runtime, context = _tenant_runtime(tmp_path, "actor", "tenant-a")
+    runtime, context = tenant_runtime(tmp_path, "actor", "tenant-a")
     try:
         session_id = runtime.create_session().data["id"]
 

@@ -25,6 +25,11 @@ DEFAULT_STATS = ["brawl", "con", "fix", "search", "shoot", "sneak", "terrify"]
 class BuildDicePoolCommand(Command):
     name = "build_dice_pool"
     effects = EffectMetadata(mutating=True)
+    # No validate() override — relies on Command's default schema check, so
+    # the fields below (optional in the binding's input_schema) must be
+    # declared here too (PR 14 of the GIA/GAS 2.0 plan; see
+    # src/gia_core/command.py::Command.optional_parameters).
+    optional_parameters = frozenset({"equipment_names", "ability_name", "bonus_dice"})
 
     def applicable(self, snapshot: Snapshot, actor: Actor) -> list[Binding]:
         session = snapshot.session

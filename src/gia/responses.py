@@ -1,100 +1,36 @@
-"""Transport-neutral response envelopes for the GIA runtime."""
+"""Transport-neutral response envelopes for the GIA runtime.
+
+The envelope types and builders moved to ``src.gia_core.responses`` (PR 14
+of the GIA/GAS 2.0 plan) — none of them ever referenced a Havoc concept.
+They are re-exported here so every existing
+``from .responses import ResourceResponse, format_response, ...`` import
+keeps working unchanged. This module now holds only ``format_dice_roll``,
+the one Havoc-concrete function that used to live alongside them.
+"""
 
 from __future__ import annotations
 
-from typing import Any
+from ..gia_core.responses import (
+    ActionResponse,
+    ErrorDetail,
+    ErrorResponse,
+    ResourceResponse,
+    format_action_response,
+    format_error,
+    format_response,
+)
+from .models import DiceRoll
 
-from pydantic import BaseModel, Field
-
-from .domain import DomainError
-from .models import Affordance, DiceRoll, DomainEvent
-
-
-class ResourceResponse(BaseModel):
-    """Result of a runtime read or search operation."""
-
-    data: Any
-    affordances: list[Affordance] = Field(default_factory=list)
-    state_revision: int | None = None
-
-
-class ActionResponse(ResourceResponse):
-    """Result of a successful state transition."""
-
-    events: list[DomainEvent] = Field(default_factory=list)
-
-
-class ErrorDetail(BaseModel):
-    """Machine-readable description of a failed runtime request."""
-
-    code: str
-    message: str
-    details: dict[str, Any] = Field(default_factory=dict)
-
-
-class ErrorResponse(BaseModel):
-    """Typed error envelope used by transport adapters."""
-
-    error: ErrorDetail
-    affordances: list[Affordance] = Field(default_factory=list)
-    state_revision: int | None = None
-
-
-def _serialize_data(data: Any) -> Any:
-    """Convert domain models into plain values at the response boundary."""
-    if hasattr(data, "model_dump"):
-        return data.model_dump()
-    if isinstance(data, list):
-        return [
-            item.model_dump() if hasattr(item, "model_dump") else item
-            for item in data
-        ]
-    return data
-
-
-def format_response(
-    data: Any,
-    affordances: list[Affordance],
-    state_revision: int | None = None,
-) -> ResourceResponse:
-    """Build a typed resource response."""
-    return ResourceResponse(
-        data=_serialize_data(data),
-        affordances=affordances,
-        state_revision=state_revision,
-    )
-
-
-def format_action_response(
-    data: Any,
-    affordances: list[Affordance],
-    events: list[DomainEvent],
-    state_revision: int | None = None,
-) -> ActionResponse:
-    """Build a typed action response."""
-    return ActionResponse(
-        data=_serialize_data(data),
-        affordances=affordances,
-        events=events,
-        state_revision=state_revision,
-    )
-
-
-def format_error(
-    error: DomainError,
-    affordances: list[Affordance],
-    state_revision: int | None = None,
-) -> ErrorResponse:
-    """Build a typed error response for a protocol compatibility adapter."""
-    return ErrorResponse(
-        error=ErrorDetail(
-            code=error.code,
-            message=str(error),
-            details=error.details,
-        ),
-        affordances=affordances,
-        state_revision=state_revision,
-    )
+__all__ = [
+    "ActionResponse",
+    "ErrorDetail",
+    "ErrorResponse",
+    "ResourceResponse",
+    "format_action_response",
+    "format_error",
+    "format_response",
+    "format_dice_roll",
+]
 
 
 def format_dice_roll(roll: DiceRoll) -> str:

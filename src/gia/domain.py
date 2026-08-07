@@ -1,4 +1,11 @@
-"""Domain logic — Havoc Engine mechanics for Eat the Reich."""
+"""Domain logic — Havoc Engine mechanics for Eat the Reich.
+
+The domain-neutral error hierarchy that used to live in this module has
+moved to ``src.gia_core.errors`` (PR 14 of the GIA/GAS 2.0 plan); it is
+re-exported here so every existing ``from .domain import DomainError, ...``
+import keeps working unchanged. This module now holds only ``HavocEngine``,
+the concrete game-mechanics half PR 18 will relocate to ``havoc-domain``.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +13,19 @@ import random
 import uuid
 from datetime import datetime, timezone
 
+from ..gia_core.errors import (
+    DomainError,
+    IdempotencyConflictError,
+    InvalidInputError,
+    InvalidParameterError,
+    PolicyChangedError,
+    ResourceNotFoundError,
+    ScopeMismatchError,
+    StaleStateError,
+    StaleViewError,
+    UnavailableActionError,
+    UnsupportedOperationError,
+)
 from .models import (
     CharacterState,
     DiceAllocation,
@@ -20,82 +40,20 @@ from .models import (
     ThreatState,
 )
 
-
-class DomainError(Exception):
-    """Raised when a domain constraint is violated."""
-
-    code = "domain_error"
-
-    def __init__(self, message: str, *, details: dict | None = None):
-        super().__init__(message)
-        self.details = details or {}
-
-
-class InvalidInputError(DomainError):
-    """Raised when a runtime request does not satisfy its input contract."""
-
-    code = "invalid_input"
-
-
-class ResourceNotFoundError(DomainError):
-    """Raised when a requested resource does not exist."""
-
-    code = "resource_not_found"
-
-
-class UnsupportedOperationError(DomainError):
-    """Raised when a runtime request names an unsupported operation."""
-
-    code = "unsupported_operation"
-
-
-class UnavailableActionError(DomainError):
-    """Raised when an action is not in the current affordance set."""
-
-    code = "action_unavailable"
-
-
-class InvalidParameterError(DomainError):
-    """Raised when action parameters do not match an affordance schema."""
-
-    code = "invalid_parameters"
-
-
-class StaleStateError(DomainError):
-    """Raised when a caller acts on an obsolete session revision."""
-
-    code = "stale_state"
-
-
-class StaleViewError(DomainError):
-    """Raised when a continuation cursor no longer matches its view."""
-
-    code = "stale_view"
-
-
-class IdempotencyConflictError(DomainError):
-    """Raised when an idempotency key is reused with a different action/params.
-
-    An idempotency key identifies one attempted mutation, not a bearer
-    token: retrying the same key with the same input is safe (PR 5 of the
-    GIA/GAS 2.0 plan), but reusing it for a different request means the
-    caller mismanaged key generation, not that the server should guess
-    which request it meant.
-    """
-
-    code = "idempotency_conflict"
-
-
-class ScopeMismatchError(DomainError):
-    """Raised without resource details when a request crosses a tenant/scope."""
-
-    code = "scope_mismatch"
-
-
-class PolicyChangedError(DomainError):
-    """Raised when a capability was issued under an obsolete policy version."""
-
-    code = "policy_changed"
+__all__ = [
+    "DomainError",
+    "IdempotencyConflictError",
+    "InvalidInputError",
+    "InvalidParameterError",
+    "PolicyChangedError",
+    "ResourceNotFoundError",
+    "ScopeMismatchError",
+    "StaleStateError",
+    "StaleViewError",
+    "UnavailableActionError",
+    "UnsupportedOperationError",
+    "HavocEngine",
+]
 
 
 class HavocEngine:
