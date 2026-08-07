@@ -7,8 +7,9 @@ import anyio
 from mcp.client import Client
 from mcp.server import MCPServer
 
-from gia.renderers import DebugRenderer, NativeMcpRenderer
+from gia.renderers import NativeMcpRenderer
 from gia.server import GameRuntime, build_gas_service
+from gia_core.renderers import DebugRenderer
 
 
 def _example_input(capability) -> dict:

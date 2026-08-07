@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from gia.policy import (
+from gia_core.policy import (
     Actor,
     DeterministicPolicyProvider,
     PolicyProvider,

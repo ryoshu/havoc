@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 
-from gia.policy import Actor
+from gia_core.policy import Actor
 from gia_core.command import Binding, Snapshot
 from gia_core.registry import CommandRegistry, DuplicateCommandError
 from havoc_domain.commands.heal import HealCommand

@@ -58,9 +58,10 @@ build-backend = "hatchling.build"
 # that claim isn't real until the wheel actually contains it.
 #
 # `gia_gas_adapter` (PR 16) ships for the same proactive reason: it's no
-# longer an empty placeholder, and it imports both `gia_core` and `gia`
-# (`gia.capabilities`/`gia.policy`) at runtime — both already ship, so this
-# adds no new transitive gap.
+# longer an empty placeholder, and it imports `gia_core`
+# (`gia_core.capabilities`/`gia_core.policy`, moved there from `gia.*` by
+# RS-02 — docs/GIA-REPOSITORY-SPLIT-PLAN.md) at runtime, which already
+# ships, so this adds no new transitive gap.
 #
 # `gas_mcp` and `havoc_server` (PR 17) ship for the same reason: both
 # stopped being empty placeholders. `gas_mcp` needs the `mcp` extra

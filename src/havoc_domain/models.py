@@ -12,7 +12,7 @@ from __future__ import annotations
 from enum import Enum
 from pydantic import BaseModel, Field
 
-from gia.provenance.models import DecisionProvenance, DecisionRecord
+from gia_core.provenance.models import DecisionProvenance, DecisionRecord
 
 
 # --- Enums ---
@@ -233,7 +233,9 @@ class GameSession(BaseModel):
 # share one versioned contract. ``DecisionRecord`` remains an explicit 1.x
 # compatibility alias; it no longer describes hidden reasoning or causality.
 # `DecisionProvenance`/`DecisionRecord` are imported above from
-# `gia.provenance.models` (which stays physically in `src/gia/` — see
-# `docs/gia2/DEPENDENCY-BOUNDARIES.md`'s PR 18 status for why) and
-# re-exported here so `havoc_domain.models` carries the full state-model
-# surface `gia.models` used to.
+# `gia_core.provenance.models` (moved from `gia.provenance` to
+# `src/gia_core/` by RS-02 — see `docs/GIA-REPOSITORY-SPLIT-PLAN.md` — see
+# `docs/gia2/DEPENDENCY-BOUNDARIES.md`'s PR 18 status for why this package
+# is transport-independent in the first place) and re-exported here so
+# `havoc_domain.models` carries the full state-model surface `gia.models`
+# used to.

@@ -31,9 +31,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from uuid import uuid4
 
-from gia.policy import RequestContext
-from gia.provenance import capability_set_digest, redact_sensitive
-from gia.provenance.models import DecisionRecord
+from gia_core.policy import RequestContext
+from gia_core.provenance import capability_set_digest, redact_sensitive
+from gia_core.provenance.models import DecisionRecord
 from gia_core.contracts import DomainEvent
 from gia_core.errors import (
     DomainError,

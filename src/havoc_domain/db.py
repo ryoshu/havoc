@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from collections.abc import Iterator
 
-from gia.provenance import redact_sensitive
+from gia_core.provenance import redact_sensitive
 from havoc_domain.models import (
     CharacterState,
     DecisionRecord,

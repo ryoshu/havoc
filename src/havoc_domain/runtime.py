@@ -17,7 +17,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from gia.policy import PolicyProvider, RequestContext
+from gia_core.policy import PolicyProvider, RequestContext
 from gia_core.responses import ActionResponse, ResourceResponse, format_action_response, format_response
 from gia_core.requests import ExecuteRequest, GetRequest, ProjectRequest, SearchRequest
 from havoc_domain.application import HavocGiaApplication

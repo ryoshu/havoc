@@ -6,11 +6,11 @@ Available in every phase except `setup`, mirroring the "Always available
 
 from __future__ import annotations
 
-from gia.capabilities import EffectMetadata
+from gia_core.capabilities import EffectMetadata
 from gia_core.contracts import DomainEvent
 from gia_core.errors import DomainError
 from havoc_domain.models import GamePhase
-from gia.policy import Actor
+from gia_core.policy import Actor
 from gia_core.command import Binding, Command, Snapshot
 
 

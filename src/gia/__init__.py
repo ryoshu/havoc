@@ -1,5 +1,5 @@
 """Gia — Affordance-driven TTRPG backend for Eat the Reich."""
 
-from .provenance import DecisionProvenance, DecisionRecord
+from gia_core.provenance import DecisionProvenance, DecisionRecord
 
 __all__ = ["DecisionProvenance", "DecisionRecord"]

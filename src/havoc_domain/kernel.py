@@ -20,13 +20,13 @@ advertised as executable when it isn't.
 
 from __future__ import annotations
 
-from gia.capabilities import (
+from gia_core.capabilities import (
     Capability,
     CapabilitySet,
     capability_from_binding,
     compute_binding_key,
 )
-from gia.policy import Actor, DEFAULT_REQUEST_CONTEXT, RequestContext, Scope
+from gia_core.policy import Actor, DEFAULT_REQUEST_CONTEXT, RequestContext, Scope
 from gia_core.command import Command, Snapshot
 from gia_core.contracts import Affordance, DomainEvent
 from gia_core.errors import DomainError, ScopeMismatchError

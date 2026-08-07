@@ -1,9 +1,11 @@
 """Tests for the GIA application boundary (PR 14 of the GIA/GAS 2.0 plan).
 
-Imports only `gia_core.*` and the concrete Havoc-backed implementation
-(`havoc_domain.application.HavocGiaApplication`, `havoc_domain.context.GameContext`,
-`gia.policy`) — never `gia.server`, `mcp`, or (since PR 19 removed it)
-`GasRuntime` — so this file itself is evidence for the exit criterion "GIA
+Imports only `gia_core.*` (including `gia_core.policy`, moved from `gia.policy`
+by RS-02 — docs/GIA-REPOSITORY-SPLIT-PLAN.md) and the concrete Havoc-backed
+implementation (`havoc_domain.application.HavocGiaApplication`,
+`havoc_domain.context.GameContext`) — never `gia.server`, `mcp`, or (since
+PR 19 removed it) `GasRuntime` — so this file itself is evidence for the exit
+criterion "GIA
 tests run without constructing an MCP server or GAS runtime." (`GameRuntime`
 is imported only by the one test that explicitly proves the facade and the
 direct boundary path are equivalent — see its own docstring.) See the
@@ -27,7 +29,7 @@ from havoc_domain.application import HavocGiaApplication
 from havoc_domain.context import GameContext
 from havoc_domain.db import GameDB
 from havoc_domain.models import GamePhase, InjuryState
-from gia.policy import Actor, RequestContext
+from gia_core.policy import Actor, RequestContext
 
 # `gia_core` (and every other cross-package import in this file) is
 # deliberately imported by its bare (installed-package) name, not an

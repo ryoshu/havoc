@@ -12,14 +12,14 @@ from __future__ import annotations
 
 import random
 
-from gia.capabilities import EffectMetadata
+from gia_core.capabilities import EffectMetadata
 from havoc_domain.context import GameContext
 from gia_core.contracts import DomainEvent
 from gia_core.errors import DomainError
 from havoc_domain.engine import HavocEngine
 from havoc_domain.models import GamePhase, ObjectiveState
 from havoc_domain.formatting import format_dice_roll
-from gia.policy import Actor
+from gia_core.policy import Actor
 from gia_core.command import Binding, Command, Snapshot
 
 DEFAULT_STATS = ["brawl", "con", "fix", "search", "shoot", "sneak", "terrify"]

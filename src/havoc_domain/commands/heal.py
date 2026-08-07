@@ -14,12 +14,12 @@ PR — see `src/gia/commands/kernel.py` for the glue that routes them here.
 
 from __future__ import annotations
 
-from gia.capabilities import EffectMetadata
+from gia_core.capabilities import EffectMetadata
 from gia_core.contracts import DomainEvent
 from gia_core.errors import DomainError
 from havoc_domain.engine import HavocEngine
 from havoc_domain.models import CharacterState, GamePhase
-from gia.policy import Actor
+from gia_core.policy import Actor
 from gia_core.command import Binding, Command, Snapshot
 
 HEAL_BLOOD_COST = 3

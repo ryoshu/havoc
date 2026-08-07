@@ -22,8 +22,8 @@ from gas_protocol.errors import (
     InvalidInputError as GasInvalidInputError,
     StaleStateError as GasStaleStateError,
 )
-from gia.capabilities import CapabilitySet
-from gia.policy import PolicyProvider, RequestContext, Scope
+from gia_core.capabilities import CapabilitySet
+from gia_core.policy import PolicyProvider, RequestContext, Scope
 from gia_core.requests import (
     DiagnoseRequest,
     DiagnoseResult,

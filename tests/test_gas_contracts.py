@@ -10,7 +10,7 @@ from gas_protocol.errors import (
     InvalidInputError as GasInvalidInputError,
     StaleViewError as GasStaleViewError,
 )
-from gia.policy import Scope
+from gia_core.policy import Scope
 from gia.server import GameRuntime, build_gas_service
 
 from .helpers import _command

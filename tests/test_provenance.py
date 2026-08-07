@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from havoc_domain.graph import GameGraph
-from gia.provenance import REDACTED, capability_set_digest, redact_sensitive
+from gia_core.provenance import REDACTED, capability_set_digest, redact_sensitive
 from gia.server import GameRuntime, build_gas_service
 
 

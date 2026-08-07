@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from gia.capabilities import (
+from gia_core.capabilities import (
     Capability,
     CapabilitySet,
     EffectMetadata,
@@ -27,7 +27,7 @@ from gia.capabilities import (
     compute_binding_key,
     compute_capability_id,
 )
-from gia.capabilities.legacy_effects import MUTATING_ACTIONS, READ_ONLY_ACTIONS
+from gia_core.capabilities.legacy_effects import MUTATING_ACTIONS, READ_ONLY_ACTIONS
 from gia_core.contracts import Affordance
 from gia.server import GameRuntime
 

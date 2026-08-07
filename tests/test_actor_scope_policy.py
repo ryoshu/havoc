@@ -7,7 +7,7 @@ import pytest
 from havoc_domain.execution import execute
 from havoc_domain.kernel import project_capability_set
 from gia_core.errors import ScopeMismatchError, UnavailableActionError
-from gia.policy import Actor, DeterministicPolicyProvider, RequestContext, Scope, ScopeKind
+from gia_core.policy import Actor, DeterministicPolicyProvider, RequestContext, Scope, ScopeKind
 from gia.server import GameRuntime
 
 

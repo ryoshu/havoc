@@ -24,8 +24,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from gia.capabilities import CapabilitySet
-from gia.policy import RequestContext
+from gia_core.capabilities import CapabilitySet
+from gia_core.policy import RequestContext
 from gia_core.errors import (
     InvalidInputError,
     ResourceNotFoundError,

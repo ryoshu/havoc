@@ -37,7 +37,7 @@ def test_real_src_tree_has_no_boundary_violations():
 
 
 def test_bucket_for_matches_longest_prefix():
-    assert checker.bucket_for("src.gia.capabilities.models") == "gia_core"
+    assert checker.bucket_for("src.gia_core.capabilities.models") == "gia_core"
     assert checker.bucket_for("mcp.server") == "mcp_transport"
     assert checker.bucket_for("src.gia.server") == "composition_root"
     # PR 18 moved the concrete Havoc implementation into `havoc_domain`,
@@ -77,23 +77,21 @@ def test_bare_legacy_submodule_imports_are_not_silently_unbucketed():
     `src.gia.<submodule>` path, not just the six top-level names.
 
     `gia` is bare-importable *today*, not only once packaged/installed (see
-    BUCKET_PREFIXES' module note), and every file under `src/havoc_domain/`
-    imports its `gia.*` siblings bare unconditionally. A bucket entry for
-    only the `src.gia.X` prefixed form of one of these submodules means
-    `bucket_for()` returns `None` for the bare form, and
-    `check_boundaries()` silently skips any import whose target bucket is
-    `None` — so a forbidden edge written with a bare import sails through
-    undetected. This first surfaced as `gia_core`'s bucket listing only
-    `src.gia.{capabilities,policy,provenance}`, not their bare `gia.*`
-    equivalents (see `test_forbidden_edge_via_bare_legacy_import_is_detected`
-    below for the exact shape of violation that produced). The `src.gia.*`
-    legacy shim paths PR 18 originally left at `context`/`domain`/`models`/
-    `commands.*` no longer exist at all (PR 19 deleted them), so this test
-    now covers the paths that remain: `gia_core`-bucket content still
-    living under `src/gia/`, and `havoc_domain`'s own bare form."""
-    assert checker.bucket_for("gia.capabilities.models") == "gia_core"
-    assert checker.bucket_for("gia.policy") == "gia_core"
-    assert checker.bucket_for("gia.provenance") == "gia_core"
+    BUCKET_PREFIXES' module note). A bucket entry for only the `src.gia.X`
+    prefixed form of one of these submodules means `bucket_for()` returns
+    `None` for the bare form, and `check_boundaries()` silently skips any
+    import whose target bucket is `None` — so a forbidden edge written with
+    a bare import sails through undetected. This first surfaced as
+    `gia_core`'s bucket listing only `src.gia.{capabilities,policy,
+    provenance}`, not their bare `gia.*` equivalents. RS-02
+    (docs/GIA-REPOSITORY-SPLIT-PLAN.md) later moved those three packages to
+    `src/gia_core/` outright with no shim left at the old `gia.*` path (see
+    BUCKET_PREFIXES' RS-02 note), so this test now covers the paths that
+    still live under `src/gia/`: `gia.server` and the MCP-dependent
+    `gia.renderers.native_mcp`, plus `havoc_domain`'s own bare form."""
+    assert checker.bucket_for("gia_core.capabilities.models") == "gia_core"
+    assert checker.bucket_for("gia_core.policy") == "gia_core"
+    assert checker.bucket_for("gia_core.provenance") == "gia_core"
     assert checker.bucket_for("havoc_domain.context") == "havoc_domain"
     assert checker.bucket_for("havoc_domain.commands.kernel") == "havoc_domain"
     assert checker.bucket_for("gia.server") == "composition_root"
@@ -102,12 +100,12 @@ def test_bare_legacy_submodule_imports_are_not_silently_unbucketed():
 
 def test_forbidden_edge_via_bare_legacy_import_is_detected(tmp_path):
     """The exact regression this reports: a `gas_protocol -> gia_core` edge
-    written as a bare `from gia.capabilities import ...` (rather than
-    `from src.gia.capabilities import ...`) must be caught, not silently
-    pass because the bare form wasn't in the bucket map."""
+    written as a bare `from gia_core.capabilities import ...` (rather than
+    `from src.gia_core.capabilities import ...`) must be caught, not
+    silently pass because the bare form wasn't in the bucket map."""
     src_root = tmp_path / "src" / "gas_protocol"
     src_root.mkdir(parents=True)
-    (src_root / "forbidden.py").write_text("from gia.capabilities import CapabilitySet\n")
+    (src_root / "forbidden.py").write_text("from gia_core.capabilities import CapabilitySet\n")
 
     violations = checker.check_boundaries(tmp_path / "src")
 
