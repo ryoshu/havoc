@@ -18,7 +18,7 @@ from gia_core.contracts import DomainEvent
 from gia_core.errors import DomainError
 from havoc_domain.engine import HavocEngine
 from havoc_domain.models import GamePhase, ObjectiveState
-from gia.responses import format_dice_roll
+from havoc_domain.formatting import format_dice_roll
 from gia.policy import Actor
 from gia_core.command import Binding, Command, Snapshot
 

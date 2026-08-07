@@ -9,7 +9,7 @@ against for parity, per those PRs' own exit criteria.
 
 IDs are opaque and regenerated every run (session/character ids are
 ``uuid4().hex``-based, capability ids hash the session's scope — see
-``src/gia/db.py:_uid`` and ``src/gia/capabilities/ids.py``), so this file
+``src/havoc_domain/db.py:_uid`` and ``src/gia/capabilities/ids.py``), so this file
 compares *normalized* payloads: every id-shaped token is replaced with a
 stable placeholder in first-seen order before comparing against the
 committed fixture in ``tests/fixtures/gia_gas_pr13/``. That freezes
@@ -27,17 +27,15 @@ from __future__ import annotations
 
 import json
 
-from src.gia.commands.execution import execute
-from src.gia.commands.kernel import project_capability_set
-from src.gia.domain import (
-    PolicyChangedError,
-    ScopeMismatchError,
-    StaleStateError,
-    StaleViewError,
-    UnavailableActionError,
+from havoc_domain.execution import execute
+from havoc_domain.kernel import project_capability_set
+from gas_protocol.errors import (
+    InvalidInputError as GasInvalidInputError,
+    StaleStateError as GasStaleStateError,
+    StaleViewError as GasStaleViewError,
 )
-from src.gia.gas import GasRuntime
-from src.gia.server import GameRuntime
+from gia_core.errors import PolicyChangedError, ScopeMismatchError
+from gia.server import GameRuntime, build_gas_service
 
 from .helpers import (
     FIXTURES_DIR,
@@ -72,7 +70,7 @@ def test_capability_set_golden_fixture():
 
 def test_gas_get_session_golden_fixture():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         response = gas.get(f"gia://session/{session_id}")
@@ -83,7 +81,7 @@ def test_gas_get_session_golden_fixture():
 
 def test_gas_search_locations_golden_fixture():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         response = gas.search("locations", {"sector": 3}, session_id=session_id)
@@ -94,7 +92,7 @@ def test_gas_search_locations_golden_fixture():
 
 def test_gas_act_golden_fixture():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         state = gas.get(f"gia://session/{session_id}")
@@ -114,7 +112,7 @@ def test_gas_act_golden_fixture():
 
 def test_gas_why_not_golden_fixture():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         response = gas.why_not(f"gia://session/{session_id}", "start_mission")
@@ -130,7 +128,7 @@ def test_gas_why_not_golden_fixture():
 
 def test_stale_revision_golden_fixture():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         state = gas.get(f"gia://session/{session_id}")
@@ -145,7 +143,7 @@ def test_stale_revision_golden_fixture():
                 session_id=session_id,
             )
             raise AssertionError("expected StaleStateError")
-        except StaleStateError as error:
+        except GasStaleStateError as error:
             _assert_matches_fixture("error_stale_revision", _error_payload(error))
     finally:
         runtime.ctx.db.close()
@@ -153,7 +151,7 @@ def test_stale_revision_golden_fixture():
 
 def test_stale_cursor_golden_fixture():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime, max_page_size=1)
+    gas = build_gas_service(runtime, max_page_size=1)
     try:
         session_id = gas.create_session().data["id"]
         first = gas.search("locations", limit=1, session_id=session_id)
@@ -170,7 +168,7 @@ def test_stale_cursor_golden_fixture():
         try:
             gas.search("locations", cursor=first.next_cursor, limit=1, session_id=session_id)
             raise AssertionError("expected StaleViewError")
-        except StaleViewError as error:
+        except GasStaleViewError as error:
             _assert_matches_fixture("error_stale_cursor", _error_payload(error))
     finally:
         runtime.ctx.db.close()
@@ -184,7 +182,7 @@ def test_stale_cursor_golden_fixture():
 
 def test_unknown_capability_golden_fixture():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         state = gas.get(f"gia://session/{session_id}")
@@ -198,7 +196,7 @@ def test_unknown_capability_golden_fixture():
                 session_id=session_id,
             )
             raise AssertionError("expected UnavailableActionError")
-        except UnavailableActionError as error:
+        except GasInvalidInputError as error:
             _assert_matches_fixture("error_unknown_capability", _error_payload(error))
     finally:
         runtime.ctx.db.close()
@@ -209,7 +207,7 @@ def test_unavailable_capability_golden_fixture():
     projected it has moved on — resolves to the same error shape as an
     unknown id (see module note above)."""
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         state = gas.get(f"gia://session/{session_id}")
@@ -231,7 +229,7 @@ def test_unavailable_capability_golden_fixture():
                 session_id=session_id,
             )
             raise AssertionError("expected UnavailableActionError")
-        except UnavailableActionError as error:
+        except GasInvalidInputError as error:
             _assert_matches_fixture("error_unavailable_capability", _error_payload(error))
     finally:
         runtime.ctx.db.close()
@@ -283,7 +281,7 @@ def test_policy_changed_golden_fixture(tmp_path):
     """`policy_version` is the caller's *expected* current policy version —
     passing a value that disagrees with the live one raises
     PolicyChangedError before any resolution or mutation runs (see
-    `src/gia/commands/execution.py::_execute_locked`)."""
+    `src/havoc_domain/execution.py::_execute_locked`)."""
     runtime, context = tenant_runtime(tmp_path, "actor", "tenant-a")
     try:
         session_id = runtime.create_session().data["id"]
@@ -311,20 +309,20 @@ def test_policy_changed_golden_fixture(tmp_path):
 
 
 def test_idempotent_retry_golden_fixture():
-    """Exercises the public `GasRuntime.act(capability_id=...)` path — the
+    """Exercises the public `GasService.act(capability_id=...)` path — the
     one an actual GAS client uses. This used to raise
     `IdempotencyConflictError` on replay instead of returning the cached
     result: the cache comparison ran against the caller's un-resolved
     action ("" for a capability-id request) while the cache was written
     with the post-resolution action name. Fixed in
-    `src/gia/commands/execution.py` by comparing/storing on
+    `src/havoc_domain/execution.py` by comparing/storing on
     `capability_id or action` (a stable identity available before
     resolution) instead of the resolved action name. Also asserts the
     replay records no second decision and performs no second mutation —
     the property the bug would otherwise have silently violated.
     """
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         state = gas.get(f"gia://session/{session_id}")

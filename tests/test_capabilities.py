@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from src.gia.capabilities import (
+from gia.capabilities import (
     Capability,
     CapabilitySet,
     EffectMetadata,
@@ -27,9 +27,9 @@ from src.gia.capabilities import (
     compute_binding_key,
     compute_capability_id,
 )
-from src.gia.capabilities.legacy_effects import MUTATING_ACTIONS, READ_ONLY_ACTIONS
-from src.gia.models import Affordance
-from src.gia.server import GameRuntime
+from gia.capabilities.legacy_effects import MUTATING_ACTIONS, READ_ONLY_ACTIONS
+from gia_core.contracts import Affordance
+from gia.server import GameRuntime
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CAPABILITIES_DIR = REPO_ROOT / "src" / "gia" / "capabilities"

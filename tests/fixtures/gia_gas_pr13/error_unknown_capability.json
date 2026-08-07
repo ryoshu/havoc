@@ -2,6 +2,6 @@
   "details": {
     "capability_id": "cap-ID1"
   },
-  "error_code": "action_unavailable",
+  "error_code": "invalid_input",
   "message": "Capability is not currently available."
 }

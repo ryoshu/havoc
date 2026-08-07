@@ -22,12 +22,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from src.gia.commands.execution import execute
-from src.gia.context import GameContext
-from src.gia.db import GameDB
-from src.gia.domain import IdempotencyConflictError, StaleStateError
-from src.gia.models import GamePhase, InjuryState
-from src.gia.server import GameRuntime
+from havoc_domain.execution import execute
+from havoc_domain.context import GameContext
+from havoc_domain.db import GameDB
+from gia_core.errors import IdempotencyConflictError, StaleStateError
+from havoc_domain.models import GamePhase, InjuryState
+from gia.server import GameRuntime
 
 
 @pytest.fixture

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from src.gia.gas import GasRuntime
-from src.gia.graph import GameGraph
-from src.gia.provenance import REDACTED, capability_set_digest, redact_sensitive
-from src.gia.server import GameRuntime
+from havoc_domain.graph import GameGraph
+from gia.provenance import REDACTED, capability_set_digest, redact_sensitive
+from gia.server import GameRuntime, build_gas_service
 
 
 def _select_capability(response, template_id: str):
@@ -19,7 +18,7 @@ def _select_capability(response, template_id: str):
 
 def test_committed_mutation_has_reconstructable_provenance():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         before = gas.get(f"gia://session/{session_id}")

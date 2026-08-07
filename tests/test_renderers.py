@@ -7,9 +7,8 @@ import anyio
 from mcp.client import Client
 from mcp.server import MCPServer
 
-from src.gia.gas import GasRuntime
-from src.gia.renderers import DebugRenderer, NativeMcpRenderer
-from src.gia.server import GameRuntime
+from gia.renderers import DebugRenderer, NativeMcpRenderer
+from gia.server import GameRuntime, build_gas_service
 
 
 def _example_input(capability) -> dict:
@@ -24,7 +23,7 @@ def _example_input(capability) -> dict:
 
 def test_debug_renderer_is_deterministic_and_round_trips():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         capability_set = runtime.capability_set(session_id)
@@ -40,7 +39,7 @@ def test_debug_renderer_is_deterministic_and_round_trips():
 
 def test_gas_and_native_renderers_preserve_the_same_capability_ids():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         capability_set = runtime.capability_set(session_id)
@@ -60,7 +59,7 @@ def test_gas_and_native_renderers_preserve_the_same_capability_ids():
 
 def test_native_renderer_filters_and_registers_contextual_mcp_tools():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     calls = []
     try:
         session_id = gas.create_session().data["id"]

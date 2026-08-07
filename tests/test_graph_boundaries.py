@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 import pyoxigraph as ox
 
-from src.gia.graph import ETR, GameGraph
-from src.gia.server import GameRuntime
+from havoc_domain.graph import ETR, GameGraph
+from gia.server import GameRuntime
 
 
 def test_graph_layers_and_structural_profile_are_explicit():

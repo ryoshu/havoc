@@ -8,8 +8,6 @@ test categories across both PRs:
 - soundness (a projected binding executes or fails with a documented
   domain-value error),
 - enforcement (an unprojected binding is rejected before its handler runs),
-- regression parity (a shadow comparison between the old affordance
-  projection and the new kernel projection for the same state),
 - stale-revision and concurrency behavior,
 - projection soundness/completeness across every reachable phase
   (test_projection_soundness_and_completeness.py-style, kept here since the
@@ -28,17 +26,19 @@ from pathlib import Path
 
 import pytest
 
-from src.gia.commands import Actor, Binding, CommandRegistry, DuplicateCommandError, HealCommand
-from src.gia.commands.base import Snapshot
-from src.gia.commands.kernel import dispatch as kernel_dispatch
-from src.gia.commands.kernel import project_affordances, registry
-from src.gia.domain import DomainError, StaleStateError
-from src.gia.models import GamePhase, InjuryState
-from src.gia.server import GameRuntime
+from gia.policy import Actor
+from gia_core.command import Binding, Snapshot
+from gia_core.registry import CommandRegistry, DuplicateCommandError
+from havoc_domain.commands.heal import HealCommand
+from havoc_domain.kernel import dispatch as kernel_dispatch
+from havoc_domain.kernel import project_affordances, registry
+from gia_core.errors import DomainError, StaleStateError
+from havoc_domain.models import GamePhase, InjuryState
+from gia.server import GameRuntime
 
 ACTOR = Actor(subject="system")
 REPO_ROOT = Path(__file__).resolve().parent.parent
-COMMANDS_DIR = REPO_ROOT / "src" / "gia" / "commands"
+HAVOC_DOMAIN_DIR = REPO_ROOT / "src" / "havoc_domain"
 COMMAND_MATRIX = json.loads(
     (REPO_ROOT / "docs" / "gia2" / "command-matrix.json").read_text()
 )["actions"]
@@ -47,7 +47,7 @@ COMMAND_MATRIX = json.loads(
 def test_commands_package_has_no_mcp_dependency():
     """Mirrors test_capabilities.py's check: ADR-0009 (GIA is independent of
     GAS) applies to the kernel just as much as to the capability IR."""
-    for path in COMMANDS_DIR.glob("*.py"):
+    for path in HAVOC_DOMAIN_DIR.rglob("*.py"):
         source = path.read_text()
         assert "import mcp" not in source, f"{path} imports mcp types"
         assert "from mcp" not in source, f"{path} imports mcp types"
@@ -224,40 +224,11 @@ def test_stale_binding_for_a_since_healthy_character_is_rejected(runtime):
 
 
 def test_act_rejects_heal_for_an_unavailable_action_entirely(runtime):
-    from src.gia.domain import UnavailableActionError
+    from gia_core.errors import UnavailableActionError
 
     _advance_to_exploration(runtime)
     with pytest.raises(UnavailableActionError):
         _act(runtime, "heal", {"character_id": "does-not-matter", "category": "1-2"})
-
-
-# ---------------------------------------------------------------------------
-# Regression parity: shadow comparison between old and new projections
-# ---------------------------------------------------------------------------
-
-
-def test_kernel_projection_matches_the_legacy_affordance_shape(runtime):
-    """Shadow comparison: the kernel-projected heal binding must render to
-    the exact same Affordance the deleted affordances.py loop used to
-    produce for the same state, modulo the id assigned by finalize_affordances."""
-    injured, _healthy = _force_between_scenes_with_one_injured_character(runtime)
-    session = runtime.ctx.get_session(runtime.session_id)
-
-    kernel_affordances = [
-        a for a in project_affordances(runtime.ctx, session) if a.action == "heal"
-    ]
-    assert len(kernel_affordances) == 1
-    projected = kernel_affordances[0]
-
-    assert projected.description == f"Heal {injured.name} (costs 3 Blood, has 3)"
-    assert projected.schema_["properties"]["character_id"]["const"] == injured.id
-    assert projected.schema_["properties"]["category"]["enum"] == ["1-2"]
-
-    full_affordances = runtime.get("session", session_id=runtime.session_id).affordances
-    heal_affordances = [a for a in full_affordances if a.action == "heal"]
-    assert len(heal_affordances) == 1
-    assert heal_affordances[0].description == projected.description
-    assert heal_affordances[0].schema_["properties"] == projected.schema_["properties"]
 
 
 def test_no_heal_projection_outside_between_scenes(runtime):
@@ -357,7 +328,7 @@ def test_wait_for_rescue_is_deliberately_unregistered(runtime):
     assert "wait_for_rescue" not in {
         a.action for a in project_affordances(runtime.ctx, session)
     }
-    from src.gia.domain import UnavailableActionError
+    from gia_core.errors import UnavailableActionError
 
     with pytest.raises(UnavailableActionError):
         _act(runtime, "wait_for_rescue")
@@ -375,16 +346,14 @@ def test_deterministic_playthrough_completes_through_the_kernel():
     This is the PR 4 analogue of "compare legacy vs. kernel playthroughs":
     there is only the kernel path left, so this instead proves that full
     path is sound end to end, not just per-action in isolation."""
-    from src.gia.gas import GasRuntime
     from src.playthrough.config import PlaythroughStrategy
     from src.playthrough.director import Director
 
     runtime_core = GameRuntime()
     try:
         session_id = runtime_core.create_session().data["id"]
-        runtime = GasRuntime(runtime_core, session_id=session_id)
         strategy = PlaythroughStrategy(characters=["iryna", "chuck"])
-        director = Director(runtime, strategy)
+        director = Director(runtime_core, session_id, strategy)
 
         beats = director.run_full_game()
 

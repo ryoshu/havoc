@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from src.gia.commands.execution import execute
-from src.gia.commands.kernel import project_capability_set
-from src.gia.domain import ScopeMismatchError, UnavailableActionError
-from src.gia.policy import Actor, DeterministicPolicyProvider, RequestContext, Scope, ScopeKind
-from src.gia.server import GameRuntime
+from havoc_domain.execution import execute
+from havoc_domain.kernel import project_capability_set
+from gia_core.errors import ScopeMismatchError, UnavailableActionError
+from gia.policy import Actor, DeterministicPolicyProvider, RequestContext, Scope, ScopeKind
+from gia.server import GameRuntime
 
 
 def _runtime(tmp_path, subject: str, tenant: str = "tenant-a", *, policy=None):

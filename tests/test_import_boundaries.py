@@ -39,29 +39,17 @@ def test_real_src_tree_has_no_boundary_violations():
 def test_bucket_for_matches_longest_prefix():
     assert checker.bucket_for("src.gia.capabilities.models") == "gia_core"
     assert checker.bucket_for("mcp.server") == "mcp_transport"
-    assert checker.bucket_for("src.gia.context") == "havoc_domain"
     assert checker.bucket_for("src.gia.server") == "composition_root"
-    # `domain.py`/`models.py`/`commands.kernel`/`commands.execution`/
-    # `commands.schema` moved into the `havoc_domain` bucket in PR 18 — their
-    # real content now lives in `havoc_domain`; the `src.gia.*` paths are
-    # thin re-export shims (see BUCKET_PREFIXES' PR 18 module note).
-    assert checker.bucket_for("src.gia.domain") == "havoc_domain"
-    assert checker.bucket_for("src.gia.models") == "havoc_domain"
-    assert checker.bucket_for("src.gia.commands.kernel") == "havoc_domain"
-    assert checker.bucket_for("src.gia.commands.execution") == "havoc_domain"
-    assert checker.bucket_for("src.gia.commands.schema") == "havoc_domain"
+    # PR 18 moved the concrete Havoc implementation into `havoc_domain`,
+    # leaving thin `src.gia.*` re-export shims at the old paths; PR 19
+    # deleted every one of those shims once first-party callers had
+    # migrated, so only `src.havoc_domain`/`havoc_domain` remain bucketed.
+    assert checker.bucket_for("src.havoc_domain.context") == "havoc_domain"
+    assert checker.bucket_for("src.havoc_domain.models") == "havoc_domain"
+    assert checker.bucket_for("src.havoc_domain.commands.kernel") == "havoc_domain"
     assert checker.bucket_for("havoc_domain.engine") == "havoc_domain"
     assert checker.bucket_for("havoc_domain.application") == "havoc_domain"
     assert checker.bucket_for("havoc_domain.runtime") == "havoc_domain"
-    # `commands.base`/`commands.registry` are still pure `gia_core`
-    # re-export shims (PR 14) — they stay in kernel_transitional, not
-    # havoc_domain, since they never held Havoc-specific content.
-    assert checker.bucket_for("src.gia.commands.base") == "kernel_transitional"
-    assert checker.bucket_for("src.gia.commands.registry") == "kernel_transitional"
-    # `src.gia.gas` (GasRuntime) joined kernel_transitional in PR 15: it's
-    # the deprecated Havoc-coupled GAS compatibility path, not the clean
-    # `gas_protocol` namespace — see BUCKET_PREFIXES' module note.
-    assert checker.bucket_for("src.gia.gas.runtime") == "kernel_transitional"
     # `gia_core.approval_workflow` (PR 18's second, Havoc-free domain) is
     # ordinary `gia_core` content — no special-casing needed.
     assert checker.bucket_for("src.gia_core.approval_workflow") == "gia_core"
@@ -98,20 +86,18 @@ def test_bare_legacy_submodule_imports_are_not_silently_unbucketed():
     undetected. This first surfaced as `gia_core`'s bucket listing only
     `src.gia.{capabilities,policy,provenance}`, not their bare `gia.*`
     equivalents (see `test_forbidden_edge_via_bare_legacy_import_is_detected`
-    below for the exact shape of violation that produced)."""
+    below for the exact shape of violation that produced). The `src.gia.*`
+    legacy shim paths PR 18 originally left at `context`/`domain`/`models`/
+    `commands.*` no longer exist at all (PR 19 deleted them), so this test
+    now covers the paths that remain: `gia_core`-bucket content still
+    living under `src/gia/`, and `havoc_domain`'s own bare form."""
     assert checker.bucket_for("gia.capabilities.models") == "gia_core"
     assert checker.bucket_for("gia.policy") == "gia_core"
     assert checker.bucket_for("gia.provenance") == "gia_core"
-    assert checker.bucket_for("gia.context") == "havoc_domain"
-    assert checker.bucket_for("gia.domain") == "havoc_domain"
-    assert checker.bucket_for("gia.models") == "havoc_domain"
-    assert checker.bucket_for("gia.commands.kernel") == "havoc_domain"
-    assert checker.bucket_for("gia.commands.execution") == "havoc_domain"
-    assert checker.bucket_for("gia.commands.schema") == "havoc_domain"
+    assert checker.bucket_for("havoc_domain.context") == "havoc_domain"
+    assert checker.bucket_for("havoc_domain.commands.kernel") == "havoc_domain"
     assert checker.bucket_for("gia.server") == "composition_root"
     assert checker.bucket_for("gia.renderers.native_mcp") == "mcp_transport"
-    assert checker.bucket_for("gia.commands.base") == "kernel_transitional"
-    assert checker.bucket_for("gia.gas.runtime") == "kernel_transitional"
 
 
 def test_forbidden_edge_via_bare_legacy_import_is_detected(tmp_path):
@@ -134,9 +120,9 @@ def test_forbidden_edge_via_bare_legacy_import_is_detected(tmp_path):
     ("source_module", "source_code", "expected_target_bucket"),
     [
         # GIA-to-GAS: forbidden per the PR 13 exit criteria, tightened in
-        # PR 15 to the real `gas_protocol` namespace (`src.gia.gas` moved
-        # into the exempt kernel_transitional bucket in PR 15 — it's the
-        # deprecated compatibility path, not the target GAS namespace).
+        # PR 15 to the real `gas_protocol` namespace (`src.gia.gas`, the
+        # deprecated compatibility path rather than the target GAS
+        # namespace, was removed entirely in PR 19).
         (
             "src.gia_core.forbidden",
             "from src.gas_protocol import GasService\n",
@@ -151,7 +137,7 @@ def test_forbidden_edge_via_bare_legacy_import_is_detected(tmp_path):
         # GAS-to-game: forbidden per the PR 13 exit criteria.
         (
             "src.gas_protocol.forbidden",
-            "from src.gia.context import GameContext\n",
+            "from src.havoc_domain.context import GameContext\n",
             "havoc_domain",
         ),
         # GAS-to-GIA: the new edge PR 15 adds — gas_protocol must not
@@ -169,7 +155,7 @@ def test_forbidden_edge_via_bare_legacy_import_is_detected(tmp_path):
         # forbids) is still caught after the split.
         (
             "src.gia_gas_adapter.forbidden",
-            "from src.gia.context import GameContext\n",
+            "from src.havoc_domain.context import GameContext\n",
             "havoc_domain",
         ),
         # adapter-to-MCP: forbidden per the same PR 16 table entry.

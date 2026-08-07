@@ -115,9 +115,9 @@ async def _exercise_server() -> None:
                 },
             )
         assert error.value.code == -32000
-        # PR 17: the live server now runs on GiaGasAdapter/GasService rather
-        # than the deprecated GasRuntime, so capability rejections surface
-        # GAS's own stable error vocabulary rather than gia_core's raw
+        # PR 17: the live server runs on GiaGasAdapter/GasService (PR 19
+        # removed the old GasRuntime it used to run alongside), so capability
+        # rejections surface GAS's own stable error vocabulary rather than gia_core's raw
         # domain code. UnavailableActionError deliberately maps to
         # invalid_input, not a stale-state code, because it also covers
         # forged/unauthorized capability IDs that a bare refresh-and-retry
@@ -143,18 +143,22 @@ def test_legacy_json_path_and_mcp_share_the_canonical_module_runtime():
     repository's import setup (repo root and the editable install both put
     `gia` on `sys.path`). Without `gia._runtime_cache` canonicalizing the
     module-level singleton across that duality, a session created through
-    `src.gia.server.create_session()` (the legacy JSON path, backed by
-    `_default`/`_legacy`) would not be visible to `src.gia.server.mcp`
-    (re-exported from `havoc_server`, which bare-imports `gia.server`) —
-    surfacing as `resource_not_found` instead of the session's state.
+    `src.gia.server.gas_service.create_session()` (backed by `_default`)
+    would not be visible to `src.gia.server.mcp` (re-exported from
+    `havoc_server`, which bare-imports `gia.server`) — surfacing as
+    `resource_not_found` instead of the session's state. (PR 19 removed the
+    legacy JSON `create_session`/`_legacy` path this test originally drove;
+    `gas_service` is the module-level singleton's replacement typed GAS
+    surface, built the same way at the same point in `server.py`.)
     """
     import gia.server as bare_server
     from src.gia import server as prefixed_server
 
     assert bare_server._default is prefixed_server._default
     assert bare_server.ctx is prefixed_server.ctx
+    assert bare_server.gas_service is prefixed_server.gas_service
 
-    session = json.loads(prefixed_server.create_session())
+    session = prefixed_server.gas_service.create_session().model_dump(mode="json")
     session_id = session["data"]["id"]
 
     async def _read_via_mcp() -> None:

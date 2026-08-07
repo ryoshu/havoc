@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from src.gia import server as server_module
+from gia.server import GameRuntime
 
 console = Console()
 
@@ -44,8 +44,21 @@ def print_events(response: dict):
 
 
 def call(fn, **kwargs) -> dict:
-    result_str = fn(**kwargs)
-    return json.loads(result_str)
+    result = fn(**kwargs)
+    return result.model_dump(mode="json", by_alias=True)
+
+
+def act(runtime: GameRuntime, action: str, params: dict, session_id: str) -> dict:
+    """Execute a mutating action, resolving the current revision first.
+
+    ``GameRuntime.act`` requires an explicit ``expected_revision`` for
+    action-name dispatch (unlike capability-id dispatch, which carries its
+    own valid-at revision) — the deleted ``JsonGameRuntimeAdapter`` used to
+    do this lookup automatically.
+    """
+    revision = runtime.get("session", session_id=session_id).state_revision
+    result = runtime.act(action, params, session_id, revision)
+    return result.model_dump(mode="json", by_alias=True)
 
 
 def main():
@@ -56,33 +69,34 @@ def main():
         style="red",
     ))
 
-    session_id = json.loads(server_module.create_session())["data"]["id"]
+    runtime = GameRuntime()
+    session_id = runtime.create_session().data["id"]
     console.print(f"[dim]Session: {session_id}[/dim]")
 
     # Step 1: Browse available characters
     print_step(1, "Browse available characters")
-    result = call(server_module.search, resource_type="characters", session_id=session_id)
+    result = call(runtime.search, resource_type="characters", session_id=session_id)
     for c in result.get("data", []):
         console.print(f"  [cyan]{c['id']}[/cyan] — {c['name']}: {c['description'][:60]}...")
     print_affordances(result)
 
     # Step 2: Select Iryna
     print_step(2, "Select Iryna — the gothic socialite warlock")
-    result = call(server_module.act, action="select_character",
-                  params='{"template_id": "iryna"}', session_id=session_id)
+    result = act(runtime, action="select_character",
+                  params={"template_id": "iryna"}, session_id=session_id)
     console.print(f"  [green]{result['data']['message']}[/green]")
     iryna_id = result["data"]["character_id"]
 
     # Step 3: Select Chuck
     print_step(3, "Select Chuck — the rotting cowboy")
-    result = call(server_module.act, action="select_character",
-                  params='{"template_id": "chuck"}', session_id=session_id)
+    result = act(runtime, action="select_character",
+                  params={"template_id": "chuck"}, session_id=session_id)
     console.print(f"  [green]{result['data']['message']}[/green]")
     chuck_id = result["data"]["character_id"]
 
     # Step 4: Start the mission
     print_step(4, "COFFINFALL — Start the mission!")
-    result = call(server_module.act, action="start_mission", params="{}", session_id=session_id)
+    result = act(runtime, action="start_mission", params={}, session_id=session_id)
     data = result["data"]
     console.print(f"\n  [bold red]{data['message']}[/bold red]")
     console.print(f"  Location: {data['location']}")
@@ -96,8 +110,8 @@ def main():
     # Step 5: Iryna engages the first threat
     print_step(5, "Iryna engages the enemy!")
     threat_name = data["threats"][0]["name"]
-    result = call(server_module.act, action="engage_threat",
-                  params=json.dumps({"threat_name": threat_name}), session_id=session_id)
+    result = act(runtime, action="engage_threat",
+                  params={"threat_name": threat_name}, session_id=session_id)
     console.print(f"  [red]{result['data']['message']}[/red]")
     if "threat" in result["data"]:
         t = result["data"]["threat"]
@@ -106,12 +120,12 @@ def main():
 
     # Step 6: Build dice pool — SHOOT with hunting rifle
     print_step(6, "Build dice pool — Iryna uses SHOOT + Exquisite hunting rifle")
-    result = call(server_module.act, action="build_dice_pool",
-                  params=json.dumps({
+    result = act(runtime, action="build_dice_pool",
+                  params={
                       "stat": "shoot",
                       "equipment_names": ["Exquisite hunting rifle"],
                       "bonus_dice": 0,
-                  }), session_id=session_id)
+                  }, session_id=session_id)
     data = result["data"]
     console.print(f"\n  [bold]{data['message']}[/bold]")
     console.print(f"  Pool: stat({data['pool_breakdown']['stat']}) + equipment({data['pool_breakdown']['equipment']}) + bonus({data['pool_breakdown']['bonus']}) = {data['pool_breakdown']['total']}d6")
@@ -141,8 +155,8 @@ def main():
             allocations["feed"].append(die)
 
     console.print(f"  Allocations: {json.dumps(allocations)}")
-    result = call(server_module.act, action="allocate_dice",
-                  params=json.dumps({"allocations": allocations}), session_id=session_id)
+    result = act(runtime, action="allocate_dice",
+                  params={"allocations": allocations}, session_id=session_id)
     data = result["data"]
     console.print(f"\n  [bold]{data['message']}[/bold]")
 
@@ -163,14 +177,14 @@ def main():
 
     # Step 8: Switch to Chuck's turn
     print_step(8, "Switch to Chuck's turn")
-    result = call(server_module.act, action="next_turn",
-                  params=json.dumps({"character_id": chuck_id}), session_id=session_id)
+    result = act(runtime, action="next_turn",
+                  params={"character_id": chuck_id}, session_id=session_id)
     console.print(f"  [green]{result['data']['message']}[/green]")
 
     # Step 9: View Chuck's character sheet
     print_step(9, "View Chuck's character sheet")
-    result = call(server_module.act, action="view_character_sheet",
-                  params=json.dumps({"character_id": chuck_id}), session_id=session_id)
+    result = act(runtime, action="view_character_sheet",
+                  params={"character_id": chuck_id}, session_id=session_id)
     sheet = result["data"]
     console.print(f"  Name: {sheet['state']['name']}")
     console.print(f"  Blood: {sheet['state']['blood']}/10")
@@ -181,7 +195,7 @@ def main():
 
     # Step 10: View scene
     print_step(10, "View current scene status")
-    result = call(server_module.act, action="view_scene", params="{}", session_id=session_id)
+    result = act(runtime, action="view_scene", params={}, session_id=session_id)
     scene = result["data"]
     console.print(f"  Location: {scene['location_id']}")
     for o in scene["active_objectives"]:

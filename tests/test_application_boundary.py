@@ -1,19 +1,20 @@
 """Tests for the GIA application boundary (PR 14 of the GIA/GAS 2.0 plan).
 
 Imports only `gia_core.*` and the concrete Havoc-backed implementation
-(`src.gia.application.HavocGiaApplication`, `src.gia.context.GameContext`,
-`src.gia.policy`) — never `src.gia.server`, `src.gia.gas`, or `mcp` — so
-this file itself is evidence for the exit criterion "GIA tests run without
-constructing an MCP server or GAS runtime." (`GameRuntime` is imported only
-by the one test that explicitly proves the facade and the direct boundary
-path are equivalent — see its own docstring.) See the import block below
-for why `gia_core` is imported by its bare name rather than `src.gia_core`.
+(`havoc_domain.application.HavocGiaApplication`, `havoc_domain.context.GameContext`,
+`gia.policy`) — never `gia.server`, `mcp`, or (since PR 19 removed it)
+`GasRuntime` — so this file itself is evidence for the exit criterion "GIA
+tests run without constructing an MCP server or GAS runtime." (`GameRuntime`
+is imported only by the one test that explicitly proves the facade and the
+direct boundary path are equivalent — see its own docstring.) See the
+import block below for why every cross-package import here uses its bare
+(installed-package) name rather than an `src.`-prefixed one.
 
 Each test reuses an idiom already proven elsewhere in the suite
 (`test_execution_service.py`'s idempotency/rollback/concurrency tests,
 `test_pr13_golden_fixtures.py`'s tenant-scope test, `test_gas_contracts.py`'s
 policy-version test) rather than inventing a new one, applied through
-`HavocGiaApplication` instead of `GameRuntime`/`GasRuntime`.
+`HavocGiaApplication` instead of `GameRuntime`.
 """
 
 from __future__ import annotations
@@ -22,24 +23,25 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from src.gia.application import HavocGiaApplication
-from src.gia.context import GameContext
-from src.gia.db import GameDB
-from src.gia.models import GamePhase, InjuryState
-from src.gia.policy import Actor, RequestContext
+from havoc_domain.application import HavocGiaApplication
+from havoc_domain.context import GameContext
+from havoc_domain.db import GameDB
+from havoc_domain.models import GamePhase, InjuryState
+from gia.policy import Actor, RequestContext
 
-# `gia_core` deliberately imported by its bare (installed-package) name, not
-# `src.gia_core` — `src/gia/application.py` (imported above via `src.gia.*`)
-# reaches `gia_core` through an *absolute* `from gia_core... import` (it has
-# to: `gia`/`gia_core` are siblings in the installed wheel with no shared
-# parent package, so a relative import can't cross that boundary — see
-# docs/gia2/DEPENDENCY-BOUNDARIES.md's PR 14 status note). That binds the
-# exception/DTO classes this test needs to compare/catch under the bare
-# `gia_core.*` identity in `sys.modules`. Importing them here as
+# `gia_core` (and every other cross-package import in this file) is
+# deliberately imported by its bare (installed-package) name, not an
+# `src.`-prefixed one — `havoc_domain.application` (imported above) reaches
+# `gia_core` through an *absolute* `from gia_core... import` (it has to:
+# `havoc_domain`/`gia`/`gia_core` are siblings in the installed wheel with
+# no shared parent package, so a relative import can't cross that boundary
+# — see docs/gia2/DEPENDENCY-BOUNDARIES.md's PR 14/18 status notes). That
+# binds the exception/DTO classes this test needs to compare/catch under
+# the bare `gia_core.*` identity in `sys.modules`. Importing them here as
 # `src.gia_core.*` instead would load a second, distinct copy of the same
 # module under a different dotted name — same class *names*, different
 # class *objects* — so `pytest.raises(StaleStateError)` would silently
-# never match what `commands/execution.py` actually raises.
+# never match what `havoc_domain.execution` actually raises.
 from gia_core.errors import (
     IdempotencyConflictError,
     PolicyChangedError,
@@ -333,11 +335,9 @@ def test_facade_and_direct_service_paths_are_equivalent():
     """Drives the same action sequence through (a) `GameRuntime` (the
     facade) and (b) a direct `HavocGiaApplication` against an independent
     session, then compares normalized capability sets, execute results, and
-    provenance records — a materially stronger equivalence proof than
-    `test_gas_contracts.py::test_legacy_and_gas_adapters_reach_equivalent_state`,
-    which only compares `.phase`, `.round_number`, and a character count.
+    provenance records.
     """
-    from src.gia.server import GameRuntime  # only test in this file that needs it
+    from gia.server import GameRuntime  # only test in this file that needs it
 
     runtime = GameRuntime()
     ctx_b = GameContext(":memory:")

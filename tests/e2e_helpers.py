@@ -7,8 +7,12 @@ import socket
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Mapping
 
 from openai import InternalServerError
+
+from gia.server import GameRuntime
+from gia_core.errors import DomainError
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -103,12 +107,57 @@ def ollama_reachable(host: str = "localhost", port: int = 11434, timeout: float 
 # Server helpers
 # ---------------------------------------------------------------------------
 
+class _JsonToolAdapter:
+    """JSON-string tool-calling surface for the local-model e2e harness.
+
+    Ollama-class small models are driven through flat, JSON-string-typed
+    tool arguments (see ``TOOLS`` above) rather than GAS 2.0's typed,
+    capability-id-based ``act`` — a deliberate simplification for small
+    models, not migration debt (unlike the deleted ``compat.py``, which
+    this replaces, nothing else depends on this class).
+    """
+
+    def __init__(self, runtime: GameRuntime):
+        self.runtime = runtime
+
+    def create_session(self) -> str:
+        return json.dumps(self.runtime.create_session().model_dump(mode="json", by_alias=True))
+
+    def get(self, resource_type: str, id: str = "", session_id: str = "") -> str:
+        try:
+            result = self.runtime.get(resource_type, id, session_id)
+        except DomainError as error:
+            return json.dumps({"error": str(error)})
+        return json.dumps(result.model_dump(mode="json", by_alias=True))
+
+    def search(self, resource_type: str, filters: str = "{}", session_id: str = "") -> str:
+        try:
+            parsed_filters: Mapping = json.loads(filters) if filters else {}
+        except json.JSONDecodeError:
+            parsed_filters = {}
+        try:
+            result = self.runtime.search(resource_type, parsed_filters, session_id)
+        except DomainError as error:
+            return json.dumps({"error": str(error)})
+        return json.dumps(result.model_dump(mode="json", by_alias=True))
+
+    def act(self, action: str, params: str = "{}", session_id: str = "") -> str:
+        try:
+            parsed_params = json.loads(params) if params else {}
+        except json.JSONDecodeError:
+            parsed_params = {}
+        try:
+            revision = self.runtime.get("session", session_id=session_id).state_revision
+            result = self.runtime.act(action, parsed_params, session_id, revision)
+        except DomainError as error:
+            return json.dumps({"error": str(error)})
+        return json.dumps(result.model_dump(mode="json", by_alias=True))
+
+
 def fresh_server():
     """Create a fresh runtime and explicitly provision its test session."""
-    from src.gia.compat import JsonGameRuntimeAdapter
-    from src.gia.server import GameRuntime
     runtime = GameRuntime()
-    bootstrap = JsonGameRuntimeAdapter(runtime)
+    bootstrap = _JsonToolAdapter(runtime)
     session_id = json.loads(bootstrap.create_session())["data"]["id"]
     return bootstrap, session_id
 

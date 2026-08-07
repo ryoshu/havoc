@@ -9,9 +9,24 @@ from rich.panel import Panel
 from rich.table import Table
 
 from src.agent.loop import AgentLoop
-from src.gia import server as server_module
+from gia.server import GameRuntime
 
 console = Console()
+
+
+def _dump(result) -> dict:
+    return result.model_dump(mode="json", by_alias=True)
+
+
+def _act(runtime: GameRuntime, action: str, params: dict, session_id: str) -> dict:
+    """Execute an action, resolving the current revision first.
+
+    ``GameRuntime.act`` requires an explicit ``expected_revision`` for
+    action-name dispatch — the deleted JSON compat path used to resolve
+    this automatically.
+    """
+    revision = runtime.get("session", session_id=session_id).state_revision
+    return _dump(runtime.act(action, params, session_id, revision))
 
 
 def print_banner():
@@ -30,12 +45,8 @@ def print_banner():
     ))
 
 
-def print_affordances_from_json(result_str: str):
-    try:
-        data = json.loads(result_str)
-        affs = data.get("affordances", [])
-    except (json.JSONDecodeError, AttributeError):
-        affs = []
+def print_affordances(result: dict):
+    affs = result.get("affordances", [])
 
     if not affs:
         console.print("[dim]No actions available[/dim]")
@@ -68,16 +79,16 @@ def print_character_summary(chars: list[dict]):
 def main():
     print_banner()
 
-    session_id = json.loads(server_module.create_session())["data"]["id"]
-    agent = AgentLoop(server_module, session_id)
+    runtime = GameRuntime()
+    session_id = runtime.create_session().data["id"]
+    agent = AgentLoop(runtime, session_id)
     console.print(f"[dim]Session: {session_id}[/dim]\n")
 
     # Show initial state
-    result = server_module.search(resource_type="characters", session_id=session_id)
-    data = json.loads(result)
-    print_character_summary(data.get("data", []))
+    result = _dump(runtime.search(resource_type="characters", session_id=session_id))
+    print_character_summary(result.get("data", []))
     console.print()
-    print_affordances_from_json(result)
+    print_affordances(result)
     console.print()
 
     while True:
@@ -95,29 +106,28 @@ def main():
             break
 
         if user_input.lower() == "state":
-            state = server_module.get(resource_type="session", session_id=session_id)
-            console.print_json(state)
+            state = _dump(runtime.get(resource_type="session", session_id=session_id))
+            console.print_json(json.dumps(state))
             continue
 
         if user_input.lower() == "affordances":
-            state = server_module.get(resource_type="session", session_id=session_id)
-            print_affordances_from_json(state)
+            state = _dump(runtime.get(resource_type="session", session_id=session_id))
+            print_affordances(state)
             continue
 
         if user_input.lower() == "characters":
-            result = server_module.search(resource_type="characters", session_id=session_id)
-            data = json.loads(result)
-            print_character_summary(data.get("data", []))
+            result = _dump(runtime.search(resource_type="characters", session_id=session_id))
+            print_character_summary(result.get("data", []))
             continue
 
         if user_input.lower() == "scene":
-            result = server_module.get(resource_type="scene", session_id=session_id)
-            console.print_json(result)
+            result = _dump(runtime.get(resource_type="scene", session_id=session_id))
+            console.print_json(json.dumps(result))
             continue
 
         if user_input.lower() == "sheet":
-            result = server_module.act(action="view_character_sheet", params="{}", session_id=session_id)
-            console.print_json(result)
+            result = _act(runtime, "view_character_sheet", {}, session_id)
+            console.print_json(json.dumps(result))
             continue
 
         # Send to GM agent

@@ -1,14 +1,13 @@
 """Havoc composition object (PR 18) — moved from ``src/gia/server.py``.
 
 ``GameRuntime`` is the thin delegating facade over the GIA application
-boundary (PR 14) that both the legacy JSON compatibility path
-(``compat.py``/``gia.gas.GasRuntime``, still used by the Director and
-playthrough runner) and the live MCP server (``havoc_server``, PR 17) build
-on. ``src/gia/server.py`` keeps the module-level singleton/back-compat
-machinery (the ``_runtime_cache``-backed default instance, the legacy JSON
-``create_session``/``get``/``search``/``act`` module functions, and the
-lazy ``mcp``/``_allowed_hosts`` re-export) — moving *that* here too would
-risk reopening the dual-module-instance bug PR 17's postmortem fixed
+boundary (PR 14) that both the Director/playthrough runner (via
+``gia.server.build_gas_service``, PR 19) and the live MCP server
+(``havoc_server``, PR 17) build on. ``src/gia/server.py`` keeps the
+module-level singleton/back-compat machinery (the ``_runtime_cache``-backed
+default instance, ``build_gas_service``/``gas_service``, and the lazy
+``mcp``/``_allowed_hosts`` re-export) — moving *that* here too would risk
+reopening the dual-module-instance bug PR 17's postmortem fixed
 (``gia/_runtime_cache.py``), since every existing caller of
 ``GameRuntime`` still imports it from ``gia.server``/``src.gia.server``.
 """
@@ -19,7 +18,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from gia.policy import PolicyProvider, RequestContext
-from gia.responses import ActionResponse, ResourceResponse, format_action_response, format_response
+from gia_core.responses import ActionResponse, ResourceResponse, format_action_response, format_response
 from gia_core.requests import ExecuteRequest, GetRequest, ProjectRequest, SearchRequest
 from havoc_domain.application import HavocGiaApplication
 from havoc_domain.context import GameContext
@@ -35,8 +34,8 @@ class GameRuntime:
     applicability, and mutation guarantee. This class's only job is
     building request DTOs and mapping their results back onto the existing
     `ResourceResponse`/`ActionResponse` wire shapes so every external
-    consumer (`GasRuntime`, `JsonGameRuntimeAdapter`, `havoc_server`'s MCP
-    tools) keeps working unchanged.
+    consumer (`gia.server.build_gas_service`'s `GasService`, `havoc_server`'s
+    MCP tools) keeps working unchanged.
     """
 
     def __init__(

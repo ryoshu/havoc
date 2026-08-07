@@ -2,14 +2,16 @@
 
 The Director is a first-party GAS 2.0 consumer: it reads contextual
 capabilities, selects a capability ID, and sends only ``capability_id`` plus
-typed input to ``act``.  The temporary JSON adapter is accepted only as a
-migration convenience for older callers.
+typed input to ``act``, via a ``gas_protocol.service.GasService`` built over
+``GameRuntime`` (``gia.server.build_gas_service``). It also keeps a direct
+handle on the ``GameRuntime`` itself for phase/character bookkeeping reads
+(``.ctx``) that are legitimately Havoc-specific and outside the
+domain-neutral GAS surface.
 """
 
 from __future__ import annotations
 
-from src.gia.compat import JsonGameRuntimeAdapter
-from src.gia.gas import GasRuntime
+from gia.server import GameRuntime, build_gas_service
 
 from .config import NarrativeBeat, PlaythroughStrategy
 
@@ -17,12 +19,11 @@ from .config import NarrativeBeat, PlaythroughStrategy
 class Director:
     """Plays a full game mechanically, collecting narrative beats."""
 
-    def __init__(self, runtime: GasRuntime | JsonGameRuntimeAdapter, strategy: PlaythroughStrategy):
-        # Keep old test/evaluation entry points usable while ensuring the
-        # Director itself always consumes the typed GAS surface.
-        self.rt = runtime.gas if isinstance(runtime, JsonGameRuntimeAdapter) else runtime
+    def __init__(self, runtime: GameRuntime, session_id: str, strategy: PlaythroughStrategy):
+        self.runtime = runtime
+        self.service = build_gas_service(runtime)
         self.strategy = strategy
-        self.session_id = self.rt.default_session_id
+        self.session_id = session_id
         self.beats: list[NarrativeBeat] = []
         self._char_index = 0  # for rotating characters
         self._visited_locations: set[str] = set()
@@ -62,7 +63,7 @@ class Director:
             data=data,
         ))
         # Track starting location
-        session = self.rt.ctx.get_session(self.session_id)
+        session = self.runtime.ctx.get_session(self.session_id)
         if session and session.current_location_id:
             self._visited_locations.add(session.current_location_id)
 
@@ -204,17 +205,17 @@ class Director:
         if self.strategy.stat_preference != "best":
             return self.strategy.stat_preference
 
-        session = self.rt.ctx.get_session(self.session_id)
+        session = self.runtime.ctx.get_session(self.session_id)
         if not session or not session.active_character_id:
             return "brawl"
-        char = self.rt.ctx.db.get_character(session.active_character_id)
+        char = self.runtime.ctx.db.get_character(session.active_character_id)
         if not char:
             return "brawl"
-        template = self.rt.ctx.get_character_template(char.template_id)
+        template = self.runtime.ctx.get_character_template(char.template_id)
         if not template:
             return "brawl"
 
-        sheet = self.rt.ctx.get_character_sheet(char.id)
+        sheet = self.runtime.ctx.get_character_sheet(char.id)
         stats = sheet["effective_stats"] if sheet else template.stats
         return max(stats, key=stats.get)
 
@@ -263,10 +264,10 @@ class Director:
 
     def _maybe_switch_character(self):
         """Rotate to next alive character."""
-        session = self.rt.ctx.get_session(self.session_id)
+        session = self.runtime.ctx.get_session(self.session_id)
         if not session:
             return
-        chars = self.rt.ctx.db.get_session_characters(self.session_id)
+        chars = self.runtime.ctx.db.get_session_characters(self.session_id)
         alive = [c for c in chars if not c.is_dead and not c.is_downed]
         if len(alive) <= 1:
             return
@@ -282,13 +283,13 @@ class Director:
 
     def _act(self, action: str, params: dict | None = None) -> dict:
         """Select a current capability and execute it through GAS 2.0."""
-        state = self.rt.get(f"gia://session/{self.session_id}")
+        state = self.service.get(f"gia://session/{self.session_id}")
         values = params or {}
         candidates = [command for command in state.commands if command.command == action]
         for candidate in candidates:
             if self._schema_accepts(candidate.input_schema, values):
                 self._idempotency_counter += 1
-                result = self.rt.act(
+                result = self.service.act(
                     candidate.id,
                     state.state_revision,
                     values,
@@ -314,13 +315,13 @@ class Director:
         return schema.get("properties", schema)
 
     def _get_phase(self) -> str:
-        session = self.rt.ctx.get_session(self.session_id)
+        session = self.runtime.ctx.get_session(self.session_id)
         return session.phase.value if session else "mission_complete"
 
     def _get_commands(self) -> list[dict]:
-        result = self.rt.get(f"gia://session/{self.session_id}")
+        result = self.service.get(f"gia://session/{self.session_id}")
         return [command.model_dump(mode="json") for command in result.commands]
 
     def _all_dead(self) -> bool:
-        chars = self.rt.ctx.db.get_session_characters(self.session_id)
+        chars = self.runtime.ctx.db.get_session_characters(self.session_id)
         return all(c.is_dead for c in chars)

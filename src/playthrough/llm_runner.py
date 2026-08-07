@@ -17,7 +17,7 @@ import time
 
 from openai import APITimeoutError, InternalServerError, OpenAI
 
-from src.gia.compat import JsonGameRuntimeAdapter
+from gia.server import GameRuntime
 
 from .config import NarrativeBeat
 
@@ -26,7 +26,7 @@ RETRIES = 3
 ACTION_DELIMITER = "---ACTION---"
 
 
-def _get_alive_character_ids(runtime: JsonGameRuntimeAdapter, session_id: str) -> list[str]:
+def _get_alive_character_ids(runtime: GameRuntime, session_id: str) -> list[str]:
     """Return IDs of alive (not dead) characters in the session."""
     characters = runtime.ctx.db.get_session_characters(session_id)
     return [c.id for c in characters if not c.is_dead]
@@ -78,7 +78,7 @@ The {ACTION_DELIMITER} block is MANDATORY every response.\
 
 
 def _build_turn_message(
-    runtime: JsonGameRuntimeAdapter,
+    runtime: GameRuntime,
     session_id: str,
     last_result: dict | None = None,
 ) -> str:
@@ -137,8 +137,7 @@ def _build_turn_message(
             parts.append(f"ENEMY DICE: {data['gm_kept']}")
 
     # Affordances — filter view actions
-    affs_str = runtime.get("session", session_id=session_id)
-    affs_data = json.loads(affs_str)
+    affs_data = runtime.get("session", session_id=session_id).model_dump(mode="json", by_alias=True)
     all_affordances = affs_data.get("affordances", [])
     affordances = [a for a in all_affordances if not a["action"].startswith("view_") and a["action"] != "check_inventory"]
 
@@ -193,7 +192,11 @@ def _build_turn_message(
     for aff in affordances:
         action = aff["action"]
         desc = aff["description"]
+        # Affordance.schema is a full JSON Schema object ({"type": "object",
+        # "properties": {...}}); the deleted compat.py used to flatten this
+        # to just the properties dict for pre-MCP-v2 callers, so unwrap here.
         schema = aff.get("schema", {})
+        schema = schema.get("properties", schema)
         param_hints = []
         for param, spec in schema.items():
             if isinstance(spec, dict):
@@ -281,7 +284,8 @@ class LLMGameRunner:
 
     def __init__(
         self,
-        runtime: JsonGameRuntimeAdapter,
+        runtime: GameRuntime,
+        session_id: str,
         client: OpenAI,
         characters: list[str],
         model: str = "qwen3.5:9b",
@@ -294,7 +298,7 @@ class LLMGameRunner:
         self.timeout = timeout
         self.ollama = ollama
         self.characters = characters
-        self.session_id = runtime.default_session_id
+        self.session_id = session_id
         self.beats: list[NarrativeBeat] = []
         self._messages: list[dict] = []
         self._max_turns = 200
@@ -373,13 +377,7 @@ class LLMGameRunner:
             # Execute the action
             is_view = action.startswith("view_")
             try:
-                result_str = self.runtime.act(action, json.dumps(params), self.session_id)
-                last_result = json.loads(result_str)
-                if "error" in last_result and not last_result.get("data"):
-                    err = last_result["error"]
-                    print(f"  [Turn {turn}] {action} ERROR: {err[:80]} ({elapsed:.1f}s)")
-                    last_result = {"data": {"message": f"ERROR: {err}. Pick a different action."}}
-                    continue
+                last_result = self._act(action, params)
                 result_msg = last_result.get("data", last_result).get("message", "")
                 print(f"  [Turn {turn}] {action} → {result_msg[:80]} ({elapsed:.1f}s)")
             except Exception as e:
@@ -406,12 +404,22 @@ class LLMGameRunner:
 
         return self.beats
 
+    def _act(self, action: str, params: dict) -> dict:
+        """Execute an action, resolving the current revision first.
+
+        `GameRuntime.act` requires an explicit `expected_revision` for
+        action-name dispatch — the deleted `JsonGameRuntimeAdapter` used to
+        resolve this automatically.
+        """
+        revision = self.runtime.get("session", session_id=self.session_id).state_revision
+        result = self.runtime.act(action, params, self.session_id, revision)
+        return result.model_dump(mode="json", by_alias=True)
+
     def _setup(self):
         """Programmatic setup — select characters and start mission."""
         for cid in self.characters:
-            self.runtime.act("select_character", json.dumps({"template_id": cid}), self.session_id)
-        result_str = self.runtime.act("start_mission", "{}", self.session_id)
-        result = json.loads(result_str)
+            self._act("select_character", {"template_id": cid})
+        result = self._act("start_mission", {})
         self.beats.append(NarrativeBeat(
             type="scene_arrival",
             data=result.get("data", result),
@@ -419,8 +427,7 @@ class LLMGameRunner:
 
     def _narrate_epilogue(self):
         """Final narration for game end."""
-        result_str = self.runtime.act("view_epilogue", "{}", self.session_id)
-        result = json.loads(result_str)
+        result = self._act("view_epilogue", {})
         data = result.get("data", result)
 
         survivors = ", ".join(data.get("survivors", [])) or "None"
@@ -438,9 +445,8 @@ class LLMGameRunner:
 
     def _get_valid_actions(self) -> list[str]:
         """Get list of valid action names for current state."""
-        affs_str = self.runtime.get("session", session_id=self.session_id)
-        affs_data = json.loads(affs_str)
-        return list({a["action"] for a in affs_data.get("affordances", [])})
+        result = self.runtime.get("session", session_id=self.session_id)
+        return list({a.action for a in result.affordances})
 
     def _trim_history(self):
         """Keep conversation history manageable."""

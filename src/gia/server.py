@@ -12,17 +12,24 @@ to `havoc_server` in PR 17 (`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`);
 every existing `from src.gia.server import mcp, ...` keeps working, and
 `uv run python -m src.gia.server` keeps working as a compatibility alias
 for `uv run python -m havoc_server`.
+
+PR 19 removed the deprecated `compat.py`/`gia.gas` (`JsonGameRuntimeAdapter`/
+`GasRuntime`) compatibility path and the module-level legacy JSON
+`create_session`/`get`/`search`/`act` functions that delegated to it. This
+module now builds and exposes `gas_service` — a real, non-deprecated
+`gas_protocol.service.GasService` over `gia_gas_adapter.GiaGasAdapter` — as
+the one shared composition every GAS-shaped caller (Director, playthrough,
+`havoc_server`) should build from, via `build_gas_service()` below.
 """
 
 from __future__ import annotations
 
 import os
-from typing import Any, Literal
+from typing import Any
 
+from gas_protocol.service import GasService
+from gia_gas_adapter import GiaGasAdapter
 from havoc_domain.runtime import GameRuntime
-
-from .compat import JsonGameRuntimeAdapter
-from .gas import GasRuntime
 
 # ---------------------------------------------------------------------------
 # Module-level runtime. Stateful requests must carry their session handle;
@@ -42,86 +49,37 @@ def _configured_db_path() -> str:
     return os.environ.get("GIA_DB_PATH", ":memory:")
 
 
+def build_gas_service(runtime: GameRuntime, **gas_service_kwargs: Any) -> GasService:
+    """Render ``runtime`` as a GAS 2.0 operation surface.
+
+    The one shared composition (`GameRuntime` -> `GiaGasAdapter` ->
+    `GasService`) every first-party GAS-shaped caller builds from — the
+    Director, the playthrough runner, and `havoc_server.app.build_mcp_server`
+    (which calls this instead of inlining its own copy). Replaces the
+    deprecated, hand-rolled `gia.gas.GasRuntime`. ``gas_service_kwargs``
+    forwards to `GasService` (e.g. ``max_page_size``) for callers that need
+    a non-default payload budget.
+    """
+    adapter = GiaGasAdapter(
+        runtime._application,
+        runtime._application,
+        runtime._application,
+        policy_provider=runtime.ctx.policy_provider,
+        request_context=runtime.request_context,
+    )
+    return GasService(adapter, scheme="gia", **gas_service_kwargs)
+
+
 if not hasattr(_runtime_cache, "_default"):
     _runtime_cache._default = GameRuntime(db_path=_configured_db_path())
-    _runtime_cache._legacy = JsonGameRuntimeAdapter(_runtime_cache._default)
-    _runtime_cache._gas = GasRuntime(_runtime_cache._default)
+    _runtime_cache.gas_service = build_gas_service(_runtime_cache._default)
     _runtime_cache.ctx = _runtime_cache._default.ctx
     _runtime_cache.engine = _runtime_cache._default.engine
 
 _default = _runtime_cache._default
-_legacy = _runtime_cache._legacy
-_gas = _runtime_cache._gas
+gas_service = _runtime_cache.gas_service
 ctx = _runtime_cache.ctx
 engine = _runtime_cache.engine
-
-
-ActionName = Literal[
-    "allocate_dice",
-    "build_dice_pool",
-    "check_inventory",
-    "choose_next_location",
-    "engage_threat",
-    "heal",
-    "loot",
-    "move_to_location",
-    "next_turn",
-    "retreat",
-    "select_character",
-    "share_blood",
-    "start_mission",
-    "trigger_last_stand",
-    "use_flashback",
-    "view_character_sheet",
-    "view_character_template",
-    "view_epilogue",
-    "view_scene",
-]
-
-
-# Legacy JSON entry points remain explicit and undecorated. They are used by
-# the playthrough/evaluation adapters until PR10 removes the compatibility
-# boundary.
-def create_session() -> str:
-    """Legacy JSON session creation wrapper."""
-    return _legacy.create_session()
-
-
-def get(resource_type: str, id: str = "", session_id: str = "") -> str:
-    """Retrieve a resource by type and ID. Returns data + available affordances.
-
-    resource_type: "session", "character", "character_template", "location", "scene", "enemy", "rules"
-    id: resource ID (template_id for templates, character_id for characters, etc.)
-    session_id: required for stateful resources; omit for immutable knowledge
-    """
-    return _legacy.get(resource_type, id, session_id)
-
-
-def search(resource_type: str, filters: str = "{}", session_id: str = "") -> str:
-    """Search/browse resources. Returns results + available affordances.
-
-    resource_type: "characters", "locations", "enemies", "ubermenschen"
-    filters: JSON string, e.g. {"sector": 3} for locations
-    session_id: required only when requesting state affordances
-    """
-    return _legacy.search(resource_type, filters, session_id)
-
-
-def act(
-    action: str,
-    params: str = "{}",
-    session_id: str = "",
-    expected_revision: int | None = None,
-    affordance_id: str | None = None,
-    idempotency_key: str | None = None,
-) -> str:
-    """Execute an action discovered via affordances. Returns result + next affordances.
-
-    action: action name from affordances
-    params: JSON string of action parameters
-    session_id: required
-    """
-    return _legacy.act(action, params, session_id, expected_revision, affordance_id, idempotency_key)
 
 
 # --- PR 17 compatibility re-export -----------------------------------------

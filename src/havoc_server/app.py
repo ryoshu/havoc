@@ -9,12 +9,13 @@ them at once — see the `composition_root` row of
 ("havoc-server | all selected components | domain or policy behavior
 implemented directly in the composition root").
 
-The live MCP server built here runs on `GiaGasAdapter`/`GasService`, not
-the deprecated `GasRuntime` (`gia.gas.GasRuntime` stays the compatibility
-path for the legacy JSON entry points `compat.py` and the Director /
-playthrough still use). Capability-rejection errors therefore surface
-GAS's own stable error vocabulary (e.g. `invalid_input`) rather than
-`gia_core`'s raw domain codes (e.g. `action_unavailable`) — a deliberate,
+The live MCP server built here runs on `GiaGasAdapter`/`GasService`, via
+`gia.server.build_gas_service` (PR 19 promoted this composition out of a
+private inline block here into a shared, reusable function — the Director
+and playthrough runner build the same way now that the deprecated
+`GasRuntime` is gone). Capability-rejection errors therefore surface GAS's
+own stable error vocabulary (e.g. `invalid_input`) rather than `gia_core`'s
+raw domain codes (e.g. `action_unavailable`) — a deliberate,
 already-documented translation (`gia_gas_adapter.adapter._ERROR_MAP`) that
 was built in PR 16 and is wired to the live server for the first time
 here.
@@ -29,11 +30,9 @@ from mcp.server import MCPServer
 from mcp.server.caching import CacheHint
 
 from gas_mcp import install_gas_mcp
-from gas_protocol.service import GasService
-from gia.context import ONTOLOGY_PATH
-from gia.server import GameRuntime
+from gia.server import GameRuntime, build_gas_service
 from gia import server as _gia_server
-from gia_gas_adapter import GiaGasAdapter
+from havoc_domain.context import ONTOLOGY_PATH
 
 
 def _resource_json(value: Any) -> str:
@@ -46,26 +45,18 @@ def build_mcp_server(runtime: GameRuntime | None = None) -> tuple[MCPServer, Gam
 
     Defaults to ``gia.server``'s own module-level singleton (`_default`) so
     the module-level server built below shares the *same* runtime instance
-    as the legacy JSON entry points (`gia.server.create_session`/`get`/
-    `search`/`act`, still used by `compat.py`/the Director/playthrough) —
-    two independently constructed `GameRuntime`s would each open their own
-    `:memory:` SQLite database and silently diverge. `gia.server`'s
-    singleton is itself canonicalized across the `gia.server`/
-    `src.gia.server` import-path duality via `gia._runtime_cache` (see that
-    module's docstring), so this stays correct regardless of which spelling
-    a caller used to reach `gia.server` first. Callers that want an
-    isolated server (tests) pass their own `runtime`.
+    other first-party callers (Director, playthrough) build their own
+    `GasService` over via `gia.server.build_gas_service` — two independently
+    constructed `GameRuntime`s would each open their own `:memory:` SQLite
+    database and silently diverge. `gia.server`'s singleton is itself
+    canonicalized across the `gia.server`/`src.gia.server` import-path
+    duality via `gia._runtime_cache` (see that module's docstring), so this
+    stays correct regardless of which spelling a caller used to reach
+    `gia.server` first. Callers that want an isolated server (tests) pass
+    their own `runtime`.
     """
     runtime = runtime if runtime is not None else _gia_server._default
-
-    adapter = GiaGasAdapter(
-        runtime._application,
-        runtime._application,
-        runtime._application,
-        policy_provider=runtime.ctx.policy_provider,
-        request_context=runtime.request_context,
-    )
-    service = GasService(adapter, scheme="gia")
+    service = build_gas_service(runtime)
 
     server = MCPServer(
         name="gia-eat-the-reich",

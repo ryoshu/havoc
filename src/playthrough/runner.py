@@ -16,9 +16,7 @@ import time
 
 from openai import OpenAI
 
-from src.gia.compat import JsonGameRuntimeAdapter
-from src.gia.gas import GasRuntime
-from src.gia.server import GameRuntime
+from gia.server import GameRuntime
 
 from .config import PlaythroughStrategy
 from .context_builder import ContextBuilder
@@ -80,12 +78,12 @@ def main():
         t0 = time.monotonic()
         runtime_core = GameRuntime(db_path=db_path)
         session_id = runtime_core.create_session().data["id"]
-        runtime = JsonGameRuntimeAdapter(runtime_core, session_id=session_id)
         client = OpenAI(base_url=args.api_url, api_key=args.api_key, timeout=300.0)
 
         is_ollama = "localhost" in args.api_url or "127.0.0.1" in args.api_url
         runner = LLMGameRunner(
-            runtime=runtime,
+            runtime=runtime_core,
+            session_id=session_id,
             client=client,
             characters=args.characters,
             model=args.model,
@@ -96,7 +94,7 @@ def main():
         writer = TranscriptWriter()
         md_path, json_path = writer.write(beats, args.characters)
 
-        n_decisions = len(runtime.ctx.db.get_session_decisions(runtime.default_session_id))
+        n_decisions = len(runtime_core.ctx.db.get_session_decisions(session_id))
         print(f"\nTotal: {time.monotonic() - t0:.1f}s ({len(beats)} beats, {n_decisions} decisions)")
         print(f"Markdown: {md_path}")
         print(f"JSON:     {json_path}")
@@ -119,8 +117,7 @@ def main():
     t0 = time.monotonic()
     runtime_core = GameRuntime(db_path=args.db)
     session_id = runtime_core.create_session().data["id"]
-    runtime = GasRuntime(runtime_core, session_id=session_id)
-    director = Director(runtime, strategy)
+    director = Director(runtime_core, session_id, strategy)
     beats = director.run_full_game()
     director_time = time.monotonic() - t0
 
@@ -130,8 +127,8 @@ def main():
     print()
 
     # --- Phase 2: Enrich with graph context ---
-    builder = ContextBuilder(runtime.ctx)
-    builder.enrich(beats, session_id=runtime.default_session_id)
+    builder = ContextBuilder(runtime_core.ctx)
+    builder.enrich(beats, session_id=session_id)
 
     # --- Phase 3: Narrate (optional) ---
     narrator_time = 0.0

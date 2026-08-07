@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.gia.context import GameContext
+from havoc_domain.context import GameContext
 
 from .config import NarrativeBeat
 

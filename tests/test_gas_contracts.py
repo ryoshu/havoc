@@ -6,11 +6,12 @@ import json
 
 import pytest
 
-from src.gia.compat import JsonGameRuntimeAdapter
-from src.gia.domain import InvalidParameterError, StaleViewError
-from src.gia.gas import GasRuntime
-from src.gia.policy import Scope
-from src.gia.server import GameRuntime
+from gas_protocol.errors import (
+    InvalidInputError as GasInvalidInputError,
+    StaleViewError as GasStaleViewError,
+)
+from gia.policy import Scope
+from gia.server import GameRuntime, build_gas_service
 
 from .helpers import _command
 
@@ -18,15 +19,16 @@ from .helpers import _command
 @pytest.fixture
 def gas_runtime():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
-        yield gas
+        yield runtime, gas
     finally:
         runtime.ctx.db.close()
 
 
 def test_gas_response_separates_links_commands_and_context(gas_runtime):
-    created = gas_runtime.create_session()
+    _runtime, gas = gas_runtime
+    created = gas.create_session()
 
     assert created.data["id"]
     assert created.links[0].rel == "self"
@@ -39,25 +41,27 @@ def test_gas_response_separates_links_commands_and_context(gas_runtime):
 
 
 def test_gas_get_uri_and_search_query_contract(gas_runtime):
-    session_id = gas_runtime.create_session().data["id"]
+    _runtime, gas = gas_runtime
+    session_id = gas.create_session().data["id"]
 
-    state = gas_runtime.get(f"gia://session/{session_id}")
+    state = gas.get(f"gia://session/{session_id}")
     assert state.data["id"] == session_id
     assert state.state_revision == 0
     assert state.commands
 
-    locations = gas_runtime.search("locations", {"sector": 3}, session_id=session_id)
+    locations = gas.search("locations", {"sector": 3}, session_id=session_id)
     assert locations.data
     assert {item["sector"] for item in locations.data} == {3}
     assert locations.commands
 
 
 def test_gas_act_uses_capability_id_and_returns_next_local_set(gas_runtime):
-    session_id = gas_runtime.create_session().data["id"]
-    state = gas_runtime.get(f"gia://session/{session_id}")
+    _runtime, gas = gas_runtime
+    session_id = gas.create_session().data["id"]
+    state = gas.get(f"gia://session/{session_id}")
     capability = _command(state, "select_character", template_id="iryna")
 
-    result = gas_runtime.act(
+    result = gas.act(
         capability.id,
         state.state_revision,
         {"template_id": "iryna"},
@@ -72,83 +76,25 @@ def test_gas_act_uses_capability_id_and_returns_next_local_set(gas_runtime):
 
 
 def test_forged_action_name_in_input_cannot_influence_dispatch(gas_runtime):
-    session_id = gas_runtime.create_session().data["id"]
-    state = gas_runtime.get(f"gia://session/{session_id}")
+    runtime, gas = gas_runtime
+    session_id = gas.create_session().data["id"]
+    state = gas.get(f"gia://session/{session_id}")
     capability = _command(state, "select_character", template_id="iryna")
 
-    with pytest.raises(InvalidParameterError):
-        gas_runtime.act(
+    with pytest.raises(GasInvalidInputError):
+        gas.act(
             capability.id,
             state.state_revision,
             {"template_id": "iryna", "action": "start_mission"},
             "gas-test-forged-input",
             session_id=session_id,
         )
-    assert gas_runtime.ctx.get_session(session_id).state_revision == 0
-
-
-def test_legacy_and_gas_adapters_reach_equivalent_state():
-    typed_runtime = GameRuntime()
-    legacy_runtime = GameRuntime()
-    try:
-        typed = GasRuntime(typed_runtime)
-        gas_session = typed.create_session().data["id"]
-        legacy_session = legacy_runtime.create_session().data["id"]
-        legacy = JsonGameRuntimeAdapter(legacy_runtime, session_id=legacy_session)
-
-        for template_id in ("iryna", "chuck"):
-            state = typed.get(f"gia://session/{gas_session}")
-            capability = _command(state, "select_character", template_id=template_id)
-            typed.act(
-                capability.id,
-                state.state_revision,
-                {"template_id": template_id},
-                f"gas-equivalence-{template_id}",
-                session_id=gas_session,
-            )
-            legacy_state = json.loads(legacy.get("session", session_id=legacy_session))
-            revision = legacy_state["state_revision"]
-            json.loads(
-                legacy.act(
-                    "select_character",
-                    json.dumps({"template_id": template_id}),
-                    session_id=legacy_session,
-                    expected_revision=revision,
-                )
-            )
-
-        gas_state = typed.get(f"gia://session/{gas_session}")
-        gas_start = _command(gas_state, "start_mission")
-        typed.act(
-            gas_start.id,
-            gas_state.state_revision,
-            {},
-            "gas-equivalence-start",
-            session_id=gas_session,
-        )
-        legacy_state = json.loads(legacy.get("session", session_id=legacy_session))
-        json.loads(
-            legacy.act(
-                "start_mission",
-                "{}",
-                session_id=legacy_session,
-                expected_revision=legacy_state["state_revision"],
-            )
-        )
-
-        assert typed_runtime.ctx.get_session(gas_session).phase == legacy_runtime.ctx.get_session(legacy_session).phase
-        assert typed_runtime.ctx.get_session(gas_session).round_number == legacy_runtime.ctx.get_session(legacy_session).round_number
-        assert len(typed_runtime.ctx.db.get_session_characters(gas_session)) == len(
-            legacy_runtime.ctx.db.get_session_characters(legacy_session)
-        )
-    finally:
-        typed_runtime.ctx.db.close()
-        legacy_runtime.ctx.db.close()
+    assert runtime.ctx.get_session(session_id).state_revision == 0
 
 
 def test_search_pagination_is_stable_and_bounded():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime, max_page_size=2, max_commands=2)
+    gas = build_gas_service(runtime, max_page_size=2, max_commands=2)
     try:
         session_id = gas.create_session().data["id"]
         cursor = None
@@ -184,7 +130,7 @@ def test_search_pagination_is_stable_and_bounded():
 
 def test_cursor_reuse_after_revision_change_returns_stale_view():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime, max_page_size=1)
+    gas = build_gas_service(runtime, max_page_size=1)
     try:
         session_id = gas.create_session().data["id"]
         first = gas.search("locations", limit=1, session_id=session_id)
@@ -199,7 +145,7 @@ def test_cursor_reuse_after_revision_change_returns_stale_view():
             session_id=session_id,
         )
 
-        with pytest.raises(StaleViewError):
+        with pytest.raises(GasStaleViewError):
             gas.search("locations", cursor=first.next_cursor, limit=1, session_id=session_id)
     finally:
         runtime.ctx.db.close()
@@ -207,14 +153,14 @@ def test_cursor_reuse_after_revision_change_returns_stale_view():
 
 def test_cursor_reuse_after_policy_change_returns_stale_view():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime, max_page_size=1)
+    gas = build_gas_service(runtime, max_page_size=1)
     try:
         session_id = gas.create_session().data["id"]
         first = gas.search("locations", limit=1, session_id=session_id)
         assert first.next_cursor
         runtime.ctx.policy_provider.set_version("policy-v2")
 
-        with pytest.raises(StaleViewError):
+        with pytest.raises(GasStaleViewError):
             gas.search("locations", cursor=first.next_cursor, limit=1, session_id=session_id)
     finally:
         runtime.ctx.db.close()
@@ -222,7 +168,7 @@ def test_cursor_reuse_after_policy_change_returns_stale_view():
 
 def test_large_binding_sets_use_templates_and_a_bounded_page():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime, max_commands=5)
+    gas = build_gas_service(runtime, max_commands=5)
     try:
         template = next(iter(runtime.ctx._char_templates.values()))
         runtime.ctx._char_templates = {
@@ -243,7 +189,7 @@ def test_large_binding_sets_use_templates_and_a_bounded_page():
 
 def test_resource_local_capabilities_are_scoped_and_executable():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         response = gas.get(f"gia://character_template/iryna?session_id={session_id}")
@@ -266,7 +212,7 @@ def test_resource_local_capabilities_are_scoped_and_executable():
 
 def test_why_not_is_diagnostic_only():
     runtime = GameRuntime()
-    gas = GasRuntime(runtime)
+    gas = build_gas_service(runtime)
     try:
         session_id = gas.create_session().data["id"]
         response = gas.why_not(f"gia://session/{session_id}", "start_mission")

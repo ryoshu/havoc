@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 from openai import OpenAI
 
+from gia.server import GameRuntime
+from gia_core.errors import DomainError
+
 SYSTEM_PROMPT = """\
 You are the Gamesmaster (GM) for EAT THE REICH, a tabletop RPG about vampire commandos \
 in WWII Paris on a mission to kill Hitler.
@@ -115,8 +118,8 @@ TOOLS = [
 class AgentLoop:
     """Stateless agent loop — all game state lives in the backend."""
 
-    def __init__(self, server_module, session_id: str):
-        self.server = server_module
+    def __init__(self, runtime: GameRuntime, session_id: str):
+        self.runtime = runtime
         self.session_id = session_id
         self.client = OpenAI(
             base_url="http://localhost:11434/v1",
@@ -166,30 +169,48 @@ class AgentLoop:
                 })
 
     def _execute_tool(self, tool_call) -> str:
-        """Execute a tool call against the server module directly."""
+        """Execute a tool call against the runtime directly."""
         name = tool_call.function.name
         try:
             args = json.loads(tool_call.function.arguments)
         except json.JSONDecodeError:
             args = {}
 
-        if name == "get":
-            return self.server.get(
-                resource_type=args.get("resource_type", ""),
-                id=args.get("id", ""),
-                session_id=self.session_id,
-            )
-        elif name == "search":
-            return self.server.search(
-                resource_type=args.get("resource_type", "characters"),
-                filters=args.get("filters", "{}"),
-                session_id=self.session_id,
-            )
-        elif name == "act":
-            return self.server.act(
-                action=args.get("action", ""),
-                params=args.get("params", "{}"),
-                session_id=self.session_id,
-            )
-        else:
-            return json.dumps({"error": f"Unknown tool: {name}"})
+        try:
+            if name == "get":
+                result = self.runtime.get(
+                    resource_type=args.get("resource_type", ""),
+                    id=args.get("id", ""),
+                    session_id=self.session_id,
+                )
+            elif name == "search":
+                try:
+                    filters = json.loads(args.get("filters", "{}"))
+                except json.JSONDecodeError:
+                    filters = {}
+                result = self.runtime.search(
+                    resource_type=args.get("resource_type", "characters"),
+                    filters=filters,
+                    session_id=self.session_id,
+                )
+            elif name == "act":
+                try:
+                    params = json.loads(args.get("params", "{}"))
+                except json.JSONDecodeError:
+                    params = {}
+                # `GameRuntime.act` requires an explicit `expected_revision`
+                # for action-name dispatch — the deleted JSON compat path
+                # used to resolve this automatically.
+                revision = self.runtime.get("session", session_id=self.session_id).state_revision
+                result = self.runtime.act(
+                    action=args.get("action", ""),
+                    params=params,
+                    session_id=self.session_id,
+                    expected_revision=revision,
+                )
+            else:
+                return json.dumps({"error": f"Unknown tool: {name}"})
+        except DomainError as error:
+            return json.dumps({"error": str(error)})
+
+        return json.dumps(result.model_dump(mode="json", by_alias=True))

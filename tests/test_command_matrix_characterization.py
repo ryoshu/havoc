@@ -26,14 +26,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import get_args
 
 import pytest
 
-from src.gia.commands.kernel import registry as kernel_registry
-from src.gia.domain import UnavailableActionError
-from src.gia.models import GamePhase, InjuryState
-from src.gia.server import ActionName, GameRuntime
+from havoc_domain.kernel import registry as kernel_registry
+from gia_core.errors import UnavailableActionError
+from havoc_domain.models import GamePhase, InjuryState
+from gia.server import GameRuntime
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMMAND_MATRIX = json.loads(
@@ -106,14 +105,14 @@ def _force_phase(runtime: GameRuntime, phase: GamePhase) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_matrix_actions_match_the_action_name_literal_except_wait_for_rescue():
-    """wait_for_rescue is deliberately removed from the ActionName literal:
+def test_matrix_actions_match_the_registered_commands_except_wait_for_rescue():
+    """wait_for_rescue is deliberately never registered in the kernel:
     see test_wait_for_rescue_is_deliberately_unregistered in
     tests/test_command_kernel.py for why PR 4 resolves the gap this way
     instead of preserving an advertised-but-undispatchable action."""
     matrix_actions = {entry["action"] for entry in COMMAND_MATRIX}
-    literal_actions = set(get_args(ActionName))
-    assert literal_actions == matrix_actions - {"wait_for_rescue"}
+    registered_actions = set(kernel_registry.names())
+    assert registered_actions == matrix_actions - {"wait_for_rescue"}
 
 
 @pytest.mark.parametrize(

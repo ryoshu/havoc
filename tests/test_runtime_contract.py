@@ -13,16 +13,15 @@ from pathlib import Path
 
 import pytest
 
-from src.gia.compat import JsonGameRuntimeAdapter
-from src.gia.domain import (
+from gia_core.errors import (
     InvalidInputError,
     InvalidParameterError,
     ResourceNotFoundError,
     StaleStateError,
     UnavailableActionError,
 )
-from src.gia.responses import ActionResponse, ResourceResponse
-from src.gia.server import GameRuntime
+from gia_core.responses import ActionResponse, ResourceResponse
+from gia.server import GameRuntime
 
 
 @pytest.fixture
@@ -272,17 +271,6 @@ def test_missing_resources_raise_typed_exceptions(runtime):
     }
 
 
-def test_json_adapter_preserves_legacy_success_and_error_payloads(runtime):
-    adapter = JsonGameRuntimeAdapter(runtime, session_id=runtime.session_id)
-
-    success = json.loads(adapter.search("locations", '{"sector": 3}'))
-    failure = json.loads(adapter.act("select_character", "{not-json"))
-
-    assert {item["sector"] for item in success["data"]} == {3}
-    assert "Malformed JSON in params" in failure["error"]
-    assert "select_character" in _actions(failure)
-
-
 def test_e2e_compatibility_helper_provisions_an_explicit_session():
     from tests.e2e_helpers import fresh_server
 
@@ -292,7 +280,7 @@ def test_e2e_compatibility_helper_provisions_an_explicit_session():
         assert state["data"]["id"] == session_id
         assert state["state_revision"] == 0
     finally:
-        adapter.ctx.db.close()
+        adapter.runtime.ctx.db.close()
 
 
 def test_pending_roll_survives_runtime_restart(tmp_path: Path):

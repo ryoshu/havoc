@@ -321,7 +321,7 @@ class HavocGiaApplication:
         context = request.request_context or self.request_context
         # Resolve through the tenant/scope guard before touching mutable
         # session state; diagnostics must not become an existence oracle
-        # across tenants (mirrors gas/runtime.py::GasRuntime.why_not).
+        # across tenants (mirrors gia_gas_adapter.adapter.GiaGasAdapter.why_not).
         session = self._assert_session_scope(sid, context)
         if not session:
             raise ResourceNotFoundError(
