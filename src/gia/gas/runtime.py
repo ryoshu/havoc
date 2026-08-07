@@ -7,18 +7,20 @@ to be re-derived by the GIA reference monitor at mutation time.
 
 from __future__ import annotations
 
-import base64
-import hashlib
-import json
-from collections import defaultdict
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
-from urllib.parse import parse_qs, unquote, urlparse
+
+from gas_protocol import cursor as _gas_cursor
+from gas_protocol import errors as _gas_errors
+from gas_protocol import pagination as _gas_pagination
+from gas_protocol import uri as _gas_uri
+from gas_protocol.contracts import Command as _GasCommand
 
 from ..capabilities import BindingTemplate, Capability, CapabilitySet, Link
-from ..capabilities.ids import canonical_json, compute_binding_key, compute_capability_id
+from ..capabilities.ids import compute_binding_key, compute_capability_id
 from ..commands.kernel import diagnose_command
 from ..domain import (
+    DomainError,
     InvalidInputError,
     ResourceNotFoundError,
     StaleStateError,
@@ -40,7 +42,25 @@ _RESOURCE_TYPES = {
     "enemy",
     "rules",
 }
-_CURSOR_VERSION = 1
+
+# GasRuntime is the deprecated, Havoc-coupled compatibility path (PR 15 of
+# the GIA/GAS 2.0 plan): its cursor/pagination/URI *mechanics* now delegate
+# to the independently-tested gas_protocol package, but it keeps raising
+# exactly the gia_core errors it always has (server.py's MCP tool wrapper
+# catches `DomainError` around every GAS call) rather than the new, separate
+# `gas_protocol.errors.GasError` hierarchy. This maps the narrow set of
+# gas_protocol errors those delegated calls can raise back to their
+# gia_core equivalent. Mapping GIA failures to *GAS's own* stable error
+# vocabulary for real is PR 16's job (the GiaGasAdapter), not this one's.
+_ERROR_MAP: dict[type[_gas_errors.GasError], type[DomainError]] = {
+    _gas_errors.InvalidInputError: InvalidInputError,
+    _gas_errors.StaleViewError: StaleViewError,
+}
+
+
+def _translate(error: _gas_errors.GasError) -> DomainError:
+    mapped = _ERROR_MAP.get(type(error), InvalidInputError)
+    return mapped(str(error), details=error.details)
 
 
 class GasRuntime:
@@ -474,15 +494,13 @@ class GasRuntime:
     ) -> tuple[CapabilitySet, int, bool]:
         scoped = self._recontextualize(capability_set, scope)
         commands = sorted(scoped.commands, key=lambda value: value.id)
-        if command_offset > len(commands):
-            raise InvalidInputError(
-                "Cursor offset is outside the capability set.",
-                details={"parameter": "cursor", "offset": command_offset},
+        try:
+            sliced = _gas_pagination.paginate_commands(
+                commands, offset=command_offset, limit=limit, max_page_size=self.max_commands
             )
-        page_size = min(limit or self.max_commands, self.max_commands)
-        page_commands = commands[command_offset : command_offset + page_size]
-        end = command_offset + len(page_commands)
-        has_more = end < len(commands)
+        except _gas_errors.GasError as error:
+            raise _translate(error) from error
+        has_more = sliced.has_more
         templates = self._binding_templates(commands) if has_more else []
         page = CapabilitySet(
             subject=scoped.subject,
@@ -491,55 +509,28 @@ class GasRuntime:
             policy_version=scoped.policy_version,
             complete=scoped.complete and not has_more and not force_incomplete,
             links=scoped.links,
-            commands=page_commands,
+            commands=sliced.commands,
             binding_templates=templates,
         )
-        return page, end, has_more
+        return page, sliced.end_offset, has_more
 
     @staticmethod
     def _binding_templates(commands: list[Capability]) -> list[BindingTemplate]:
-        grouped: dict[tuple[str, str | None], list[Capability]] = defaultdict(list)
-        for command in commands:
-            resource_type = command.target.resource_type if command.target else None
-            grouped[(command.command, resource_type)].append(command)
-        templates: list[BindingTemplate] = []
-        for (command_name, resource_type), values in sorted(grouped.items()):
-            if len(values) < 2:
-                continue
-            representative = values[0]
-            template_id = "tmpl-" + hashlib.sha256(
-                canonical_json({"command": command_name, "resource_type": resource_type, "schema": representative.input_schema}).encode()
-            ).hexdigest()[:24]
-            templates.append(
-                BindingTemplate(
-                    id=template_id,
-                    command=command_name,
-                    title=f"{representative.title} (discover a target, then bind this command)",
-                    target_resource_type=resource_type,
-                    input_schema=GasRuntime._compact_schema(representative.input_schema),
-                    constraints=representative.constraints,
-                    effects=representative.effects,
-                )
-            )
-        return templates
-
-    @staticmethod
-    def _compact_schema(schema: Any) -> dict:
-        if not isinstance(schema, Mapping):
-            return {}
-        compact: dict[str, Any] = {}
-        for key, value in schema.items():
-            if key in {"const", "enum", "default"}:
-                continue
-            if key == "properties" and isinstance(value, Mapping):
-                compact[key] = {name: GasRuntime._compact_schema(item) for name, item in value.items()}
-            elif isinstance(value, Mapping):
-                compact[key] = GasRuntime._compact_schema(value)
-            elif isinstance(value, list):
-                compact[key] = [GasRuntime._compact_schema(item) if isinstance(item, Mapping) else item for item in value]
-            else:
-                compact[key] = value
-        return compact
+        # gas_protocol.pagination.build_binding_templates constructs its own
+        # gas_protocol.contracts.{Command,BindingTemplate} pydantic models
+        # internally, which cannot accept GIA's Capability/EffectMetadata
+        # instances directly (pydantic does not coerce across unrelated
+        # model classes even when their fields match) — round-trip through
+        # dicts at this boundary instead of duplicating the grouping and
+        # schema-compaction algorithm here.
+        generic_commands = [
+            _GasCommand.model_validate(command.model_dump(mode="json")) for command in commands
+        ]
+        generic_templates = _gas_pagination.build_binding_templates(generic_commands)
+        return [
+            BindingTemplate.model_validate(template.model_dump(mode="json"))
+            for template in generic_templates
+        ]
 
     def _localize(
         self,
@@ -659,47 +650,27 @@ class GasRuntime:
         policy_version: str,
         query: Mapping[str, Any],
     ) -> dict[str, Any] | None:
-        if not cursor:
-            return None
-        payload = self._decode_cursor(cursor)
-        expected = {
-            "kind": kind,
-            "resource_type": resource_type,
-            "resource_id": resource_id,
-            "session_id": session_id,
-            "scope": scope.key,
-            "query": canonical_json(dict(query)),
-        }
-        for key, value in expected.items():
-            if payload.get(key) != value:
-                raise InvalidInputError(
-                    "Cursor does not match the requested view.",
-                    details={"parameter": "cursor"},
-                )
-        if payload.get("state_revision") != state_revision or payload.get("policy_version") != policy_version:
-            raise StaleViewError(
-                "The continuation cursor refers to an obsolete state or policy view.",
-                details={
-                    "expected_state_revision": payload.get("state_revision"),
-                    "current_state_revision": state_revision,
-                    "expected_policy_version": payload.get("policy_version"),
-                    "current_policy_version": policy_version,
-                },
+        try:
+            return _gas_cursor.prepare_cursor(
+                cursor,
+                kind=kind,
+                resource_type=resource_type,
+                resource_id=resource_id,
+                session_id=session_id,
+                scope=scope.key,
+                state_revision=state_revision,
+                policy_version=policy_version,
+                query=query,
             )
-        return payload
+        except _gas_errors.GasError as error:
+            raise _translate(error) from error
 
     @staticmethod
     def _decode_cursor(cursor: str) -> dict[str, Any]:
-        if not isinstance(cursor, str) or not cursor.strip():
-            raise InvalidInputError("cursor must be a non-empty token.", details={"parameter": "cursor"})
         try:
-            raw = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4))
-            payload = json.loads(raw.decode("utf-8"))
-        except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise InvalidInputError("cursor is not a valid continuation token.", details={"parameter": "cursor"}) from error
-        if not isinstance(payload, dict) or payload.get("version") != _CURSOR_VERSION:
-            raise InvalidInputError("cursor version is unsupported.", details={"parameter": "cursor"})
-        return payload
+            return _gas_cursor.decode_cursor(cursor)
+        except _gas_errors.GasError as error:
+            raise _translate(error) from error
 
     @staticmethod
     def _next_cursor(
@@ -715,21 +686,18 @@ class GasRuntime:
         data_offset: int,
         command_offset: int,
     ) -> str:
-        payload = {
-            "version": _CURSOR_VERSION,
-            "kind": kind,
-            "resource_type": resource_type,
-            "resource_id": resource_id,
-            "session_id": session_id,
-            "scope": scope.key,
-            "state_revision": state_revision,
-            "policy_version": policy_version,
-            "query": canonical_json(dict(query)),
-            "data_offset": data_offset,
-            "command_offset": command_offset,
-        }
-        raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+        return _gas_cursor.encode_cursor(
+            kind=kind,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            session_id=session_id,
+            scope=scope.key,
+            state_revision=state_revision,
+            policy_version=policy_version,
+            query=query,
+            data_offset=data_offset,
+            command_offset=command_offset,
+        )
 
     @staticmethod
     def _response(
@@ -779,36 +747,19 @@ class GasRuntime:
 
     @staticmethod
     def _parse_uri(resource_uri: str) -> tuple[str, str, str, dict[str, str]]:
-        if not isinstance(resource_uri, str) or not resource_uri.strip():
-            raise InvalidInputError(
-                "resource_uri must be a non-empty URI.",
-                details={"parameter": "resource_uri"},
-            )
-        parsed = urlparse(resource_uri)
-        if parsed.scheme != "gia" or not parsed.netloc:
-            raise InvalidInputError(
-                "resource_uri must use the gia:// scheme.",
-                details={"parameter": "resource_uri"},
-            )
-        resource_type = unquote(parsed.netloc)
+        try:
+            parsed = _gas_uri.parse_resource_uri(resource_uri, scheme="gia")
+        except _gas_errors.GasError as error:
+            raise _translate(error) from error
+        resource_type = parsed.resource_type
         if resource_type not in _RESOURCE_TYPES:
             raise InvalidInputError(
                 f"Unknown resource type: {resource_type}",
                 details={"resource_type": resource_type},
             )
-        segments = [unquote(part) for part in parsed.path.split("/") if part]
-        if len(segments) > 1:
-            raise InvalidInputError(
-                "resource_uri may contain only one resource id segment.",
-                details={"parameter": "resource_uri"},
-            )
-        resource_id = segments[0] if segments else ""
-        query_values = {
-            key: values[-1]
-            for key, values in parse_qs(parsed.query, keep_blank_values=False).items()
-            if values
-        }
-        session_id = query_values.get("session_id", "")
+        resource_id = parsed.resource_id
+        query_values = parsed.query
+        session_id = parsed.session_id
         if resource_type == "session" and not resource_id:
             raise InvalidInputError(
                 "A session URI must include a session id.",

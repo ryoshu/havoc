@@ -30,7 +30,14 @@ build-backend = "hatchling.build"
 # alongside `gia`, not just live as a source-tree-only namespace. Without
 # this, hatchling's src-layout default (a single package matching the
 # project name) would silently omit gia_core and `import gia.server` would
-# fail once installed. The other five target namespaces from
-# docs/gia2/DEPENDENCY-BOUNDARIES.md stay unpackaged — still empty
-# placeholders — per that doc's packaging note.
-packages = ["src/gia", "src/gia_core"]
+# fail once installed.
+#
+# `gas_protocol` (PR 15) is added proactively for the same reason, rather
+# than reactively after a broken install like gia_core was: PR 15's own
+# exit criteria is that GAS can be installed and imported without GIA, and
+# that claim isn't real until the wheel actually contains it.
+#
+# The other four target namespaces from docs/gia2/DEPENDENCY-BOUNDARIES.md
+# stay unpackaged — still empty placeholders — per that doc's packaging
+# note.
+packages = ["src/gia", "src/gia_core", "src/gas_protocol"]
