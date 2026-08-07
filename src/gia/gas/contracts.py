@@ -11,8 +11,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..capabilities import BindingTemplate, Capability, Link
-from ..models import DomainEvent
+from gia.capabilities import BindingTemplate, Capability, Link
+from gia_core.contracts import DomainEvent
 
 
 class GetRequest(BaseModel):

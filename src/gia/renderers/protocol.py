@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol, TypeVar
 
-from ..capabilities import CapabilitySet
+from gia.capabilities import CapabilitySet
 
 
 RenderedT = TypeVar("RenderedT")

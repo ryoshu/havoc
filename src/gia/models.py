@@ -1,234 +1,67 @@
-"""Pydantic models for the Eat the Reich TTRPG domain.
+"""Deprecated re-export shim (PR 18) — see ``src/havoc_domain/models.py``.
 
-``Affordance`` and ``DomainEvent`` moved to ``gia_core.contracts`` (PR
-14 of the GIA/GAS 2.0 plan) — neither ever referenced a Havoc concept. They
-are re-exported here so every existing ``from .models import Affordance,
-DomainEvent`` import keeps working unchanged.
+``Affordance`` and ``DomainEvent`` moved to ``gia_core.contracts`` (PR 14
+of the GIA/GAS 2.0 plan) — neither ever referenced a Havoc concept. Every
+other name here is concrete Havoc state, moved to ``havoc_domain.models``
+in PR 18. Both are re-exported here so every existing
+``from .models import ...``/``from gia.models import ...`` import keeps
+working unchanged; PR 19 migrates callers to import from the real homes
+directly.
 """
 
 from __future__ import annotations
 
-from enum import Enum
-from pydantic import BaseModel, Field
-
 from gia_core.contracts import Affordance, DomainEvent
+from havoc_domain.models import (
+    AbilityTemplate,
+    AdvanceTemplate,
+    CharacterState,
+    CharacterTemplate,
+    DecisionProvenance,
+    DecisionRecord,
+    DiceAllocation,
+    DiceRoll,
+    EnemyTemplate,
+    EquipmentState,
+    EquipmentTemplate,
+    GamePhase,
+    GameSession,
+    InjurySlotTemplate,
+    InjuryState,
+    LocationTemplate,
+    LootTemplate,
+    ObjectiveState,
+    ObjectiveTemplate,
+    SecondaryObjectiveTemplate,
+    SceneState,
+    Stat,
+    ThreatState,
+)
 
-
-# --- Enums ---
-
-class GamePhase(str, Enum):
-    setup = "setup"
-    exploration = "exploration"
-    engagement_pre_roll = "engagement_pre_roll"
-    engagement_post_roll = "engagement_post_roll"
-    between_scenes = "between_scenes"
-    downed = "downed"
-    last_stand = "last_stand"
-    mission_complete = "mission_complete"
-
-
-class Stat(str, Enum):
-    brawl = "brawl"
-    con = "con"
-    fix = "fix"
-    search = "search"
-    shoot = "shoot"
-    sneak = "sneak"
-    terrify = "terrify"
-
-
-class DiceAllocation(str, Enum):
-    objective = "objective"
-    threat = "threat"
-    defense = "defense"
-    feed = "feed"
-    special = "special"
-
-
-# --- Template / Immutable Models (loaded from JSON / graph) ---
-
-class AbilityTemplate(BaseModel):
-    name: str
-    description: str
-    cost: int = 0
-    bonus_condition: str | None = None
-    bonus_dice: int = 0
-    special: str | None = None
-
-
-class AdvanceTemplate(BaseModel):
-    name: str
-    description: str
-    cost: int = 0
-    bonus_condition: str | None = None
-    bonus_dice: int = 0
-
-
-class EquipmentTemplate(BaseModel):
-    name: str
-    bonus_condition: str | None = None
-    bonus_dice: int = 0
-    max_uses: int = 3
-    special_use: str | None = None
-    scavenger_roll: int | None = None
-
-
-class InjurySlotTemplate(BaseModel):
-    category: str  # "1-2", "3-4", "5-6"
-    minor: str
-    major: str
-    major_penalty: str
-
-
-class CharacterTemplate(BaseModel):
-    id: str
-    name: str
-    description: str
-    hooks: list[str] = Field(default_factory=list)
-    stats: dict[str, int]  # stat name -> value
-    abilities: list[AbilityTemplate] = Field(default_factory=list)
-    advances: list[AdvanceTemplate] = Field(default_factory=list)
-    equipment: list[EquipmentTemplate] = Field(default_factory=list)
-    injuries: dict[str, InjurySlotTemplate] = Field(default_factory=dict)
-    last_stand: str = ""
-    starting_blood: int = 0
-
-
-class EnemyTemplate(BaseModel):
-    id: str
-    name: str
-    description: str
-    threat: int
-    attack: int
-    challenge: int = 0
-    is_ubermensch: bool = False
-    solo: bool = False
-    special_rules: list[str] = Field(default_factory=list)
-    foreshadowing: list[str] = Field(default_factory=list)
-    blood_flavour: str | None = None
-
-
-class ObjectiveTemplate(BaseModel):
-    name: str
-    rating: int
-    challenge: int = 0
-
-
-class SecondaryObjectiveTemplate(BaseModel):
-    name: str
-    rating: int
-    reward: str = ""
-
-
-class LootTemplate(BaseModel):
-    name: str
-    bonus_condition: str | None = None
-    bonus_dice: int = 0
-    max_uses: int = 3
-
-
-class LocationTemplate(BaseModel):
-    id: str
-    name: str
-    sector: int
-    description: str
-    objective: ObjectiveTemplate
-    enemies: list[str] = Field(default_factory=list)  # enemy template IDs
-    loot: list[LootTemplate] = Field(default_factory=list)
-    secondary_objectives: list[SecondaryObjectiveTemplate] = Field(default_factory=list)
-    connections: list[str] = Field(default_factory=list)  # location IDs
-
-
-# --- Mutable State Models (stored in SQLite) ---
-
-class EquipmentState(BaseModel):
-    name: str
-    uses_remaining: int
-    bonus_condition: str | None = None
-    bonus_dice: int = 0
-    is_loot: bool = False
-
-
-class InjuryState(BaseModel):
-    category: str  # "1-2", "3-4", "5-6"
-    minor_marked: bool = False
-    major_marked: bool = False
-
-
-class CharacterState(BaseModel):
-    id: str
-    session_id: str
-    template_id: str
-    name: str
-    blood: int = 0
-    injuries: list[InjuryState] = Field(default_factory=list)
-    equipment: list[EquipmentState] = Field(default_factory=list)
-    unlocked_advances: list[str] = Field(default_factory=list)
-    flashback_used: bool = False
-    is_downed: bool = False
-    is_dead: bool = False
-    current_location_id: str | None = None
-
-
-class ThreatState(BaseModel):
-    enemy_id: str
-    name: str
-    current_rating: int
-    current_attack: int
-    base_attack: int
-    challenge: int = 0
-    is_defeated: bool = False
-
-
-class ObjectiveState(BaseModel):
-    name: str
-    current_rating: int
-    challenge: int = 0
-    is_completed: bool = False
-
-
-class SceneState(BaseModel):
-    id: str
-    session_id: str
-    location_id: str
-    active_threats: list[ThreatState] = Field(default_factory=list)
-    active_objectives: list[ObjectiveState] = Field(default_factory=list)
-    completed: bool = False
-
-
-class DiceRoll(BaseModel):
-    id: str
-    session_id: str
-    character_id: str
-    scene_id: str
-    pool_size: int
-    results: list[int] = Field(default_factory=list)
-    discarded: list[int] = Field(default_factory=list)
-    kept: list[int] = Field(default_factory=list)
-    allocations: dict[str, list[int]] = Field(default_factory=dict)
-    gm_pool_size: int = 0
-    gm_results: list[int] = Field(default_factory=list)
-    gm_discarded: list[int] = Field(default_factory=list)
-    gm_kept: list[int] = Field(default_factory=list)
-    timestamp: str = ""
-
-
-class GameSession(BaseModel):
-    id: str
-    tenant_id: str = "default"
-    policy_version: str = "policy-v1"
-    phase: GamePhase = GamePhase.setup
-    state_revision: int = 0
-    current_location_id: str | None = None
-    active_character_id: str | None = None
-    round_number: int = 0
-    scene_number: int = 0
-    created_at: str = ""
-
-
-# --- Decision provenance ---
-
-# Kept in a transport-independent package so persistence and graph renderers
-# share one versioned contract.  ``DecisionRecord`` remains an explicit 1.x
-# compatibility alias; it no longer describes hidden reasoning or causality.
-from .provenance.models import DecisionProvenance, DecisionRecord
+__all__ = [
+    "Affordance",
+    "DomainEvent",
+    "AbilityTemplate",
+    "AdvanceTemplate",
+    "CharacterState",
+    "CharacterTemplate",
+    "DecisionProvenance",
+    "DecisionRecord",
+    "DiceAllocation",
+    "DiceRoll",
+    "EnemyTemplate",
+    "EquipmentState",
+    "EquipmentTemplate",
+    "GamePhase",
+    "GameSession",
+    "InjurySlotTemplate",
+    "InjuryState",
+    "LocationTemplate",
+    "LootTemplate",
+    "ObjectiveState",
+    "ObjectiveTemplate",
+    "SecondaryObjectiveTemplate",
+    "SceneState",
+    "Stat",
+    "ThreatState",
+]

@@ -1,9 +1,17 @@
-"""Placeholder namespace for the Havoc (Eat the Reich) game domain.
+"""The Havoc (Eat the Reich) game domain (PR 18 of the GIA/GAS 2.0 plan).
 
-Empty on purpose: PR 13 (`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`)
-establishes this namespace without moving implementations. It will hold
-game state and commands, resource providers, repositories and transaction
-implementation, and game graph/ontology access, migrated out of
-`src/gia/domain.py`, `context.py`, `db.py`, `graph.py`, `models.py`, and
-the concrete command modules under `src/gia/commands/` in PR 18.
+The concrete implementation of the GIA application boundary
+(`gia_core.ports.ResourceProvider`/`CapabilityAuthority`) for Eat the
+Reich: game state and commands (`models.py`, `commands/`), the
+projector/dispatcher and execution service (`kernel.py`, `execution.py`),
+repositories and transaction implementation (`db.py`), game graph/ontology
+access (`graph.py`), game mechanics (`engine.py`), and the port
+implementation itself (`application.py`) plus the back-compat composition
+object (`runtime.py`). Moved here from `src/gia/domain.py`, `context.py`,
+`db.py`, `graph.py`, `models.py`, and the concrete command modules under
+`src/gia/commands/` — each of those old paths is now a thin re-export shim
+pointing back at the real module here. See
+`docs/gia2/DEPENDENCY-BOUNDARIES.md`'s PR 18 status for the full account,
+including why `GameRuntime` moved here while `src/gia/server.py` kept the
+module-level singleton/back-compat machinery.
 """

@@ -16,17 +16,18 @@ from gas_protocol import pagination as _gas_pagination
 from gas_protocol import uri as _gas_uri
 from gas_protocol.contracts import Command as _GasCommand
 
-from ..capabilities import BindingTemplate, Capability, CapabilitySet, Link
-from ..capabilities.ids import compute_binding_key, compute_capability_id
-from ..commands.kernel import diagnose_command
-from ..domain import (
+from gia.capabilities import BindingTemplate, Capability, CapabilitySet, Link
+from gia.capabilities.ids import compute_binding_key, compute_capability_id
+from gia.commands.kernel import diagnose_command
+from gia.policy import Scope
+from gia_core.errors import (
     DomainError,
     InvalidInputError,
     ResourceNotFoundError,
     StaleStateError,
     StaleViewError,
 )
-from ..policy import Scope
+
 from .contracts import GasActionResponse, GasResourceResponse, WhyNotResponse
 
 if TYPE_CHECKING:

@@ -68,9 +68,12 @@ build-backend = "hatchling.build"
 # additionally needs `gia`/`gia_gas_adapter`/`gas_protocol`, all of which
 # already ship.
 #
-# `havoc_domain` is the one remaining target namespace from
-# docs/gia2/DEPENDENCY-BOUNDARIES.md that stays unpackaged — still an empty
-# placeholder until PR 18 moves concrete Havoc game code into it.
+# `havoc_domain` (PR 18) ships for the same reason: it's no longer an empty
+# placeholder — it now holds the concrete Havoc game code (GameContext,
+# GameDB, GameGraph, HavocEngine, the command kernel/execution service, and
+# HavocGiaApplication) moved out of `src/gia/*`, which now hold only thin
+# re-export shims at the old import paths. This was the last of the six
+# target namespaces from docs/gia2/DEPENDENCY-BOUNDARIES.md to ship.
 packages = [
     "src/gia",
     "src/gia_core",
@@ -78,4 +81,5 @@ packages = [
     "src/gia_gas_adapter",
     "src/gas_mcp",
     "src/havoc_server",
+    "src/havoc_domain",
 ]

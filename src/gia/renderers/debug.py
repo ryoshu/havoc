@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ..capabilities import CapabilitySet
+from gia.capabilities import CapabilitySet
 
 
 class DebugRenderer:

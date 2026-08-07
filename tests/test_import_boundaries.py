@@ -8,6 +8,7 @@ checker logic.
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import sys
 from pathlib import Path
@@ -40,11 +41,31 @@ def test_bucket_for_matches_longest_prefix():
     assert checker.bucket_for("mcp.server") == "mcp_transport"
     assert checker.bucket_for("src.gia.context") == "havoc_domain"
     assert checker.bucket_for("src.gia.server") == "composition_root"
-    assert checker.bucket_for("src.gia.domain") == "kernel_transitional"
+    # `domain.py`/`models.py`/`commands.kernel`/`commands.execution`/
+    # `commands.schema` moved into the `havoc_domain` bucket in PR 18 — their
+    # real content now lives in `havoc_domain`; the `src.gia.*` paths are
+    # thin re-export shims (see BUCKET_PREFIXES' PR 18 module note).
+    assert checker.bucket_for("src.gia.domain") == "havoc_domain"
+    assert checker.bucket_for("src.gia.models") == "havoc_domain"
+    assert checker.bucket_for("src.gia.commands.kernel") == "havoc_domain"
+    assert checker.bucket_for("src.gia.commands.execution") == "havoc_domain"
+    assert checker.bucket_for("src.gia.commands.schema") == "havoc_domain"
+    assert checker.bucket_for("havoc_domain.engine") == "havoc_domain"
+    assert checker.bucket_for("havoc_domain.application") == "havoc_domain"
+    assert checker.bucket_for("havoc_domain.runtime") == "havoc_domain"
+    # `commands.base`/`commands.registry` are still pure `gia_core`
+    # re-export shims (PR 14) — they stay in kernel_transitional, not
+    # havoc_domain, since they never held Havoc-specific content.
+    assert checker.bucket_for("src.gia.commands.base") == "kernel_transitional"
+    assert checker.bucket_for("src.gia.commands.registry") == "kernel_transitional"
     # `src.gia.gas` (GasRuntime) joined kernel_transitional in PR 15: it's
     # the deprecated Havoc-coupled GAS compatibility path, not the clean
     # `gas_protocol` namespace — see BUCKET_PREFIXES' module note.
     assert checker.bucket_for("src.gia.gas.runtime") == "kernel_transitional"
+    # `gia_core.approval_workflow` (PR 18's second, Havoc-free domain) is
+    # ordinary `gia_core` content — no special-casing needed.
+    assert checker.bucket_for("src.gia_core.approval_workflow") == "gia_core"
+    assert checker.bucket_for("gia_core.approval_workflow") == "gia_core"
     assert checker.bucket_for("src.agent.loop") is None
 
 
@@ -60,6 +81,53 @@ def test_bucket_for_also_matches_installed_package_names():
     assert checker.bucket_for("gas_mcp.install") == "mcp_transport"
     assert checker.bucket_for("havoc_domain.engine") == "havoc_domain"
     assert checker.bucket_for("havoc_server.main") == "composition_root"
+
+
+def test_bare_legacy_submodule_imports_are_not_silently_unbucketed():
+    """Regression test (found in review after PR 18 first shipped): the
+    bare/prefixed duality applies one level down too, to every individual
+    `src.gia.<submodule>` path, not just the six top-level names.
+
+    `gia` is bare-importable *today*, not only once packaged/installed (see
+    BUCKET_PREFIXES' module note), and every file under `src/havoc_domain/`
+    imports its `gia.*` siblings bare unconditionally. A bucket entry for
+    only the `src.gia.X` prefixed form of one of these submodules means
+    `bucket_for()` returns `None` for the bare form, and
+    `check_boundaries()` silently skips any import whose target bucket is
+    `None` — so a forbidden edge written with a bare import sails through
+    undetected. This first surfaced as `gia_core`'s bucket listing only
+    `src.gia.{capabilities,policy,provenance}`, not their bare `gia.*`
+    equivalents (see `test_forbidden_edge_via_bare_legacy_import_is_detected`
+    below for the exact shape of violation that produced)."""
+    assert checker.bucket_for("gia.capabilities.models") == "gia_core"
+    assert checker.bucket_for("gia.policy") == "gia_core"
+    assert checker.bucket_for("gia.provenance") == "gia_core"
+    assert checker.bucket_for("gia.context") == "havoc_domain"
+    assert checker.bucket_for("gia.domain") == "havoc_domain"
+    assert checker.bucket_for("gia.models") == "havoc_domain"
+    assert checker.bucket_for("gia.commands.kernel") == "havoc_domain"
+    assert checker.bucket_for("gia.commands.execution") == "havoc_domain"
+    assert checker.bucket_for("gia.commands.schema") == "havoc_domain"
+    assert checker.bucket_for("gia.server") == "composition_root"
+    assert checker.bucket_for("gia.renderers.native_mcp") == "mcp_transport"
+    assert checker.bucket_for("gia.commands.base") == "kernel_transitional"
+    assert checker.bucket_for("gia.gas.runtime") == "kernel_transitional"
+
+
+def test_forbidden_edge_via_bare_legacy_import_is_detected(tmp_path):
+    """The exact regression this reports: a `gas_protocol -> gia_core` edge
+    written as a bare `from gia.capabilities import ...` (rather than
+    `from src.gia.capabilities import ...`) must be caught, not silently
+    pass because the bare form wasn't in the bucket map."""
+    src_root = tmp_path / "src" / "gas_protocol"
+    src_root.mkdir(parents=True)
+    (src_root / "forbidden.py").write_text("from gia.capabilities import CapabilitySet\n")
+
+    violations = checker.check_boundaries(tmp_path / "src")
+
+    assert len(violations) == 1
+    assert violations[0].target_bucket == "gia_core"
+    assert (violations[0].source_bucket, violations[0].target_bucket) in checker.FORBIDDEN_EDGES
 
 
 @pytest.mark.parametrize(
@@ -127,6 +195,27 @@ def test_bucket_for_also_matches_installed_package_names():
             "import gas_protocol\n",
             "gas_protocol",
         ),
+        # GIA-to-game: the literal PR 18 exit criterion ("GIA core has no
+        # knowledge of characters, enemies, scenes, game phases, or the
+        # Havoc engine").
+        (
+            "src.gia_core.forbidden_havoc",
+            "from havoc_domain.context import GameContext\n",
+            "havoc_domain",
+        ),
+        # game-to-GAS: PR 18's target-state table row ("havoc-domain ...
+        # must not depend on GAS and MCP transport code").
+        (
+            "src.havoc_domain.forbidden_gas",
+            "from src.gas_protocol import GasService\n",
+            "gas_protocol",
+        ),
+        # game-to-MCP: same PR 18 table entry, the other half.
+        (
+            "src.havoc_domain.forbidden_mcp",
+            "import mcp\n",
+            "mcp_transport",
+        ),
     ],
 )
 def test_deliberately_forbidden_import_is_detected(
@@ -163,6 +252,12 @@ def test_deliberately_forbidden_import_is_detected(
         # gia_gas_adapter -> gas_protocol is allowed by the same table
         # entry — the adapter implements gas_protocol.backend.GasBackend.
         ("src.gia_gas_adapter.allowed_gas_protocol", "from src.gas_protocol import GasService\n"),
+        # havoc_domain -> gia_core is explicitly allowed (PR 18's
+        # target-state table: "havoc-domain | gia-core, domain
+        # infrastructure | ..."). `havoc_domain.application
+        # .HavocGiaApplication` implements `gia_core.ports` from the Havoc
+        # side — that's the whole point of PR 18, not a violation of it.
+        ("src.havoc_domain.allowed_gia_core", "from src.gia_core.errors import DomainError\n"),
     ],
 )
 def test_deliberately_allowed_import_is_not_flagged(tmp_path, source_module, source_code):
@@ -198,3 +293,62 @@ def test_main_returns_zero_on_clean_tree(tmp_path, capsys):
 
     assert exit_code == 0
     assert "OK" in capsys.readouterr().out
+
+
+# --- PR 18: forbidden game vocabulary in GIA core --------------------------
+#
+# PR 18's own Tests bullet names this as a distinct requirement, separate
+# from the import-boundary edges above: "repository checks for forbidden
+# game vocabulary and imports in GIA core." The import-boundary checker
+# already catches `gia_core -> havoc_domain` imports structurally; this is
+# the complementary lexical check — `gia_core` should never *name* a Havoc
+# concept as an identifier, even one reached without an import (e.g. a
+# duck-typed parameter called `character_id`).
+#
+# Scoped to AST identifiers (Name/Attribute/arg/def/import-alias), not raw
+# text, deliberately: several existing `gia_core` docstrings *discuss* Havoc
+# by name while explaining why the module doesn't depend on it (e.g.
+# `gia_core/errors.py`: "none of these ten classes ever referenced a Havoc
+# concept (characters, dice, blood, scenes)") — a substring scan over the
+# whole file would flag exactly the prose proving the property holds. AST
+# parsing naturally excludes comments (never nodes at all) and this walk
+# deliberately skips string/docstring `Constant` nodes, so only executable
+# identifiers are checked.
+FORBIDDEN_GAME_VOCABULARY: tuple[str, ...] = (
+    "character",
+    "enemy",
+    "havoc",
+    "vampire",
+    "scene",
+    "blood",
+    "injur",
+    "objective",
+    "dice",
+)
+
+
+def _identifiers(tree: ast.Module):
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            yield node.name
+        elif isinstance(node, ast.Name):
+            yield node.id
+        elif isinstance(node, ast.Attribute):
+            yield node.attr
+        elif isinstance(node, ast.arg):
+            yield node.arg
+        elif isinstance(node, ast.alias):
+            yield node.asname or node.name
+
+
+def test_gia_core_never_names_a_havoc_concept():
+    gia_core_root = REPO_ROOT / "src" / "gia_core"
+    violations = []
+    for py_file in sorted(gia_core_root.rglob("*.py")):
+        tree = ast.parse(py_file.read_text(), filename=str(py_file))
+        for identifier in _identifiers(tree):
+            lowered = identifier.lower()
+            for term in FORBIDDEN_GAME_VOCABULARY:
+                if term in lowered:
+                    violations.append(f"{py_file.relative_to(REPO_ROOT)}: {identifier!r} contains {term!r}")
+    assert violations == [], "\n".join(violations)
