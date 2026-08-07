@@ -37,7 +37,12 @@ build-backend = "hatchling.build"
 # exit criteria is that GAS can be installed and imported without GIA, and
 # that claim isn't real until the wheel actually contains it.
 #
-# The other four target namespaces from docs/gia2/DEPENDENCY-BOUNDARIES.md
+# `gia_gas_adapter` (PR 16) ships for the same proactive reason: it's no
+# longer an empty placeholder, and it imports both `gia_core` and `gia`
+# (`gia.capabilities`/`gia.policy`) at runtime — both already ship, so this
+# adds no new transitive gap.
+#
+# The other three target namespaces from docs/gia2/DEPENDENCY-BOUNDARIES.md
 # stay unpackaged — still empty placeholders — per that doc's packaging
 # note.
-packages = ["src/gia", "src/gia_core", "src/gas_protocol"]
+packages = ["src/gia", "src/gia_core", "src/gas_protocol", "src/gia_gas_adapter"]

@@ -54,7 +54,9 @@ def test_bucket_for_also_matches_installed_package_names():
     consumed as an installed package) — see BUCKET_PREFIXES' module note."""
     assert checker.bucket_for("gia_core.models") == "gia_core"
     assert checker.bucket_for("gas_protocol.contracts") == "gas_protocol"
-    assert checker.bucket_for("gia_gas_adapter.mapping") == "gas_protocol"
+    # `gia_gas_adapter` got its own bucket in PR 16 — unlike gas_protocol,
+    # it's allowed to depend on gia_core (see BUCKET_PREFIXES' PR 16 note).
+    assert checker.bucket_for("gia_gas_adapter.mapping") == "gia_gas_adapter"
     assert checker.bucket_for("gas_mcp.install") == "mcp_transport"
     assert checker.bucket_for("havoc_domain.engine") == "havoc_domain"
     assert checker.bucket_for("havoc_server.main") == "composition_root"
@@ -80,7 +82,7 @@ def test_bucket_for_also_matches_installed_package_names():
         ),
         # GAS-to-game: forbidden per the PR 13 exit criteria.
         (
-            "src.gia_gas_adapter.forbidden",
+            "src.gas_protocol.forbidden",
             "from src.gia.context import GameContext\n",
             "havoc_domain",
         ),
@@ -91,6 +93,22 @@ def test_bucket_for_also_matches_installed_package_names():
             "src.gas_protocol.forbidden_gia_core",
             "from src.gia_core.errors import DomainError\n",
             "gia_core",
+        ),
+        # adapter-to-game: forbidden per PR 16's dependency-rules table
+        # ("gia-gas-adapter | gia-core, gas-protocol | MCP, Havoc
+        # implementations, ..."). `gia_gas_adapter` got its own bucket in
+        # PR 16 specifically so this edge (which gas_protocol also
+        # forbids) is still caught after the split.
+        (
+            "src.gia_gas_adapter.forbidden",
+            "from src.gia.context import GameContext\n",
+            "havoc_domain",
+        ),
+        # adapter-to-MCP: forbidden per the same PR 16 table entry.
+        (
+            "src.gia_gas_adapter.forbidden_mcp",
+            "import mcp\n",
+            "mcp_transport",
         ),
         # GIA-to-MCP: forbidden per the PR 13 exit criteria. The fourth
         # named edge — GIA-to-GAS, GAS-to-MCP, and GAS-to-game are each
@@ -129,6 +147,35 @@ def test_deliberately_forbidden_import_is_detected(
     violation = violations[0]
     assert violation.target_bucket == expected_target_bucket
     assert (violation.source_bucket, violation.target_bucket) in checker.FORBIDDEN_EDGES
+
+
+@pytest.mark.parametrize(
+    ("source_module", "source_code"),
+    [
+        # gia_gas_adapter -> gia_core is explicitly allowed by PR 16's
+        # dependency-rules table ("gia-gas-adapter | gia-core,
+        # gas-protocol | ..."): the adapter's whole job is mapping
+        # CapabilityAuthority/ResourceProvider (gia_core.ports) results
+        # into gas_protocol shapes, so this is the one gia_core edge that
+        # must NOT be caught by the checker, unlike gas_protocol's own
+        # forbidden ("gas_protocol", "gia_core") edge from PR 15.
+        ("src.gia_gas_adapter.allowed_gia_core", "from src.gia_core.errors import DomainError\n"),
+        # gia_gas_adapter -> gas_protocol is allowed by the same table
+        # entry — the adapter implements gas_protocol.backend.GasBackend.
+        ("src.gia_gas_adapter.allowed_gas_protocol", "from src.gas_protocol import GasService\n"),
+    ],
+)
+def test_deliberately_allowed_import_is_not_flagged(tmp_path, source_module, source_code):
+    src_root = tmp_path / "src"
+    package_dir = src_root
+    for part in source_module.split(".")[1:-1]:
+        package_dir = package_dir / part
+    package_dir.mkdir(parents=True, exist_ok=True)
+    (package_dir / f"{source_module.rsplit('.', 1)[-1]}.py").write_text(source_code)
+
+    violations = checker.check_boundaries(src_root)
+
+    assert violations == [], "\n".join(str(v) for v in violations)
 
 
 def test_main_returns_nonzero_on_forbidden_import(tmp_path, capsys):
