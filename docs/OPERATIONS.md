@@ -61,7 +61,7 @@ uv run python -m havoc_server
 To launch the MCP Inspector against the module entry point:
 
 ```bash
-uv run mcp dev src/gia/server.py
+uv run mcp dev src/havoc_server/__main__.py
 ```
 
 `mcp dev` starts the server with the Inspector. The installed SDK does not

@@ -1,5 +1,7 @@
 # Release checklist
 
+**Owner:** `havoc` application integration (see [specification ownership](OWNERSHIP.md))
+
 Run this before cutting a release that touches `gia-core`, `gas-protocol`,
 `gia-gas-adapter`, `gas-mcp`, `havoc-domain`, `havoc-server`, or any of the
 five specifications in `docs/specs/`. Each item names the command or check
@@ -10,6 +12,9 @@ that answers it — this is a gate list, not a narrative.
 - [ ] `uv run python scripts/check_import_boundaries.py` passes — no
   forbidden dependency edge (`docs/gia2/DEPENDENCY-BOUNDARIES.md`'s
   target-state table).
+- [ ] `uv run python scripts/check_release_boundaries.py` passes — every
+  released cross-repository dependency has a declared owner, `0.2.x`
+  compatibility range, and CI gate.
 - [ ] `uv run pytest tests/ -q --ignore=tests/test_e2e_ollama.py
   --ignore=tests/test_e2e_ollama_stateless.py` is green, modulo already-
   documented pre-existing flakes (currently two ThreadPoolExecutor-based
@@ -21,6 +26,9 @@ that answers it — this is a gate list, not a narrative.
 - [ ] `uv run pytest tests/test_gas_conformance.py -v` is green (or skips
   only for the documented idempotency gap, `docs/specs/
   GAS-COMPATIBILITY.md` §2) across all five backends.
+- [ ] Downstream conformance cases use the published
+  `gas_protocol.conformance.GasConformanceHarness`; eval adapters remain
+  Havoc-owned and are not imported by `gas_protocol`.
 - [ ] A clean-venv wheel install (`uv build --wheel` + install into a
   fresh venv) imports the `havoc` application (`havoc_server`,
   `havoc_domain`, `playthrough`, `agent`, `demo`) and the four reusable

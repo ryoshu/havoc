@@ -213,7 +213,7 @@ uv run python -m playthrough.runner --characters iryna chuck --stateful
 uv run python -m havoc_server
 
 # MCP Inspector
-uv run mcp dev src/gia/server.py
+uv run mcp dev src/havoc_server/__main__.py
 ```
 
 ## The Core Insight

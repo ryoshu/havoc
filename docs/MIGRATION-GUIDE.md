@@ -1,5 +1,7 @@
 # Migrating to the separated GIA/GAS specifications
 
+**Owner:** `havoc` application integration (see [specification ownership](OWNERSHIP.md))
+
 **Applies to:** readers and callers oriented around the pre-PR-20
 documentation set (`docs/SUMMARY.md`, `docs/GIA-Talking-Points.md`,
 `docs/GIA-GAS-2.0-IMPLEMENTATION-PLAN.md`) or pre-PR-19 code
@@ -10,7 +12,8 @@ starting fresh, read `docs/specs/GIA-ARCHITECTURE.md`,
 
 ## 1. If you're migrating code
 
-This is a documentation-and-versioning PR; it changes no runtime code.
+The RS-10 documentation and packaging pass does not change application
+runtime behavior.
 The code-level migration — replacing `JsonGameRuntimeAdapter`/`GasRuntime`
 with `havoc_server.runtime.build_gas_service` — was already completed in PR 19
 and the RS-09 application cutover — and
@@ -63,9 +66,9 @@ gets you the union of both guarantee sets and none beyond it
   `docs/specs/GAS-COMPATIBILITY.md` §4 for the open distribution-split
   question this does not resolve.
 - `eval/`'s runtime code, response shapes, and DB schema are unchanged —
-  this PR's docs-only scope explicitly excludes them (see
-  `docs/specs/GAS-COMPATIBILITY.md` §1 for what the `eval/` conformance
-  shims added instead, without touching `eval/` itself).
+  RS-10 keeps them Havoc-owned (see `docs/specs/GAS-COMPATIBILITY.md` §1 for
+  what the published conformance harness and app-owned adapters exercise,
+  without changing `eval/` itself).
 - No new version-negotiation mechanism was added; contract version
   numbers are specification-text versions today, not a runtime-checked
   field (`docs/specs/GAS-COMPATIBILITY.md` §4).

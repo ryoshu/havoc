@@ -17,9 +17,9 @@ requires-python = ">=3.11"
 # runtime or
 # `havoc_domain`, only to actually run `havoc_server`.
 dependencies = [
-    "gia-core",
-    "gas-protocol",
-    "gia-gas-adapter",
+    "gia-core>=0.2,<0.3",
+    "gas-protocol>=0.2,<0.3",
+    "gia-gas-adapter>=0.2,<0.3",
     "openai>=1.0.0",
     "certifi>=2024.2.2",
     "pydantic>=2.0.0",
@@ -31,7 +31,7 @@ dependencies = [
 [project.optional-dependencies]
 mcp = [
     "mcp[cli]>=2.0,<3",
-    "gas-mcp[mcp]",
+    "gas-mcp[mcp]>=0.2,<0.3",
 ]
 # `test` pulls in the `mcp` extra (rather than just pytest) because the test
 # suite itself covers MCP transport (tests/test_mcp_v2.py, test_gas_mcp.py,

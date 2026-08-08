@@ -1,4 +1,4 @@
-"""PR 19 Part B: a GAS conformance suite reusable across backends.
+"""RS-10: a GAS conformance suite reusable across backends.
 
 The execution plan's PR 19 exit criteria (docs/GIA-GAS-SEPARATION-EXECUTION-
 PLAN.md) names this explicitly: "GAS conformance tests are reusable across
@@ -18,20 +18,19 @@ Per-backend specifics (which action to exercise, what its non-const inputs
 look like, which collection to search) are unavoidably domain knowledge —
 there is no way to pick "a mutating command" or "a searchable collection"
 without knowing the domain — so each backend contributes one
-``ConformanceCase`` naming them explicitly; everything else the tests do is
-generic across all five.
+``ConformanceCase`` naming them explicitly; the generic case model and
+service-driving helpers are published by ``gas_protocol.conformance`` so a
+downstream repository can run the same checks without importing this test
+tree. Everything else the tests do is generic across all five.
 """
 
 from __future__ import annotations
-
-from dataclasses import dataclass
-from typing import Any, Callable
 
 import pytest
 
 from gas_protocol import GasService
 from gas_protocol.backend import GasBackend
-from gas_protocol.contracts import Command
+from gas_protocol.conformance import ConformanceCase, GasConformanceHarness
 from gas_protocol.errors import InvalidInputError, ResourceNotFoundError, StaleStateError
 from gas_protocol.fake_backend import InMemoryGasBackend
 
@@ -40,16 +39,6 @@ from .gas_conformance.eval_adapters import (
     make_eval_cruise_backend,
     make_eval_pm_backend,
 )
-
-
-@dataclass(frozen=True)
-class ConformanceCase:
-    label: str
-    make_backend: Callable[[], GasBackend]
-    mutating_action: str
-    extra_input: dict[str, Any]
-    search_resource_type: str | None
-    supports_idempotent_retry: bool
 
 
 def _make_havoc_backend() -> GasBackend:
@@ -117,36 +106,23 @@ CASES: list[ConformanceCase] = [
 CASE_IDS = [case.label for case in CASES]
 
 
-def _consts_from_schema(schema: dict) -> dict[str, Any]:
-    properties = schema.get("properties", schema)
-    return {
-        name: spec["const"]
-        for name, spec in properties.items()
-        if isinstance(spec, dict) and "const" in spec
-    }
-
-
-def _find_command(commands: list[Command], action: str) -> Command:
-    return next(command for command in commands if command.command == action)
-
-
-def _mutate(case: ConformanceCase, service: GasService, session_id: str, revision: int, command: Command, idempotency_key: str):
-    params = {**_consts_from_schema(command.input_schema), **case.extra_input}
-    return service.act(command.id, revision, params, idempotency_key, session_id=session_id)
-
-
 @pytest.fixture(params=CASES, ids=CASE_IDS)
 def case(request) -> ConformanceCase:
     return request.param
 
 
 @pytest.fixture
-def service(case: ConformanceCase) -> GasService:
-    return GasService(case.make_backend())
+def harness(case: ConformanceCase) -> GasConformanceHarness:
+    return GasConformanceHarness(case)
 
 
-def test_backend_conforms_to_the_gas_backend_protocol(case: ConformanceCase):
-    assert isinstance(case.make_backend(), GasBackend)
+@pytest.fixture
+def service(harness: GasConformanceHarness) -> GasService:
+    return harness.make_service()
+
+
+def test_backend_conforms_to_the_gas_backend_protocol(harness: GasConformanceHarness):
+    assert isinstance(harness.make_backend(), GasBackend)
 
 
 def test_create_session_returns_a_well_formed_view(service: GasService):
@@ -174,23 +150,35 @@ def test_search_returns_a_view_without_erroring(case: ConformanceCase, service: 
     assert isinstance(result.data, list)
 
 
-def test_act_happy_path_commits_and_advances_revision(case: ConformanceCase, service: GasService):
+def test_act_happy_path_commits_and_advances_revision(
+    harness: GasConformanceHarness, service: GasService
+):
     created = service.create_session()
     session_id = created.data["id"]
-    command = _find_command(created.commands, case.mutating_action)
+    command = harness.find_command(created.commands)
 
-    result = _mutate(case, service, session_id, created.state_revision, command, "conformance-act")
+    result = harness.act(
+        service, session_id, created.state_revision, command, "conformance-act"
+    )
 
     assert result.state_revision == created.state_revision + 1
 
 
-def test_act_rejects_a_stale_expected_revision(case: ConformanceCase, service: GasService):
+def test_act_rejects_a_stale_expected_revision(
+    harness: GasConformanceHarness, service: GasService
+):
     created = service.create_session()
     session_id = created.data["id"]
-    command = _find_command(created.commands, case.mutating_action)
+    command = harness.find_command(created.commands)
 
     with pytest.raises(StaleStateError):
-        _mutate(case, service, session_id, created.state_revision + 1, command, "conformance-stale")
+        harness.act(
+            service,
+            session_id,
+            created.state_revision + 1,
+            command,
+            "conformance-stale",
+        )
 
 
 def test_act_on_an_unknown_session_is_rejected_as_resource_not_found(case: ConformanceCase, service: GasService):
@@ -225,7 +213,9 @@ def test_act_rejects_a_capability_id_that_is_not_currently_offered(case: Conform
         )
 
 
-def test_act_rejects_a_forged_suffix_on_an_otherwise_valid_action_name(case: ConformanceCase, service: GasService):
+def test_act_rejects_a_forged_suffix_on_an_otherwise_valid_action_name(
+    harness: GasConformanceHarness, service: GasService
+):
     """A capability_id must be validated in full, not just its action-name
     prefix. Regression test: the eval GasBackend adapters mint ids as
     "<action>::<opaque-token>" so act() can recover which action to
@@ -236,15 +226,14 @@ def test_act_rejects_a_forged_suffix_on_an_otherwise_valid_action_name(case: Con
     (covered above)."""
     created = service.create_session()
     session_id = created.data["id"]
-    command = _find_command(created.commands, case.mutating_action)
+    command = harness.find_command(created.commands)
     forged_id = f"{command.command}::forged-suffix-not-a-real-target"
-    params = {**_consts_from_schema(command.input_schema), **case.extra_input}
 
     with pytest.raises(InvalidInputError):
         service.act(
             forged_id,
             created.state_revision,
-            params,
+            harness.mutation_input(command),
             "conformance-forged-suffix",
             session_id=session_id,
         )
@@ -260,10 +249,12 @@ def test_why_not_reports_an_unavailable_command(service: GasService):
     assert response.commands == []
 
 
-def test_act_is_idempotent_on_retry(case: ConformanceCase, service: GasService):
-    if not case.supports_idempotent_retry:
+def test_act_is_idempotent_on_retry(
+    harness: GasConformanceHarness, service: GasService
+):
+    if not harness.case.supports_idempotent_retry:
         pytest.skip(
-            f"{case.label}'s enforced-mode contract has no idempotency_key "
+            f"{harness.case.label}'s enforced-mode contract has no idempotency_key "
             "support (eval.gas_server.contracts.EnforcedGasMixin.act_enforced "
             "does not accept one) — a real, pre-existing gap relative to the "
             "full GasBackend contract, out of scope for PR 19 Part B's "
@@ -271,10 +262,14 @@ def test_act_is_idempotent_on_retry(case: ConformanceCase, service: GasService):
         )
     created = service.create_session()
     session_id = created.data["id"]
-    command = _find_command(created.commands, case.mutating_action)
+    command = harness.find_command(created.commands)
 
-    first = _mutate(case, service, session_id, created.state_revision, command, "conformance-idem")
-    second = _mutate(case, service, session_id, created.state_revision, command, "conformance-idem")
+    first = harness.act(
+        service, session_id, created.state_revision, command, "conformance-idem"
+    )
+    second = harness.act(
+        service, session_id, created.state_revision, command, "conformance-idem"
+    )
 
     assert first.state_revision == second.state_revision
     assert first.data == second.data
