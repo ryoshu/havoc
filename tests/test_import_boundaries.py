@@ -52,6 +52,14 @@ def test_extracted_gas_protocol_tree_has_no_boundary_violations():
     assert violations == [], "\n".join(str(v) for v in violations)
 
 
+def test_extracted_gia_gas_adapter_tree_has_no_boundary_violations():
+    adapter_root = REPO_ROOT / "packages" / "gia-gas-adapter" / "gia_gas_adapter"
+    assert adapter_root.is_dir()
+    assert not adapter_root.is_symlink(), "RS-07 must own real source files"
+    violations = checker.check_boundaries(adapter_root)
+    assert violations == [], "\n".join(str(v) for v in violations)
+
+
 def test_default_checker_covers_extracted_workspace_trees():
     assert checker.check_repository_boundaries() == []
 

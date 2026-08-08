@@ -50,10 +50,10 @@ test = [
 
 [tool.uv.sources]
 # Resolve the four `packages/*` workspace members from the local monorepo
-# tree rather than PyPI (RS-04, docs/GIA-REPOSITORY-SPLIT-PLAN.md). Each
-# member's own `packages/*/pyproject.toml` symlinks back to the real
-# `src/<name>` source — see that file's comment for why a symlink and not a
-# relative path.
+# tree rather than PyPI (RS-04, docs/GIA-REPOSITORY-SPLIT-PLAN.md). The
+# remaining `gas-mcp` member uses the RS-04 symlink staging layout until
+# RS-08; gia-core, gas-protocol, and gia-gas-adapter now own their source
+# under `packages/*` directly.
 gia-core = { workspace = true }
 gas-protocol = { workspace = true }
 gia-gas-adapter = { workspace = true }
