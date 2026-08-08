@@ -8,8 +8,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from src.agent.loop import AgentLoop
-from gia.server import GameRuntime
+from agent.loop import AgentLoop
+from havoc_server.runtime import GameRuntime
 
 console = Console()
 

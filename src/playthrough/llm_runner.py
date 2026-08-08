@@ -17,7 +17,7 @@ import time
 
 from openai import APITimeoutError, InternalServerError, OpenAI
 
-from gia.server import GameRuntime
+from havoc_server.runtime import GameRuntime
 
 from .config import NarrativeBeat
 

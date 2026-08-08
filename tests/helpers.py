@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from gia_core.policy import Actor, RequestContext
-from gia.server import GameRuntime
+from havoc_server.runtime import GameRuntime
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "gia_gas_pr13"
 

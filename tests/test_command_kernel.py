@@ -34,7 +34,7 @@ from havoc_domain.kernel import dispatch as kernel_dispatch
 from havoc_domain.kernel import project_affordances, registry
 from gia_core.errors import DomainError, StaleStateError
 from havoc_domain.models import GamePhase, InjuryState
-from gia.server import GameRuntime
+from havoc_server.runtime import GameRuntime
 
 ACTOR = Actor(subject="system")
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -346,8 +346,8 @@ def test_deterministic_playthrough_completes_through_the_kernel():
     This is the PR 4 analogue of "compare legacy vs. kernel playthroughs":
     there is only the kernel path left, so this instead proves that full
     path is sound end to end, not just per-action in isolation."""
-    from src.playthrough.config import PlaythroughStrategy
-    from src.playthrough.director import Director
+    from playthrough.config import PlaythroughStrategy
+    from playthrough.director import Director
 
     runtime_core = GameRuntime()
     try:

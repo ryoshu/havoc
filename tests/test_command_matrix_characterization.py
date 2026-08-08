@@ -32,7 +32,7 @@ import pytest
 from havoc_domain.kernel import registry as kernel_registry
 from gia_core.errors import UnavailableActionError
 from havoc_domain.models import GamePhase, InjuryState
-from gia.server import GameRuntime
+from havoc_server.runtime import GameRuntime
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMMAND_MATRIX = json.loads(

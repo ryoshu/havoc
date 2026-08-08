@@ -1,3 +1,3 @@
-"""Allow `python -m src.playthrough`."""
-from src.playthrough.runner import main
+"""Allow ``python -m playthrough``."""
+from .runner import main
 main()

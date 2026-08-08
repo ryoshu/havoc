@@ -339,7 +339,7 @@ def test_facade_and_direct_service_paths_are_equivalent():
     session, then compares normalized capability sets, execute results, and
     provenance records.
     """
-    from gia.server import GameRuntime  # only test in this file that needs it
+    from havoc_server.runtime import GameRuntime
 
     runtime = GameRuntime()
     ctx_b = GameContext(":memory:")

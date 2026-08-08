@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from openai import OpenAI
 
-from gia.server import GameRuntime
+from havoc_server.runtime import GameRuntime
 from gia_core.errors import DomainError
 
 SYSTEM_PROMPT = """\

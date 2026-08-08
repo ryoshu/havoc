@@ -27,7 +27,7 @@ from havoc_domain.context import GameContext
 from havoc_domain.db import GameDB
 from gia_core.errors import IdempotencyConflictError, StaleStateError
 from havoc_domain.models import GamePhase, InjuryState
-from gia.server import GameRuntime
+from havoc_server.runtime import GameRuntime
 
 
 @pytest.fixture

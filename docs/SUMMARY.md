@@ -201,16 +201,16 @@ data/
 
 ```bash
 # Mechanical playthrough (no LLM, instant)
-uv run python -m src.playthrough.runner --characters iryna chuck --no-narrate
+uv run python -m playthrough.runner --characters iryna chuck --no-narrate
 
 # Narrated playthrough (stateless narrator)
-uv run python -m src.playthrough.runner --characters iryna chuck
+uv run python -m playthrough.runner --characters iryna chuck
 
 # Narrated playthrough (stateful narrator — continuity between beats)
-uv run python -m src.playthrough.runner --characters iryna chuck --stateful
+uv run python -m playthrough.runner --characters iryna chuck --stateful
 
 # MCP server (stdio; Streamable HTTP is documented in docs/OPERATIONS.md)
-uv run python -m src.gia.server
+uv run python -m havoc_server
 
 # MCP Inspector
 uv run mcp dev src/gia/server.py

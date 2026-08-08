@@ -21,7 +21,7 @@ from gia_core.errors import (
     UnavailableActionError,
 )
 from gia_core.responses import ActionResponse, ResourceResponse
-from gia.server import GameRuntime
+from havoc_server.runtime import GameRuntime
 
 
 @pytest.fixture

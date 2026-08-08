@@ -36,7 +36,7 @@ from gia_core.requests import (
     SearchResult,
 )
 
-from gia.server import GameRuntime, build_gas_service
+from havoc_server.runtime import GameRuntime, build_gas_service
 from gia_gas_adapter import GiaGasAdapter
 
 from .helpers import _command, normalize

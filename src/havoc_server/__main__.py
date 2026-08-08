@@ -1,8 +1,7 @@
 """Transport entry point for the Havoc GIA-GAS MCP server.
 
-Run with ``uv run python -m havoc_server``. Equivalent to the compatibility
-entry point ``uv run python -m src.gia.server``, which re-exports and
-delegates to this module.
+Run with ``python -m havoc_server``. This is the canonical application entry
+point after RS-09.
 """
 
 from __future__ import annotations

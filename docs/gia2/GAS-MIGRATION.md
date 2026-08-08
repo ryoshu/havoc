@@ -37,15 +37,15 @@ compatibility paths", `docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`) once a
 repository-wide usage search confirmed every first-party Director,
 playthrough, demo, agent, and test caller had migrated off them.
 
-The current, sole path is `gia.server.build_gas_service(runtime: GameRuntime)
+The current, sole path is `havoc_server.runtime.build_gas_service(runtime: GameRuntime)
 -> GasService`: it composes a `GiaGasAdapter` over the runtime's application
 ports and wraps it in `gas_protocol.service.GasService`. This is the exact
 composition the live MCP server (`havoc_server.app`) and the Director
-(`src.playthrough.director`) both build from — there is no separate
+(`playthrough.director`) both build from — there is no separate
 "legacy" or "GAS 2.0" adapter to choose between anymore.
 
 ```python
-from gia.server import GameRuntime, build_gas_service
+from havoc_server.runtime import GameRuntime, build_gas_service
 
 runtime = GameRuntime()
 gas = build_gas_service(runtime)

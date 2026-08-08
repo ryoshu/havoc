@@ -1,15 +1,9 @@
-"""Havoc composition object (PR 18) — moved from ``src/gia/server.py``.
+"""Concrete Eat the Reich game runtime.
 
-``GameRuntime`` is the thin delegating facade over the GIA application
-boundary (PR 14) that both the Director/playthrough runner (via
-``gia.server.build_gas_service``, PR 19) and the live MCP server
-(``havoc_server``, PR 17) build on. ``src/gia/server.py`` keeps the
-module-level singleton/back-compat machinery (the ``_runtime_cache``-backed
-default instance, ``build_gas_service``/``gas_service``, and the lazy
-``mcp``/``_allowed_hosts`` re-export) — moving *that* here too would risk
-reopening the dual-module-instance bug PR 17's postmortem fixed
-(``gia/_runtime_cache.py``), since every existing caller of
-``GameRuntime`` still imports it from ``gia.server``/``src.gia.server``.
+This module owns domain-specific state, persistence, and mechanics. The
+application-level GIA-to-GAS composition is separate in
+``havoc_server.runtime`` so the domain package remains independent of MCP
+transport and application wiring.
 """
 
 from __future__ import annotations
@@ -34,7 +28,8 @@ class GameRuntime:
     applicability, and mutation guarantee. This class's only job is
     building request DTOs and mapping their results back onto the existing
     `ResourceResponse`/`ActionResponse` wire shapes so every external
-    consumer (`gia.server.build_gas_service`'s `GasService`, `havoc_server`'s
+    consumer (`havoc_server.runtime.build_gas_service`'s `GasService`,
+    `havoc_server`'s
     MCP tools) keeps working unchanged.
     """
 

@@ -3,7 +3,7 @@
 The Director is a first-party GAS 2.0 consumer: it reads contextual
 capabilities, selects a capability ID, and sends only ``capability_id`` plus
 typed input to ``act``, via a ``gas_protocol.service.GasService`` built over
-``GameRuntime`` (``gia.server.build_gas_service``). It also keeps a direct
+``GameRuntime`` (``havoc_server.runtime.build_gas_service``). It also keeps a direct
 handle on the ``GameRuntime`` itself for phase/character bookkeeping reads
 (``.ctx``) that are legitimately Havoc-specific and outside the
 domain-neutral GAS surface.
@@ -11,7 +11,7 @@ domain-neutral GAS surface.
 
 from __future__ import annotations
 
-from gia.server import GameRuntime, build_gas_service
+from havoc_server.runtime import GameRuntime, build_gas_service
 
 from .config import NarrativeBeat, PlaythroughStrategy
 

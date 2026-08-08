@@ -1,19 +1,20 @@
 [project]
-name = "gia"
+name = "havoc"
 version = "0.2.0"
-description = "Affordance-driven TTRPG backend — Eat the Reich (Havoc Engine)"
+description = "Eat the Reich application built on GIA and GAS (Havoc Engine)"
 requires-python = ">=3.11"
 # RS-04 (docs/GIA-REPOSITORY-SPLIT-PLAN.md) turned this repo into a uv
 # workspace (`[tool.uv.workspace]` below): `gia_core`, `gas_protocol`,
 # `gia_gas_adapter`, and `gas_mcp` are now genuinely separate distributions
 # under `packages/*`, each built and installed in isolation by
 # `scripts/verify_wheel_isolation.py` before this root project's own build
-# is trusted. This root project is the Havoc composition root — the
-# eventual RS-09 `havoc` distribution — and depends on the first three
-# unconditionally: `havoc_domain`/`gia.server` import `gia_core` and
-# `gas_protocol` at module level, and `gia.server` builds a `GiaGasAdapter`
+# is trusted. This project is the Havoc application distribution. It depends
+# on the first three unconditionally: `havoc_domain`/`havoc_server.runtime`
+# import `gia_core` and `gas_protocol` at module level, and the runtime builds
+# a `GiaGasAdapter`
 # unconditionally too. `gas_mcp` stays behind the `mcp` extra below, same as
-# the `mcp` SDK itself — nothing here needs it merely to import `gia` or
+# the `mcp` SDK itself — nothing here needs it merely to import the Havoc
+# runtime or
 # `havoc_domain`, only to actually run `havoc_server`.
 dependencies = [
     "gia-core",
@@ -39,13 +40,13 @@ mcp = [
 # command (CLAUDE.md, docs/OPERATIONS.md); it must be sufficient to collect
 # and run the full suite. This does not weaken PR 17's "reusable cores
 # install without mcp" claim — that claim is about `gia_core`/`gas_protocol`/
-# `gia_gas_adapter`/bare `gia` with *no* extras installed, verified via a
+# `gia_gas_adapter`/the Havoc runtime with *no* extras installed, verified via a
 # clean-venv wheel install (see docs/gia2/DEPENDENCY-BOUNDARIES.md's "PR 17
 # status"), not about this dev-only test convenience group.
 test = [
     "pytest>=8.0.0",
     "pytest-timeout>=2.3.0",
-    "gia[mcp]",
+    "havoc[mcp]",
 ]
 
 [tool.uv.sources]
@@ -73,23 +74,16 @@ build-backend = "hatchling.build"
 # defeat the point of RS-04, which is proving each of those four installs
 # and imports in real isolation.
 #
-# `src/gia` (PR 14) ships because `havoc_server` and this project's own
-# entry points still depend on `gia.server`'s `GameRuntime`/
-# `build_gas_service` composition-root machinery (RS-09 will eventually
-# rename/relocate it into a Havoc-owned namespace, per the plan).
-#
-# `havoc_server` (PR 17) ships for the same reason as before: it needs
-# `gia`/`gia_gas_adapter`/`gas_protocol`, all of which already ship (the
-# last two now via the workspace-member dependency, not a bundled
-# directory), plus `gas_mcp` behind the `mcp` extra (see above).
-#
-# `havoc_domain` (PR 18) ships because it holds the concrete Havoc game
-# code (GameContext, GameDB, GameGraph, HavocEngine, the command
-# kernel/execution service, and HavocGiaApplication).
+# RS-09 makes this wheel the Havoc application distribution. It owns the
+# domain, composition root, native MCP renderer, playthrough runner, demo,
+# and agent CLI. The reusable cores arrive through their workspace-member
+# dependencies rather than being bundled here.
 packages = [
-    "src/gia",
     "src/havoc_server",
     "src/havoc_domain",
+    "src/playthrough",
+    "src/agent",
+    "src/demo",
 ]
 
 # P1 fix (review of RS-04, commit 997a070): the root wheel packaged only

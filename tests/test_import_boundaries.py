@@ -75,7 +75,7 @@ def test_default_checker_covers_extracted_workspace_trees():
 def test_bucket_for_matches_longest_prefix():
     assert checker.bucket_for("src.gia_core.capabilities.models") == "gia_core"
     assert checker.bucket_for("mcp.server") == "mcp_transport"
-    assert checker.bucket_for("src.gia.server") == "composition_root"
+    assert checker.bucket_for("src.havoc_server.runtime") == "composition_root"
     # PR 18 moved the concrete Havoc implementation into `havoc_domain`,
     # leaving thin `src.gia.*` re-export shims at the old paths; PR 19
     # deleted every one of those shims once first-party callers had
@@ -124,14 +124,15 @@ def test_bare_legacy_submodule_imports_are_not_silently_unbucketed():
     `src/gia_core/` outright with no shim left at the old `gia.*` path (see
     BUCKET_PREFIXES' RS-02 note), and RS-03 moved the MCP-dependent
     `gia.renderers.native_mcp` to `havoc_server.native_mcp` the same way, so
-    this test now covers the one path that still lives under `src/gia/`:
-    `gia.server`, plus `havoc_domain`'s own bare form."""
+    this test covers both repository and installed forms of the canonical
+    `havoc_server` composition root, plus `havoc_domain`'s own bare form."""
     assert checker.bucket_for("gia_core.capabilities.models") == "gia_core"
     assert checker.bucket_for("gia_core.policy") == "gia_core"
     assert checker.bucket_for("gia_core.provenance") == "gia_core"
     assert checker.bucket_for("havoc_domain.context") == "havoc_domain"
     assert checker.bucket_for("havoc_domain.commands.kernel") == "havoc_domain"
-    assert checker.bucket_for("gia.server") == "composition_root"
+    assert checker.bucket_for("havoc_server.runtime") == "composition_root"
+    assert checker.bucket_for("src.havoc_server.runtime") == "composition_root"
     assert checker.bucket_for("havoc_server.native_mcp") == "composition_root"
 
 

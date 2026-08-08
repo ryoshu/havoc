@@ -7,7 +7,7 @@ import anyio
 from mcp.client import Client
 from mcp.server import MCPServer
 
-from gia.server import GameRuntime, build_gas_service
+from havoc_server.runtime import GameRuntime, build_gas_service
 from gia_core.renderers import DebugRenderer
 from havoc_server.native_mcp import NativeMcpRenderer
 

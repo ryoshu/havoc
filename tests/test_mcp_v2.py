@@ -13,7 +13,8 @@ from mcp.server import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.shared.exceptions import MCPError
 
-from src.gia.server import _allowed_hosts, _configured_db_path, mcp
+from havoc_server.app import _allowed_hosts, mcp
+from havoc_server.runtime import _configured_db_path, gas_service
 
 
 def _text(result) -> dict:
@@ -136,29 +137,14 @@ def test_module_runtime_database_path_is_configurable(monkeypatch, tmp_path):
     assert _configured_db_path() == str(db_path)
 
 
-def test_legacy_json_path_and_mcp_share_the_canonical_module_runtime():
-    """Regression test for a PR 17 review finding.
+def test_runtime_and_mcp_share_the_canonical_application_runtime():
+    """The composition root has one runtime singleton after RS-09.
 
-    `gia.server` and `src.gia.server` are distinct module objects in this
-    repository's import setup (repo root and the editable install both put
-    `gia` on `sys.path`). Without `gia._runtime_cache` canonicalizing the
-    module-level singleton across that duality, a session created through
-    `src.gia.server.gas_service.create_session()` (backed by `_default`)
-    would not be visible to `src.gia.server.mcp` (re-exported from
-    `havoc_server`, which bare-imports `gia.server`) — surfacing as
-    `resource_not_found` instead of the session's state. (PR 19 removed the
-    legacy JSON `create_session`/`_legacy` path this test originally drove;
-    `gas_service` is the module-level singleton's replacement typed GAS
-    surface, built the same way at the same point in `server.py`.)
+    This guards the old PR-17 failure mode where two import spellings built
+    independent in-memory databases. The canonical runtime and MCP app now
+    resolve through ``havoc_server`` only.
     """
-    import gia.server as bare_server
-    from src.gia import server as prefixed_server
-
-    assert bare_server._default is prefixed_server._default
-    assert bare_server.ctx is prefixed_server.ctx
-    assert bare_server.gas_service is prefixed_server.gas_service
-
-    session = prefixed_server.gas_service.create_session().model_dump(mode="json")
+    session = gas_service.create_session().model_dump(mode="json")
     session_id = session["data"]["id"]
 
     async def _read_via_mcp() -> None:

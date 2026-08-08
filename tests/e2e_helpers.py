@@ -11,7 +11,7 @@ from typing import Mapping
 
 from openai import InternalServerError
 
-from gia.server import GameRuntime
+from havoc_server.runtime import GameRuntime
 from gia_core.errors import DomainError
 
 # ---------------------------------------------------------------------------

@@ -31,7 +31,7 @@ handler closure, publishes the command's input schema under `input`, and maps
 effect metadata to MCP annotations. The handler accepts only the execution
 envelope (`input`, `expected_revision`, `idempotency_key`, and `session_id`) and
 delegates to a caller-provided invoker such as the `GasService.act` produced by
-`gia.server.build_gas_service(runtime)` (PR 19 removed the old `GasRuntime.act`
+`havoc_server.runtime.build_gas_service(runtime)` (PR 19 removed the old `GasRuntime.act`
 this used to name).
 
 `NativeMcpRenderer`/`NativeMcpTool` live in `havoc_server.native_mcp` as of
@@ -45,7 +45,7 @@ and there was no second real consumer to justify a standalone reusable
 
 ```python
 from havoc_server.native_mcp import NativeMcpRenderer
-from gia.server import build_gas_service
+from havoc_server.runtime import build_gas_service
 
 gas_service = build_gas_service(runtime)
 renderer = NativeMcpRenderer()
@@ -70,4 +70,3 @@ renderer must be run again and the old server/tool registry retired. A native
 tool list therefore does not claim to be a permanent or globally complete
 action space. Renderers preserve policy semantics, but transport-specific
 limits such as MCP tool-name and payload budgets remain explicit.
-

@@ -22,10 +22,10 @@ that answers it — this is a gate list, not a narrative.
   only for the documented idempotency gap, `docs/specs/
   GAS-COMPATIBILITY.md` §2) across all five backends.
 - [ ] A clean-venv wheel install (`uv build --wheel` + install into a
-  fresh venv) still imports `gia`/`gia_core`/`gas_protocol`/
-  `gia_gas_adapter`/`havoc_domain`/`havoc_server` correctly, and
-  `gia_core`/`gas_protocol`/`gia_gas_adapter`/bare `gia` import without the
-  `mcp` extra installed.
+  fresh venv) imports the `havoc` application (`havoc_server`,
+  `havoc_domain`, `playthrough`, `agent`, `demo`) and the four reusable
+  workspace distributions correctly; the reusable cores and
+  `havoc_server.runtime` import without the `mcp` extra installed.
 
 ## Specification consistency
 

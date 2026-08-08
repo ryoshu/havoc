@@ -1,8 +1,7 @@
-"""PR 17: `havoc_server`, the Havoc GIA-GAS MCP composition root.
+"""RS-09: `havoc_server`, the Havoc GIA-GAS MCP composition root.
 
-Proves the new canonical entry point (`uv run python -m havoc_server`)
-works standalone — not just through the `src.gia.server` compatibility
-re-export `tests/test_mcp_v2.py` exercises — and that it runs on
+Proves the canonical entry point (`uv run python -m havoc_server`) works
+standalone and that it runs on
 `GiaGasAdapter`/`GasService` rather than the deprecated `GasRuntime`.
 """
 
@@ -17,7 +16,7 @@ import anyio
 
 from mcp.client import Client
 
-from src.gia.server import GameRuntime
+from havoc_server.runtime import GameRuntime
 from havoc_server.app import build_mcp_server
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -116,3 +115,23 @@ def test_importing_native_mcp_does_not_build_the_default_app_server():
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "False"
+
+
+def test_rs09_removes_the_legacy_gia_composition_module():
+    """The Havoc application has one canonical runtime namespace now."""
+    probe = (
+        "import importlib.util, sys\n"
+        "import havoc_server.runtime\n"
+        "print(importlib.util.find_spec('gia.server'))\n"
+        "print(any(name == 'gia.server' or name.startswith('gia.server.') for name in sys.modules))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=REPO_ROOT,
+        env={"PYTHONPATH": str(REPO_ROOT / "src")},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().splitlines() == ["None", "False"]

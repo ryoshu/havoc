@@ -8,8 +8,8 @@ installer needs no GIA or Havoc to function (the concrete MCP-transport
 instantiation of PR 15's "GIA is not required to implement GAS" claim).
 
 Also proves the packaging boundary PR 17 makes load-bearing for the first
-time: `gia_core`/`gas_protocol`/`gia_gas_adapter`/bare `gia` must import
-successfully with the `mcp` package entirely absent from `sys.modules`,
+time: `gia_core`/`gas_protocol`/`gia_gas_adapter` must import successfully
+with the `mcp` package entirely absent from `sys.modules`,
 and `gas_mcp` itself must never import a Havoc-domain module.
 """
 
@@ -148,8 +148,7 @@ def test_gas_mcp_does_not_import_havoc_domain():
         "import sys\n"
         "import gas_mcp\n"
         "forbidden_prefixes = ("
-        "'gia.server', 'gia.context', 'gia.db', 'gia.graph', 'gia.domain',\n"
-        "    'gia.application', 'gia.commands', 'havoc_domain', 'gia_core',\n"
+        "'havoc_server.runtime', 'havoc_domain', 'gia_core',\n"
         "    'havoc_server', 'gia_mcp',\n"
         ")\n"
         "hits = sorted(\n"
@@ -161,7 +160,7 @@ def test_gas_mcp_does_not_import_havoc_domain():
     assert _run_probe(probe) == []
 
 
-@pytest.mark.parametrize("module", ["gia_core", "gas_protocol", "gia_gas_adapter", "gia"])
+@pytest.mark.parametrize("module", ["gia_core", "gas_protocol", "gia_gas_adapter", "havoc_server.runtime"])
 def test_reusable_cores_do_not_import_mcp(module):
     """The claim `mcp` becoming an optional dependency (PR 17) makes real."""
     probe = (

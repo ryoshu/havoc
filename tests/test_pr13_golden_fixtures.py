@@ -35,7 +35,7 @@ from gas_protocol.errors import (
     StaleViewError as GasStaleViewError,
 )
 from gia_core.errors import PolicyChangedError, ScopeMismatchError
-from gia.server import GameRuntime, build_gas_service
+from havoc_server.runtime import GameRuntime, build_gas_service
 
 from .helpers import (
     FIXTURES_DIR,

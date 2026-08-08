@@ -29,7 +29,7 @@ from gia_core.capabilities import (
 )
 from gia_core.capabilities.legacy_effects import MUTATING_ACTIONS, READ_ONLY_ACTIONS
 from gia_core.contracts import Affordance
-from gia.server import GameRuntime
+from havoc_server.runtime import GameRuntime
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CAPABILITIES_DIR = REPO_ROOT / "src" / "gia" / "capabilities"

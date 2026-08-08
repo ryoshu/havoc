@@ -8,7 +8,7 @@ one of five ``GasBackend`` implementations:
 
 - ``InMemoryGasBackend`` — the domain-independent fake backend (PR 15).
 - Havoc/``GiaGasAdapter`` — the real game backend (PR 16), built the same
-  way ``gia.server.build_gas_service`` does.
+  way ``havoc_server.runtime.build_gas_service`` does.
 - Eval's PM, cruise, and automotive runtimes, in gas-enforced mode, through
   the test-only translation shims in ``tests/gas_conformance/eval_adapters.py``
   (per an explicit PR 19 Part B scoping decision, eval's own runtime code,
@@ -53,7 +53,7 @@ class ConformanceCase:
 
 
 def _make_havoc_backend() -> GasBackend:
-    from gia.server import GameRuntime
+    from havoc_server.runtime import GameRuntime
     from gia_gas_adapter import GiaGasAdapter
 
     runtime = GameRuntime()

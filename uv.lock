@@ -10,9 +10,9 @@ resolution-markers = [
 members = [
     "gas-mcp",
     "gas-protocol",
-    "gia",
     "gia-core",
     "gia-gas-adapter",
+    "havoc",
 ]
 
 [[package]]
@@ -280,53 +280,6 @@ dependencies = [
 requires-dist = [{ name = "pydantic", specifier = ">=2.0.0" }]
 
 [[package]]
-name = "gia"
-version = "0.2.0"
-source = { editable = "." }
-dependencies = [
-    { name = "certifi" },
-    { name = "gas-protocol" },
-    { name = "gia-core" },
-    { name = "gia-gas-adapter" },
-    { name = "openai" },
-    { name = "pydantic" },
-    { name = "pymupdf" },
-    { name = "pyoxigraph" },
-    { name = "rich" },
-]
-
-[package.optional-dependencies]
-mcp = [
-    { name = "gas-mcp", extra = ["mcp"] },
-    { name = "mcp", extra = ["cli"] },
-]
-test = [
-    { name = "gas-mcp", extra = ["mcp"] },
-    { name = "mcp", extra = ["cli"] },
-    { name = "pytest" },
-    { name = "pytest-timeout" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "certifi", specifier = ">=2024.2.2" },
-    { name = "gas-mcp", extras = ["mcp"], marker = "extra == 'mcp'", editable = "packages/gas-mcp" },
-    { name = "gas-protocol", editable = "packages/gas-protocol" },
-    { name = "gia", extras = ["mcp"], marker = "extra == 'test'" },
-    { name = "gia-core", editable = "packages/gia-core" },
-    { name = "gia-gas-adapter", editable = "packages/gia-gas-adapter" },
-    { name = "mcp", extras = ["cli"], marker = "extra == 'mcp'", specifier = ">=2.0,<3" },
-    { name = "openai", specifier = ">=1.0.0" },
-    { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "pymupdf", specifier = ">=1.27.0" },
-    { name = "pyoxigraph", specifier = ">=0.4.0" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0.0" },
-    { name = "pytest-timeout", marker = "extra == 'test'", specifier = ">=2.3.0" },
-    { name = "rich", specifier = ">=13.0.0" },
-]
-provides-extras = ["mcp", "test"]
-
-[[package]]
 name = "gia-core"
 version = "0.2.0"
 source = { editable = "packages/gia-core" }
@@ -360,6 +313,53 @@ sdist = { url = "https://files.pythonhosted.org/packages/01/ee/02a2c011bdab74c6f
 wheels = [
     { url = "https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl", hash = "sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86", size = 37515, upload-time = "2025-04-24T03:35:24.344Z" },
 ]
+
+[[package]]
+name = "havoc"
+version = "0.2.0"
+source = { editable = "." }
+dependencies = [
+    { name = "certifi" },
+    { name = "gas-protocol" },
+    { name = "gia-core" },
+    { name = "gia-gas-adapter" },
+    { name = "openai" },
+    { name = "pydantic" },
+    { name = "pymupdf" },
+    { name = "pyoxigraph" },
+    { name = "rich" },
+]
+
+[package.optional-dependencies]
+mcp = [
+    { name = "gas-mcp", extra = ["mcp"] },
+    { name = "mcp", extra = ["cli"] },
+]
+test = [
+    { name = "gas-mcp", extra = ["mcp"] },
+    { name = "mcp", extra = ["cli"] },
+    { name = "pytest" },
+    { name = "pytest-timeout" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "certifi", specifier = ">=2024.2.2" },
+    { name = "gas-mcp", extras = ["mcp"], marker = "extra == 'mcp'", editable = "packages/gas-mcp" },
+    { name = "gas-protocol", editable = "packages/gas-protocol" },
+    { name = "gia-core", editable = "packages/gia-core" },
+    { name = "gia-gas-adapter", editable = "packages/gia-gas-adapter" },
+    { name = "havoc", extras = ["mcp"], marker = "extra == 'test'" },
+    { name = "mcp", extras = ["cli"], marker = "extra == 'mcp'", specifier = ">=2.0,<3" },
+    { name = "openai", specifier = ">=1.0.0" },
+    { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "pymupdf", specifier = ">=1.27.0" },
+    { name = "pyoxigraph", specifier = ">=0.4.0" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0.0" },
+    { name = "pytest-timeout", marker = "extra == 'test'", specifier = ">=2.3.0" },
+    { name = "rich", specifier = ">=13.0.0" },
+]
+provides-extras = ["mcp", "test"]
 
 [[package]]
 name = "httpcore"

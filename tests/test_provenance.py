@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from havoc_domain.graph import GameGraph
 from gia_core.provenance import REDACTED, capability_set_digest, redact_sensitive
-from gia.server import GameRuntime, build_gas_service
+from havoc_server.runtime import GameRuntime, build_gas_service
 
 
 def _select_capability(response, template_id: str):

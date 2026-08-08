@@ -1,19 +1,14 @@
-"""The Havoc composition root (PR 17 of the GIA/GAS separation plan).
+"""The Havoc composition root (RS-09 of the repository split plan).
 
 Wires configuration, the Havoc domain (`GameRuntime`), GIA (the
 `HavocGiaApplication` application boundary), the GIA-GAS adapter
 (`GiaGasAdapter`/`GasService`), and MCP transport (`gas_mcp`) together.
-This is the only module in the reusable cores allowed to import all of
-them at once — see the `composition_root` row of
-`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`'s dependency-rules table
-("havoc-server | all selected components | domain or policy behavior
-implemented directly in the composition root").
+This is the application composition root; reusable packages depend only on
+the lower-level contracts documented in the repository split plan.
 
 The live MCP server built here runs on `GiaGasAdapter`/`GasService`, via
-`gia.server.build_gas_service` (PR 19 promoted this composition out of a
-private inline block here into a shared, reusable function — the Director
-and playthrough runner build the same way now that the deprecated
-`GasRuntime` is gone). Capability-rejection errors therefore surface GAS's
+`havoc_server.runtime.build_gas_service`. Capability-rejection errors
+therefore surface GAS's
 own stable error vocabulary (e.g. `invalid_input`) rather than `gia_core`'s
 raw domain codes (e.g. `action_unavailable`) — a deliberate,
 already-documented translation (`gia_gas_adapter.adapter._ERROR_MAP`) that
@@ -30,8 +25,8 @@ from mcp.server import MCPServer
 from mcp.server.caching import CacheHint
 
 from gas_mcp import install_gas_mcp
-from gia.server import GameRuntime, build_gas_service
-from gia import server as _gia_server
+from . import runtime as _runtime
+from .runtime import GameRuntime, build_gas_service
 from havoc_domain.context import ONTOLOGY_PATH
 
 
@@ -43,19 +38,12 @@ def _resource_json(value: Any) -> str:
 def build_mcp_server(runtime: GameRuntime | None = None) -> tuple[MCPServer, GameRuntime]:
     """Build a GIA-backed GAS MCP server over ``runtime``.
 
-    Defaults to ``gia.server``'s own module-level singleton (`_default`) so
-    the module-level server built below shares the *same* runtime instance
-    other first-party callers (Director, playthrough) build their own
-    `GasService` over via `gia.server.build_gas_service` — two independently
-    constructed `GameRuntime`s would each open their own `:memory:` SQLite
-    database and silently diverge. `gia.server`'s singleton is itself
-    canonicalized across the `gia.server`/`src.gia.server` import-path
-    duality via `gia._runtime_cache` (see that module's docstring), so this
-    stays correct regardless of which spelling a caller used to reach
-    `gia.server` first. Callers that want an isolated server (tests) pass
-    their own `runtime`.
+    Defaults to the canonical Havoc runtime singleton
+    (``havoc_server.runtime._default``) so the module-level server shares the
+    same state as other first-party callers. Callers that want an isolated
+    server (tests) pass their own ``runtime``.
     """
-    runtime = runtime if runtime is not None else _gia_server._default
+    runtime = runtime if runtime is not None else _runtime._default
     service = build_gas_service(runtime)
 
     server = MCPServer(

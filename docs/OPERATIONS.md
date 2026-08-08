@@ -12,7 +12,7 @@ The project targets Python 3.11 or newer. MCP Python SDK v2
 (`mcp[cli]>=2.0,<3`) is an optional dependency (the `mcp` extra) so the
 reusable cores (`gia_core`, `gas_protocol`, `gia_gas_adapter`, and bare
 `gia`) install and import without it; the `test` extra above pulls it in
-transitively (`gia[mcp]`) because the test suite itself covers MCP
+transitively (`havoc[mcp]`) because the test suite itself covers MCP
 transport. To install just the MCP runtime without test tooling, use
 `uv sync --locked --extra mcp`.
 
@@ -39,7 +39,7 @@ transactional database before scaling horizontally.
 The default server entry point uses stdio:
 
 ```bash
-uv run python -m src.gia.server
+uv run python -m havoc_server
 ```
 
 For a stateless Streamable HTTP endpoint, set `MCP_TRANSPORT=streamable-http`.
@@ -55,7 +55,7 @@ MCP_HOST=127.0.0.1 \
 MCP_PORT=8000 \
 MCP_ALLOWED_HOSTS=127.0.0.1,localhost \
 GIA_DB_PATH=./gia.db \
-uv run python -m src.gia.server
+uv run python -m havoc_server
 ```
 
 To launch the MCP Inspector against the module entry point:

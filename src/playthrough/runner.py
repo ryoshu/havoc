@@ -16,7 +16,7 @@ import time
 
 from openai import OpenAI
 
-from gia.server import GameRuntime
+from havoc_server.runtime import GameRuntime
 
 from .config import PlaythroughStrategy
 from .context_builder import ContextBuilder

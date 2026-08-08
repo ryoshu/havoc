@@ -1,20 +1,9 @@
-"""The Havoc application composition root (PR 17 of the GIA/GAS separation plan).
+"""Havoc application package.
 
-Wires `havoc_domain`-bucket code (`gia.server.GameRuntime`, still living
-under `src/gia/` until PR 18), `gia_gas_adapter.GiaGasAdapter`,
-`gas_protocol.service.GasService`, and `gas_mcp` together, replacing
-`src/gia/server.py` as the actual MCP composition root. `src/gia/server.py`
-now re-exports `mcp` from here for backward compatibility.
-
-`_allowed_hosts`/`build_mcp_server`/`mcp` are re-exported lazily via module
-`__getattr__` (PEP 562), the same pattern `gia.server` already uses for its
-own `mcp`/`_allowed_hosts` re-export: importing `.app` eagerly here runs its
-module-level `mcp, _runtime = build_mcp_server()`, which opens a live
-`GameRuntime`/SQLite database as a side effect. RS-03
-(docs/GIA-REPOSITORY-SPLIT-PLAN.md) moved the native MCP renderer into this
-package as `havoc_server.native_mcp`; without this laziness, merely
-importing that renderer — which itself does not need a live server — would
-have silently booted the full application.
+The canonical runtime/composition lives in :mod:`havoc_server.runtime` and
+MCP registration/transport lives in :mod:`havoc_server.app`. App imports
+stay lazy here so importing the native renderer does not construct a live
+SQLite-backed MCP server as a side effect.
 """
 
 from __future__ import annotations

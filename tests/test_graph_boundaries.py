@@ -6,7 +6,7 @@ import pytest
 import pyoxigraph as ox
 
 from havoc_domain.graph import ETR, GameGraph
-from gia.server import GameRuntime
+from havoc_server.runtime import GameRuntime
 
 
 def test_graph_layers_and_structural_profile_are_explicit():

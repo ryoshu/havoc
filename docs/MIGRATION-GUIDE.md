@@ -12,7 +12,8 @@ starting fresh, read `docs/specs/GIA-ARCHITECTURE.md`,
 
 This is a documentation-and-versioning PR; it changes no runtime code.
 The code-level migration — replacing `JsonGameRuntimeAdapter`/`GasRuntime`
-with `gia.server.build_gas_service` — was already completed in PR 19 and
+with `havoc_server.runtime.build_gas_service` — was already completed in PR 19
+and the RS-09 application cutover — and
 is documented at the call-site level in `docs/gia2/GAS-MIGRATION.md`. If
 you still have a caller importing `src.gia.compat`, `src.gia.gas`, or any
 of the PR 18 `src/gia/*` re-export shims, those were deleted in PR 19; see
@@ -57,8 +58,8 @@ gets you the union of both guarantee sets and none beyond it
 
 ## 4. What did not change
 
-- The single Python distribution (`gia`, version `0.2.0`) and its
-  sub-package layout are unchanged by this PR — see
+- The root Python distribution is now `havoc`, version `0.2.0`; the reusable
+  components remain separate workspace distributions — see
   `docs/specs/GAS-COMPATIBILITY.md` §4 for the open distribution-split
   question this does not resolve.
 - `eval/`'s runtime code, response shapes, and DB schema are unchanged —
