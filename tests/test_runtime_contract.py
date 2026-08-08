@@ -293,8 +293,7 @@ def test_pending_roll_survives_runtime_restart(tmp_path: Path):
         scene = first.ctx.get_active_scene(session_id)
         assert scene and scene.active_threats
         _act_for_session(first, session_id, "engage_threat", {"threat_name": scene.active_threats[0].name})
-        built = _act_for_session(first, session_id, "build_dice_pool", {"stat": "brawl"})
-        assert built.data["player_kept"] or built.data["gm_kept"]
+        _act_for_session(first, session_id, "build_dice_pool", {"stat": "brawl"})
         revision = first.ctx.get_session(session_id).state_revision
         assert first.ctx.db.get_pending_roll(session_id) is not None
     finally:

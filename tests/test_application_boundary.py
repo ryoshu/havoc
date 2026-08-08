@@ -1,7 +1,7 @@
 """Tests for the GIA application boundary (PR 14 of the GIA/GAS 2.0 plan).
 
-Imports only `gia_core.*` (including `gia_core.policy`, moved from `gia.policy`
-by RS-02 — docs/GIA-REPOSITORY-SPLIT-PLAN.md) and the concrete Havoc-backed
+Imports only `gia_core.*` (including the policy namespace moved out of the
+legacy package by RS-02) and the concrete Havoc-backed
 implementation (`havoc_domain.application.HavocGiaApplication`,
 `havoc_domain.context.GameContext`) — never `gia.server`, `mcp`, or (since
 PR 19 removed it) `GasRuntime` — so this file itself is evidence for the exit
@@ -37,7 +37,7 @@ from gia_core.policy import Actor, RequestContext
 # `gia_core` through an *absolute* `from gia_core... import` (it has to:
 # `havoc_domain`/`gia`/`gia_core` are siblings in the installed wheel with
 # no shared parent package, so a relative import can't cross that boundary
-# — see docs/gia2/DEPENDENCY-BOUNDARIES.md's PR 14/18 status notes). That
+# — see the import-boundary checker and package manifests). That
 # binds the exception/DTO classes this test needs to compare/catch under
 # the bare `gia_core.*` identity in `sys.modules`. Importing them here as
 # `src.gia_core.*` instead would load a second, distinct copy of the same

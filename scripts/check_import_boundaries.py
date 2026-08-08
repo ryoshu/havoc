@@ -1,4 +1,4 @@
-"""PR 13 import-boundary checker (docs/gia2/DEPENDENCY-BOUNDARIES.md).
+"""Import-boundary checker for the separated repositories.
 
 Standalone CLI script (not a package under src/) so both `pytest` and
 `uv run python scripts/check_import_boundaries.py [path ...]` exercise the
@@ -10,7 +10,7 @@ target namespaces by its own module path, walks its `import`/`from ... import`
 statements, buckets each import target the same way, and flags any
 (source_bucket, target_bucket) pair that appears in FORBIDDEN_EDGES.
 
-RS-04..RS-09 (docs/GIA-REPOSITORY-SPLIT-PLAN.md) physically extracted
+RS-04..RS-09 physically extracted
 `gia_core`, `gas_protocol`, `gia_gas_adapter`, and `gas_mcp` out of this
 repository's `src/` tree into standalone `packages/*` distributions; this
 script now also has to bucket bare, uninstalled-adjacent imports (a package

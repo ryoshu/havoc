@@ -34,8 +34,8 @@ new gitlink in Havoc along with the compatible lockfile change.
 
 The project targets Python 3.11 or newer. MCP Python SDK v2
 (`mcp[cli]>=2.0,<3`) is an optional dependency (the `mcp` extra) so the
-reusable cores (`gia_core`, `gas_protocol`, `gia_gas_adapter`, and bare
-`gia`) install and import without it; the `test` extra above pulls it in
+reusable packages (`gia_core`, `gas_protocol`, and `gia_gas_adapter`) install
+and import without it; the `test` extra above pulls it in
 transitively (`havoc[mcp]`) because the test suite itself covers MCP
 transport. To install just the MCP runtime without test tooling, use
 `uv sync --locked --extra mcp`.
@@ -105,7 +105,7 @@ A client can still send any string or JSON payload on the wire. “Enforced”
 means those non-current capabilities are rejected at the server boundary, not
 that a language model is physically unable to produce malformed text.
 
-See `docs/specs/GIA-THREAT-MODEL.md` for the full boundary of what this
+See `packages/gia-core/docs/GIA-THREAT-MODEL.md` for the full boundary of what this
 guarantee does, and does not, cover.
 
 ## State, resources, and compatibility

@@ -33,7 +33,7 @@ and capability ID are still revalidated by the reference monitor.
 `JsonGameRuntimeAdapter` (JSON strings, action names, and flattened
 `affordances`) and its successor `GasRuntime` (a hand-rolled GAS 2.0
 implementation) were both removed in PR 19 ("Migrate callers and remove
-compatibility paths", `docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`) once a
+compatibility paths") once a
 repository-wide usage search confirmed every first-party Director,
 playthrough, demo, agent, and test caller had migrated off them.
 
@@ -74,7 +74,8 @@ scope it was minted against no longer matches the request returns the
 typed `invalid_input` error — the cursor was never valid for this request.
 Reusing one after only the state revision or policy version has since
 advanced returns the typed `stale_view` error; in that case clients should
-restart discovery. See `docs/specs/GAS-PROTOCOL.md` §7 for the full rule.
+restart discovery. See `packages/gas-protocol/docs/GAS-PROTOCOL.md` §7 for the
+full rule.
 
 `why_not` is a diagnostic read. It reports structured reasons and prerequisites
 for an unavailable command but always returns an empty executable command set;

@@ -288,33 +288,38 @@ class HavocGiaApplication:
         return project_capability_set(self.ctx, session, context, scope=request.scope)
 
     def execute(self, request: ExecuteRequest) -> ExecuteResult:
-        sid = self._require_session_id(request.session_id)
-        params = self._require_mapping(request.params, "params")
-        context = request.request_context or self.request_context
-        result, events = execute_action(
-            self.ctx,
-            sid,
-            request.action,
-            params,
-            request.expected_revision,
-            request.affordance_id,
-            request.idempotency_key,
-            request_context=context,
-            capability_id=request.capability_id,
-            policy_version=request.policy_version,
-            request_id=request.request_id,
-            client_metadata=request.client_metadata,
-            model_metadata=request.model_metadata,
-            untrusted_rationale=request.untrusted_rationale,
-            sensitive_fields=request.sensitive_fields,
-        )
-        affordances = compute_affordances(self.ctx, sid, context)
-        return ExecuteResult(
-            data=result,
-            affordances=affordances,
-            events=events,
-            state_revision=self._state_revision(sid),
-        )
+        # Keep mutation and response assembly under the same connection lock.
+        # `execute_action` already serializes its transaction, but releasing
+        # the lock before recomputing affordances/state_revision lets a
+        # concurrent caller read the shared SQLite connection mid-transition.
+        with self.ctx.db.connection_lock:
+            sid = self._require_session_id(request.session_id)
+            params = self._require_mapping(request.params, "params")
+            context = request.request_context or self.request_context
+            result, events = execute_action(
+                self.ctx,
+                sid,
+                request.action,
+                params,
+                request.expected_revision,
+                request.affordance_id,
+                request.idempotency_key,
+                request_context=context,
+                capability_id=request.capability_id,
+                policy_version=request.policy_version,
+                request_id=request.request_id,
+                client_metadata=request.client_metadata,
+                model_metadata=request.model_metadata,
+                untrusted_rationale=request.untrusted_rationale,
+                sensitive_fields=request.sensitive_fields,
+            )
+            affordances = compute_affordances(self.ctx, sid, context)
+            return ExecuteResult(
+                data=result,
+                affordances=affordances,
+                events=events,
+                state_revision=self._state_revision(sid),
+            )
 
     def diagnose(self, request: DiagnoseRequest) -> DiagnoseResult:
         sid = self._require_session_id(request.session_id)

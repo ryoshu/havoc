@@ -1,4 +1,4 @@
-"""PR 13 golden fixtures (docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md).
+"""PR 13 golden fixtures for the separated GIA/GAS contracts.
 
 Freezes representative GIA `CapabilitySet` and GAS `get`/`search`/`act`/
 `why_not` payloads, plus the stale-revision, stale-cursor, unavailable/

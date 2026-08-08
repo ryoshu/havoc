@@ -213,6 +213,20 @@ def test_act_rejects_a_capability_id_that_is_not_currently_offered(case: Conform
         )
 
 
+def test_invalid_capability_precedes_stale_revision(case: ConformanceCase, service: GasService):
+    created = service.create_session()
+    session_id = created.data["id"]
+
+    with pytest.raises(InvalidInputError):
+        service.act(
+            "not-a-real-capability-id",
+            created.state_revision + 1,
+            {},
+            "conformance-invalid-before-stale",
+            session_id=session_id,
+        )
+
+
 def test_act_rejects_a_forged_suffix_on_an_otherwise_valid_action_name(
     harness: GasConformanceHarness, service: GasService
 ):

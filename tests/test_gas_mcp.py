@@ -108,7 +108,7 @@ async def _exercise_server() -> None:
             await client.call_tool(
                 "act",
                 {
-                    "capability_id": create_note["id"],
+                    "capability_id": acted_data["commands"][0]["id"],
                     "expected_revision": state["state_revision"] + 5,
                     "input": {"title": "hello", "body": "world"},
                     "idempotency_key": "gas-mcp-test-stale",
@@ -139,7 +139,7 @@ def _run_probe(probe: str) -> list[str]:
 def test_gas_mcp_does_not_import_havoc_domain():
     """gas-mcp | gas-protocol, MCP SDK | Havoc, databases, GIA policy internals.
 
-    Also proves the RS-03 acceptance criterion (docs/GIA-REPOSITORY-SPLIT-PLAN.md):
+    Also proves the RS-03 acceptance criterion:
     ``gas_mcp`` no longer loads ``gia_core`` at all now that the native
     per-capability renderer (the one thing that used to pull ``gia_core.
     CapabilitySet`` in) moved to ``havoc_server.native_mcp``.

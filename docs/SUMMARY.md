@@ -2,15 +2,17 @@
 
 > **This document describes the pre-2.0 (1.x) implementation and is a
 > historical record, not current guidance.** The GIA/GAS separation
-> (`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`, PRs 13–20) is complete as
+> (PRs 13–20) is complete as
 > of PR 19; the file paths named below (`src/gia/domain.py`,
 > `src/gia/affordances.py`, `src/gia/server.py`'s module-level
 > `get`/`search`/`act` functions) were moved or deleted during that
 > migration and no longer exist. For current, narrower-scoped claims, read
-> `docs/specs/GIA-ARCHITECTURE.md`, `docs/specs/GAS-PROTOCOL.md`,
-> `docs/specs/GIA-GAS-INTEGRATION.md`, and `docs/specs/GIA-THREAT-MODEL.md`
+> `packages/gia-core/docs/GIA-ARCHITECTURE.md`,
+> `packages/gas-protocol/docs/GAS-PROTOCOL.md`,
+> `packages/gia-gas-adapter/docs/GIA-GAS-INTEGRATION.md`, and
+> `packages/gia-core/docs/GIA-THREAT-MODEL.md`
 > instead — in particular, this file's "3 tools" framing is narrowed by
-> ADR-0010 and `docs/specs/GAS-PROTOCOL.md` §1 to one renderer's interface
+> ADR-0010 and `packages/gas-protocol/docs/GAS-PROTOCOL.md` §1 to one renderer's interface
 > choice, not the architecture itself. This file is kept only as a record
 > of the 1.x design; it is not updated to track the current codebase.
 
@@ -148,7 +150,10 @@ The current suite contains 30 tasks in each of three business domains:
 
 In the historical advisory-era matrix, recorded GAS configurations achieved 90–100% oracle pass rates. The automotive domain is especially useful because its many closely related entities and operations suggest that intra-domain semantic similarity can be more damaging than raw tool count: traditional 30-tool configurations consistently outperformed their 60-tool counterparts, while GAS remained at three tools. These descriptive results are not pooled with the newer enforced-mode factorial study.
 
-See [`eval/README.md`](../eval/README.md) for methodology and usage, [`eval/results/eval_summary.md`](../eval/results/eval_summary.md) for the historical cross-domain results and caveats, and [`eval/PR12-CONTROLLED-EVALUATION.md`](../eval/PR12-CONTROLLED-EVALUATION.md) for the controlled factorial design.
+See [`eval/README.md`](../eval/README.md) for methodology and usage and
+[`eval/PR12-CONTROLLED-EVALUATION.md`](../eval/PR12-CONTROLLED-EVALUATION.md)
+for the controlled factorial design. Generated dashboards and charts under
+`eval/results/` are artifacts, not a checked-in `eval_summary.md` source.
 
 ## Generalizing Beyond Games
 

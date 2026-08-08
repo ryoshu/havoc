@@ -1,11 +1,16 @@
 # Release checklist
 
-**Owner:** `havoc` application integration (see [specification ownership](OWNERSHIP.md))
+**Owner:** `havoc` application integration
 
 Run this before cutting a release that touches `gia-core`, `gas-protocol`,
 `gia-gas-adapter`, `gas-mcp`, `havoc-domain`, `havoc-server`, or any of the
-five specifications in `docs/specs/`. Each item names the command or check
-that answers it — this is a gate list, not a narrative.
+five specifications under `packages/*/docs/`. The specifications are
+`packages/gia-core/docs/GIA-ARCHITECTURE.md`,
+`packages/gas-protocol/docs/GAS-PROTOCOL.md`,
+`packages/gia-gas-adapter/docs/GIA-GAS-INTEGRATION.md`,
+`packages/gia-core/docs/GIA-THREAT-MODEL.md`, and
+`packages/gas-protocol/docs/GAS-COMPATIBILITY.md`. Each item names the
+command or check that answers it — this is a gate list, not a narrative.
 
 ## Workspace dependencies
 
@@ -19,8 +24,7 @@ that answers it — this is a gate list, not a narrative.
 ## Code and import boundaries
 
 - [ ] `uv run python scripts/check_import_boundaries.py` passes — no
-  forbidden dependency edge (`docs/gia2/DEPENDENCY-BOUNDARIES.md`'s
-  target-state table).
+  forbidden dependency edge in the checker’s target-state table.
 - [ ] `uv run python scripts/check_release_boundaries.py` passes — every
   released cross-repository dependency has a declared owner, `0.2.x`
   compatibility range, and CI gate.
@@ -33,8 +37,9 @@ that answers it — this is a gate list, not a narrative.
   and
   `test_runtime_contract.py::test_concurrent_actions_share_one_revision`).
 - [ ] `uv run pytest tests/test_gas_conformance.py -v` is green (or skips
-  only for the documented idempotency gap, `docs/specs/
-  GAS-COMPATIBILITY.md` §2) across all five backends.
+  only for the documented idempotency gap,
+  `packages/gas-protocol/docs/GAS-COMPATIBILITY.md` §2) across all five
+  backends.
 - [ ] Downstream conformance cases use the published
   `gas_protocol.conformance.GasConformanceHarness`; eval adapters remain
   Havoc-owned and are not imported by `gas_protocol`.
@@ -46,37 +51,38 @@ that answers it — this is a gate list, not a narrative.
 
 ## Specification consistency
 
-- [ ] Every specification in `docs/specs/` whose described code changed
+- [ ] Every specification under `packages/*/docs/` whose described code changed
   in this release has its `## Version history` section updated (a new
   entry, or a bump per §"Versioning rule" below) — a spec's `Contract
   version` header must never silently drift from its own version-history
   table.
-- [ ] `docs/specs/GIA-GAS-INTEGRATION.md` and `docs/specs/
-  GAS-COMPATIBILITY.md`'s `Depends on` lines still name the correct
-  versions of the specifications they build on.
+- [ ] `packages/gia-gas-adapter/docs/GIA-GAS-INTEGRATION.md` and
+  `packages/gas-protocol/docs/GAS-COMPATIBILITY.md`'s `Depends on` lines
+  still name the correct versions of the specifications they build on.
 - [ ] Repository-wide search for "GIA/GAS" outside
-  `docs/specs/GIA-GAS-INTEGRATION.md`, ADR-0013, and files narrating past
+  `packages/gia-gas-adapter/docs/GIA-GAS-INTEGRATION.md`, ADR-0013, and files narrating past
   states (execution plan, other ADRs) finds no new use of it as a
   stand-in for either specification's own guarantees (ADR-0013,
-  `docs/specs/MIGRATION-GUIDE.md` §2).
+  `docs/MIGRATION-GUIDE.md` §2).
 
 ## Unsupported-claim audit
 
 Search `docs/`, `README*`, and any release notes for each of the
-following, and correct or attribute-to-evidence (`docs/specs/
-GIA-THREAT-MODEL.md`) every hit that is not already inside `docs/specs/`
-itself stating the boundary explicitly:
+following, and correct or attribute-to-evidence
+(`packages/gia-core/docs/GIA-THREAT-MODEL.md`) every hit that is not
+already inside the specification itself stating the boundary explicitly:
 
-- [ ] Capability possession implying authorization (`docs/specs/
-  GIA-THREAT-MODEL.md` §5 — this is a GAS-does-not-guarantee item).
+- [ ] Capability possession implying authorization
+  (`packages/gia-core/docs/GIA-THREAT-MODEL.md` §5 — this is a
+  GAS-does-not-guarantee item).
 - [ ] GAS guaranteeing safety (same section).
 - [ ] GIA guaranteeing task success or that an actor chose usefully
-  (`docs/specs/GIA-THREAT-MODEL.md` §3).
+  (`packages/gia-core/docs/GIA-THREAT-MODEL.md` §3).
 - [ ] "Three tools" or a specific tool count stated as the architecture
   rather than as one renderer's interface choice (ADR-0010,
-  `docs/specs/GAS-PROTOCOL.md` §1).
+  `packages/gas-protocol/docs/GAS-PROTOCOL.md` §1).
 - [ ] Any claim of runtime version negotiation that does not exist yet
-  (`docs/specs/GAS-COMPATIBILITY.md` §4).
+  (`packages/gas-protocol/docs/GAS-COMPATIBILITY.md` §4).
 - [ ] Any `eval/` result described without its mode (advisory / GIA-
   enforced / state-filtered native MCP / static native MCP) — the
   execution plan requires these four to stay distinguishable, never
@@ -96,7 +102,8 @@ Bump a specification's `Contract version` (semver) when:
 
 The single package version (`pyproject.toml`, currently `0.2.0`) tracks
 this repository's own release cadence and is independent of every
-specification's contract version (`docs/specs/GAS-COMPATIBILITY.md` §4) —
+specification's contract version
+(`packages/gas-protocol/docs/GAS-COMPATIBILITY.md` §4) —
 do not conflate the two in release notes.
 
 ## Sign-off

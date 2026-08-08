@@ -35,7 +35,7 @@ delegates to a caller-provided invoker such as the `GasService.act` produced by
 this used to name).
 
 `NativeMcpRenderer`/`NativeMcpTool` live in `havoc_server.native_mcp` as of
-RS-03 (`docs/GIA-REPOSITORY-SPLIT-PLAN.md`) — moved there from
+RS-03 (the repository split) — moved there from
 `gas_mcp.native` (PR 17's home for it) because nothing outside Havoc ever
 consumed it: keeping a `gia_core.CapabilitySet`-dependent renderer in the
 supposedly GIA-free `gas_mcp` package contradicted that package's own goal,

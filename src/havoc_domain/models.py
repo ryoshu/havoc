@@ -233,9 +233,7 @@ class GameSession(BaseModel):
 # share one versioned contract. ``DecisionRecord`` remains an explicit 1.x
 # compatibility alias; it no longer describes hidden reasoning or causality.
 # `DecisionProvenance`/`DecisionRecord` are imported above from
-# `gia_core.provenance.models` (moved from `gia.provenance` to
-# `src/gia_core/` by RS-02 — see `docs/GIA-REPOSITORY-SPLIT-PLAN.md` — see
-# `docs/gia2/DEPENDENCY-BOUNDARIES.md`'s PR 18 status for why this package
-# is transport-independent in the first place) and re-exported here so
+# `gia_core.provenance.models`; the import-boundary checker protects this
+# transport-independent split) and re-exported here so
 # `havoc_domain.models` carries the full state-model surface `gia.models`
 # used to.

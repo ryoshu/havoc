@@ -11,7 +11,7 @@ object (`runtime.py`). Moved here from `src/gia/domain.py`, `context.py`,
 `db.py`, `graph.py`, `models.py`, and the concrete command modules under
 `src/gia/commands/` — each of those old paths is now a thin re-export shim
 pointing back at the real module here. See
-`docs/gia2/DEPENDENCY-BOUNDARIES.md`'s PR 18 status for the full account,
-including why `GameRuntime` moved here while `src/gia/server.py` kept the
+the import-boundary checker for the full dependency account, including why
+`GameRuntime` moved here while `src/gia/server.py` kept the
 module-level singleton/back-compat machinery.
 """

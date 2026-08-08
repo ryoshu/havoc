@@ -40,8 +40,8 @@ def _resolve_data_dir() -> Path:
     force-include never runs for editable installs. Without this, an
     installed wheel silently booted with zero character/enemy/location
     templates (`GameContext._load_data` treats a missing file as "load
-    nothing", not an error) — see RS-04's P1 fix,
-    docs/GIA-REPOSITORY-SPLIT-PLAN.md.
+    nothing", not an error) — see the release checklist's wheel-content
+    verification for the RS-04 P1 fix.
     """
     packaged = resources.files("havoc_domain") / "data"
     if packaged.is_dir():

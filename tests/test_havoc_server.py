@@ -87,7 +87,7 @@ def test_havoc_server_build_mcp_server_is_a_standalone_gia_backed_gas_server():
 
 
 def test_importing_native_mcp_does_not_build_the_default_app_server():
-    """RS-03 (docs/GIA-REPOSITORY-SPLIT-PLAN.md) moved the native renderer
+    """RS-03 moved the native renderer
     into `havoc_server.native_mcp`. Python always runs a package's
     `__init__.py` before any of its submodules, so if that `__init__.py`
     eagerly imported `.app` (whose module level does
@@ -122,7 +122,11 @@ def test_rs09_removes_the_legacy_gia_composition_module():
     probe = (
         "import importlib.util, sys\n"
         "import havoc_server.runtime\n"
-        "print(importlib.util.find_spec('gia.server'))\n"
+        "try:\n"
+        "    legacy_spec = importlib.util.find_spec('gia.server')\n"
+        "except ModuleNotFoundError:\n"
+        "    legacy_spec = None\n"
+        "print(legacy_spec)\n"
         "print(any(name == 'gia.server' or name.startswith('gia.server.') for name in sys.modules))\n"
     )
     result = subprocess.run(

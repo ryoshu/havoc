@@ -1,4 +1,4 @@
-"""PR 13: import-boundary enforcement (docs/gia2/DEPENDENCY-BOUNDARIES.md).
+"""Import-boundary enforcement for the separated repositories.
 
 Loads scripts/check_import_boundaries.py by path (it is a standalone CLI
 script, not a package under src/) so both `pytest` and
@@ -120,7 +120,7 @@ def test_bare_legacy_submodule_imports_are_not_silently_unbucketed():
     a bare import sails through undetected. This first surfaced as
     `gia_core`'s bucket listing only `src.gia.{capabilities,policy,
     provenance}`, not their bare `gia.*` equivalents. RS-02
-    (docs/GIA-REPOSITORY-SPLIT-PLAN.md) later moved those three packages to
+    later moved those three packages to
     `src/gia_core/` outright with no shim left at the old `gia.*` path (see
     BUCKET_PREFIXES' RS-02 note), and RS-03 moved the MCP-dependent
     `gia.renderers.native_mcp` to `havoc_server.native_mcp` the same way, so
@@ -177,8 +177,7 @@ def test_forbidden_edge_via_bare_legacy_import_is_detected(tmp_path):
             "havoc_domain",
         ),
         # GAS-to-GIA: the new edge PR 15 adds — gas_protocol must not
-        # depend on gia_core at all (docs/gia2/DEPENDENCY-BOUNDARIES.md's
-        # target-state table), not just avoid MCP/Havoc.
+        # depend on gia_core at all, not just avoid MCP/Havoc.
         (
             "src.gas_protocol.forbidden_gia_core",
             "from src.gia_core.errors import DomainError\n",

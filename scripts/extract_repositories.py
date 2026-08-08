@@ -2,7 +2,7 @@
 `havoc` itself, the application tree) into standalone git checkouts with
 their own history, via `git filter-repo`.
 
-This is the tool RS-05..RS-09 (docs/GIA-REPOSITORY-SPLIT-PLAN.md) used to
+This is the tool used for RS-05..RS-09 to
 produce the `gia-core`, `gas-protocol`, `gia-gas-adapter`, and `gas-mcp`
 repositories from this monorepo's history, and the tool a future RS-N would
 use again if another package needs the same treatment. Each `RepoSpec` in
@@ -73,8 +73,8 @@ REPOSITORIES: dict[str, RepoSpec] = {
             # RS-02 moved gia_core out from under src/gia/* to its own
             # top-level src/gia_core/ package, pre-dating the RS-05 extract.
             PathRule("src/gia_core", "gia_core"),
-            # Pre-RS-02 shim locations (docs/gia2/DEPENDENCY-BOUNDARIES.md's
-            # history), retained so their commits are not orphaned.
+            # Pre-RS-02 shim locations, retained so their commits are not
+            # orphaned.
             PathRule("src/gia/capabilities", "gia_core/capabilities"),
             PathRule("src/gia/policy", "gia_core/policy"),
             PathRule("src/gia/provenance", "gia_core/provenance"),

@@ -11,7 +11,7 @@ module-level GAS server would make stale tools look globally available.
 
 Originally relocated from ``src/gia/renderers/native_mcp.py`` during the PR 17
 transport work, then made Havoc-owned here in RS-03
-(`docs/GIA-REPOSITORY-SPLIT-PLAN.md`): nothing outside Havoc ever consumed
+because nothing outside Havoc ever consumed
 this renderer (the live server wires only the generic ``gas_mcp.install_gas_mcp``
 — see ``havoc_server.app.build_mcp_server``), so ``gas_mcp`` staying
 genuinely GIA-free per RS-03's goal meant moving the renderer to its one
