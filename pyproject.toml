@@ -3,14 +3,22 @@ name = "gia"
 version = "0.2.0"
 description = "Affordance-driven TTRPG backend — Eat the Reich (Havoc Engine)"
 requires-python = ">=3.11"
-# `mcp[cli]` moved to the `mcp` optional-dependency group below in PR 17
-# (`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`): the reusable cores
-# (`gia_core`, `gas_protocol`, `gia_gas_adapter`, and now bare `gia` itself
-# — `src/gia/server.py`'s `mcp`/`_allowed_hosts` re-export is lazy, see its
-# module docstring) must install and import without MCP. Anything that
-# needs to actually run the MCP server (`gas_mcp`, `havoc_server`, or
-# `uv run python -m src.gia.server`) needs the `mcp` extra.
+# RS-04 (docs/GIA-REPOSITORY-SPLIT-PLAN.md) turned this repo into a uv
+# workspace (`[tool.uv.workspace]` below): `gia_core`, `gas_protocol`,
+# `gia_gas_adapter`, and `gas_mcp` are now genuinely separate distributions
+# under `packages/*`, each built and installed in isolation by
+# `scripts/verify_wheel_isolation.py` before this root project's own build
+# is trusted. This root project is the Havoc composition root — the
+# eventual RS-09 `havoc` distribution — and depends on the first three
+# unconditionally: `havoc_domain`/`gia.server` import `gia_core` and
+# `gas_protocol` at module level, and `gia.server` builds a `GiaGasAdapter`
+# unconditionally too. `gas_mcp` stays behind the `mcp` extra below, same as
+# the `mcp` SDK itself — nothing here needs it merely to import `gia` or
+# `havoc_domain`, only to actually run `havoc_server`.
 dependencies = [
+    "gia-core",
+    "gas-protocol",
+    "gia-gas-adapter",
     "openai>=1.0.0",
     "certifi>=2024.2.2",
     "pydantic>=2.0.0",
@@ -22,6 +30,7 @@ dependencies = [
 [project.optional-dependencies]
 mcp = [
     "mcp[cli]>=2.0,<3",
+    "gas-mcp[mcp]",
 ]
 # `test` pulls in the `mcp` extra (rather than just pytest) because the test
 # suite itself covers MCP transport (tests/test_mcp_v2.py, test_gas_mcp.py,
@@ -39,48 +48,48 @@ test = [
     "gia[mcp]",
 ]
 
+[tool.uv.sources]
+# Resolve the four `packages/*` workspace members from the local monorepo
+# tree rather than PyPI (RS-04, docs/GIA-REPOSITORY-SPLIT-PLAN.md). Each
+# member's own `packages/*/pyproject.toml` symlinks back to the real
+# `src/<name>` source — see that file's comment for why a symlink and not a
+# relative path.
+gia-core = { workspace = true }
+gas-protocol = { workspace = true }
+gia-gas-adapter = { workspace = true }
+gas-mcp = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-# `gia_core` is a second top-level distribution package (PR 14 of the
-# GIA/GAS 2.0 plan): src/gia/* now imports it at runtime (e.g.
-# `src/gia/domain.py` re-exporting its error hierarchy), so it must ship
-# alongside `gia`, not just live as a source-tree-only namespace. Without
-# this, hatchling's src-layout default (a single package matching the
-# project name) would silently omit gia_core and `import gia.server` would
-# fail once installed.
+# `gia_core`, `gas_protocol`, `gia_gas_adapter`, and `gas_mcp` moved out of
+# this list in RS-04 (docs/GIA-REPOSITORY-SPLIT-PLAN.md): they now ship as
+# their own workspace-member distributions under `packages/*` (declared as
+# dependencies above) rather than being bundled again into this wheel. This
+# is deliberate, not an oversight — bundling them here too would silently
+# defeat the point of RS-04, which is proving each of those four installs
+# and imports in real isolation.
 #
-# `gas_protocol` (PR 15) is added proactively for the same reason, rather
-# than reactively after a broken install like gia_core was: PR 15's own
-# exit criteria is that GAS can be installed and imported without GIA, and
-# that claim isn't real until the wheel actually contains it.
+# `src/gia` (PR 14) ships because `havoc_server` and this project's own
+# entry points still depend on `gia.server`'s `GameRuntime`/
+# `build_gas_service` composition-root machinery (RS-09 will eventually
+# rename/relocate it into a Havoc-owned namespace, per the plan).
 #
-# `gia_gas_adapter` (PR 16) ships for the same proactive reason: it's no
-# longer an empty placeholder, and it imports `gia_core`
-# (`gia_core.capabilities`/`gia_core.policy`, moved there from `gia.*` by
-# RS-02 — docs/GIA-REPOSITORY-SPLIT-PLAN.md) at runtime, which already
-# ships, so this adds no new transitive gap.
+# `havoc_server` (PR 17) ships for the same reason as before: it needs
+# `gia`/`gia_gas_adapter`/`gas_protocol`, all of which already ship (the
+# last two now via the workspace-member dependency, not a bundled
+# directory), plus `gas_mcp` behind the `mcp` extra (see above).
 #
-# `gas_mcp` and `havoc_server` (PR 17) ship for the same reason: both
-# stopped being empty placeholders. `gas_mcp` needs the `mcp` extra
-# installed to actually import (it registers MCP tools); `havoc_server`
-# additionally needs `gia`/`gia_gas_adapter`/`gas_protocol`, all of which
-# already ship.
-#
-# `havoc_domain` (PR 18) ships for the same reason: it's no longer an empty
-# placeholder — it now holds the concrete Havoc game code (GameContext,
-# GameDB, GameGraph, HavocEngine, the command kernel/execution service, and
-# HavocGiaApplication) moved out of `src/gia/*`, which now hold only thin
-# re-export shims at the old import paths. This was the last of the six
-# target namespaces from docs/gia2/DEPENDENCY-BOUNDARIES.md to ship.
+# `havoc_domain` (PR 18) ships because it holds the concrete Havoc game
+# code (GameContext, GameDB, GameGraph, HavocEngine, the command
+# kernel/execution service, and HavocGiaApplication).
 packages = [
     "src/gia",
-    "src/gia_core",
-    "src/gas_protocol",
-    "src/gia_gas_adapter",
-    "src/gas_mcp",
     "src/havoc_server",
     "src/havoc_domain",
 ]

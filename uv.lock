@@ -6,6 +6,15 @@ resolution-markers = [
     "python_full_version < '3.14'",
 ]
 
+[manifest]
+members = [
+    "gas-mcp",
+    "gas-protocol",
+    "gia",
+    "gia-core",
+    "gia-gas-adapter",
+]
+
 [[package]]
 name = "annotated-doc"
 version = "0.0.5"
@@ -240,11 +249,45 @@ wheels = [
 ]
 
 [[package]]
+name = "gas-mcp"
+version = "0.2.0"
+source = { editable = "packages/gas-mcp" }
+dependencies = [
+    { name = "gas-protocol" },
+]
+
+[package.optional-dependencies]
+mcp = [
+    { name = "mcp", extra = ["cli"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "gas-protocol", editable = "packages/gas-protocol" },
+    { name = "mcp", extras = ["cli"], marker = "extra == 'mcp'", specifier = ">=2.0,<3" },
+]
+provides-extras = ["mcp"]
+
+[[package]]
+name = "gas-protocol"
+version = "0.2.0"
+source = { editable = "packages/gas-protocol" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.0.0" }]
+
+[[package]]
 name = "gia"
 version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "certifi" },
+    { name = "gas-protocol" },
+    { name = "gia-core" },
+    { name = "gia-gas-adapter" },
     { name = "openai" },
     { name = "pydantic" },
     { name = "pymupdf" },
@@ -254,9 +297,11 @@ dependencies = [
 
 [package.optional-dependencies]
 mcp = [
+    { name = "gas-mcp", extra = ["mcp"] },
     { name = "mcp", extra = ["cli"] },
 ]
 test = [
+    { name = "gas-mcp", extra = ["mcp"] },
     { name = "mcp", extra = ["cli"] },
     { name = "pytest" },
     { name = "pytest-timeout" },
@@ -265,7 +310,11 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "certifi", specifier = ">=2024.2.2" },
+    { name = "gas-mcp", extras = ["mcp"], marker = "extra == 'mcp'", editable = "packages/gas-mcp" },
+    { name = "gas-protocol", editable = "packages/gas-protocol" },
     { name = "gia", extras = ["mcp"], marker = "extra == 'test'" },
+    { name = "gia-core", editable = "packages/gia-core" },
+    { name = "gia-gas-adapter", editable = "packages/gia-gas-adapter" },
     { name = "mcp", extras = ["cli"], marker = "extra == 'mcp'", specifier = ">=2.0,<3" },
     { name = "openai", specifier = ">=1.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
@@ -276,6 +325,32 @@ requires-dist = [
     { name = "rich", specifier = ">=13.0.0" },
 ]
 provides-extras = ["mcp", "test"]
+
+[[package]]
+name = "gia-core"
+version = "0.2.0"
+source = { editable = "packages/gia-core" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.0.0" }]
+
+[[package]]
+name = "gia-gas-adapter"
+version = "0.2.0"
+source = { editable = "packages/gia-gas-adapter" }
+dependencies = [
+    { name = "gas-protocol" },
+    { name = "gia-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "gas-protocol", editable = "packages/gas-protocol" },
+    { name = "gia-core", editable = "packages/gia-core" },
+]
 
 [[package]]
 name = "h11"
