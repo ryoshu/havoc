@@ -2,11 +2,35 @@
 
 ## Clean checkout setup
 
-From the repository root, install the locked runtime and test dependencies:
+Clone the repository with its package submodules:
+
+```bash
+git clone --recurse-submodules https://github.com/ryoshu/havoc.git
+cd havoc
+```
+
+For an existing checkout, initialize or refresh them from the repository root:
+
+```bash
+git submodule update --init --recursive
+```
+
+The four repositories under `packages/` are pinned Git submodules and are also
+the local `uv` workspace members. They must be checked out before installing
+the locked runtime and test dependencies:
 
 ```bash
 uv sync --locked --extra test
 ```
+
+Check the pinned package commits with:
+
+```bash
+git submodule status
+```
+
+When a package release is updated, update its submodule checkout and commit the
+new gitlink in Havoc along with the compatible lockfile change.
 
 The project targets Python 3.11 or newer. MCP Python SDK v2
 (`mcp[cli]>=2.0,<3`) is an optional dependency (the `mcp` extra) so the

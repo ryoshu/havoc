@@ -41,6 +41,22 @@ replayed mutations before changing game state.
 
 ## Install
 
+Clone Havoc with its reusable package repositories:
+
+```bash
+git clone --recurse-submodules https://github.com/ryoshu/havoc.git
+cd havoc
+```
+
+For an existing checkout, initialize or refresh the pinned package submodules:
+
+```bash
+git submodule update --init --recursive
+```
+
+The `packages/` entries are Git submodules pinned by this repository. They are
+workspace members, so they must be present before dependency resolution.
+
 ```bash
 uv sync --locked --extra test
 ```

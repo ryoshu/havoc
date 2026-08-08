@@ -1,0 +1,15 @@
+[submodule "packages/gas-mcp"]
+	path = packages/gas-mcp
+	url = https://github.com/ryoshu/gas-mcp.git
+
+[submodule "packages/gas-protocol"]
+	path = packages/gas-protocol
+	url = https://github.com/ryoshu/gas-protocol.git
+
+[submodule "packages/gia-core"]
+	path = packages/gia-core
+	url = https://github.com/ryoshu/gia-core.git
+
+[submodule "packages/gia-gas-adapter"]
+	path = packages/gia-gas-adapter
+	url = https://github.com/ryoshu/gia-gas-adapter.git

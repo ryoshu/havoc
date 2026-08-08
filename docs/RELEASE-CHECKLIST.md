@@ -7,6 +7,15 @@ Run this before cutting a release that touches `gia-core`, `gas-protocol`,
 five specifications in `docs/specs/`. Each item names the command or check
 that answers it — this is a gate list, not a narrative.
 
+## Workspace dependencies
+
+- [ ] `git submodule status` reports the four pinned package repositories and
+  `git submodule update --init --recursive` succeeds from a clean checkout.
+- [ ] Any package submodule pointer changed intentionally and points to a
+  published commit on the corresponding package repository.
+- [ ] `uv sync --locked --extra test` succeeds with the checked-out submodules;
+  update `uv.lock` when the resolved dependency graph changes.
+
 ## Code and import boundaries
 
 - [ ] `uv run python scripts/check_import_boundaries.py` passes — no

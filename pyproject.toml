@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 # RS-04 (docs/GIA-REPOSITORY-SPLIT-PLAN.md) turned this repo into a uv
 # workspace (`[tool.uv.workspace]` below): `gia_core`, `gas_protocol`,
 # `gia_gas_adapter`, and `gas_mcp` are now genuinely separate distributions
-# under `packages/*`, each built and installed in isolation by
+# under `packages/*` (checked out as Git submodules), each built and installed in isolation by
 # `scripts/verify_wheel_isolation.py` before this root project's own build
 # is trusted. This project is the Havoc application distribution. It depends
 # on the first three unconditionally: `havoc_domain`/`havoc_server.runtime`
@@ -50,9 +50,10 @@ test = [
 ]
 
 [tool.uv.sources]
-# Resolve the four `packages/*` workspace members from the local monorepo
-# tree rather than PyPI (RS-04–RS-08, docs/GIA-REPOSITORY-SPLIT-PLAN.md).
-# Each member now owns its source under `packages/*` directly.
+# Resolve the four `packages/*` workspace members from the checked-out
+# submodule tree rather than PyPI (RS-04–RS-08,
+# docs/GIA-REPOSITORY-SPLIT-PLAN.md). Each member owns its source under
+# `packages/*` directly.
 gia-core = { workspace = true }
 gas-protocol = { workspace = true }
 gia-gas-adapter = { workspace = true }
