@@ -5,6 +5,9 @@ tabletop role-playing game backend and playthrough system. It models vampire
 commandos moving through occupied Paris, resolving combat with dice pools,
 managing injuries and blood, and progressing through a sequence of scenes.
 
+*Eat the Reich* is published by [Rowan, Rook and Decard](https://rowanrookanddecard.com/);
+see the [official game page](https://rowanrookanddecard.com/product/eat-the-reich/).
+
 The application computes the actions available in the current game state and
 serves them through a GAS interface. Clients read the current state and
 commands, then execute a returned capability with its expected revision. The
