@@ -9,6 +9,9 @@ re-export `tests/test_mcp_v2.py` exercises — and that it runs on
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+from pathlib import Path
 
 import anyio
 
@@ -16,6 +19,8 @@ from mcp.client import Client
 
 from src.gia.server import GameRuntime
 from havoc_server.app import build_mcp_server
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _text(result) -> dict:
@@ -80,3 +85,34 @@ def test_havoc_server_build_mcp_server_is_a_standalone_gia_backed_gas_server():
         anyio.run(_exercise, server)
     finally:
         runtime.ctx.db.close()
+
+
+def test_importing_native_mcp_does_not_build_the_default_app_server():
+    """RS-03 (docs/GIA-REPOSITORY-SPLIT-PLAN.md) moved the native renderer
+    into `havoc_server.native_mcp`. Python always runs a package's
+    `__init__.py` before any of its submodules, so if that `__init__.py`
+    eagerly imported `.app` (whose module level does
+    `mcp, _runtime = build_mcp_server()` — opening a live `GameRuntime`/
+    SQLite database as a side effect), merely importing the renderer would
+    silently boot the whole application. `havoc_server/__init__.py` defers
+    that import behind `__getattr__` for exactly this reason; this proves
+    `havoc_server.app` never lands in `sys.modules` from the renderer import
+    alone. Runs in a subprocess (mirroring `tests/test_gas_mcp.py`'s own
+    import-boundary probes) so this process's already-imported `havoc_server`
+    can't mask the regression.
+    """
+    probe = (
+        "import sys\n"
+        "import havoc_server.native_mcp\n"
+        "print('havoc_server.app' in sys.modules)\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=REPO_ROOT,
+        env={"PYTHONPATH": str(REPO_ROOT / "src")},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "False"
