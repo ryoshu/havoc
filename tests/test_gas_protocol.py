@@ -39,7 +39,10 @@ def test_gas_protocol_imports_nothing_forbidden():
     result = subprocess.run(
         [sys.executable, "-c", probe],
         cwd=REPO_ROOT,
-        env={"PYTHONPATH": str(REPO_ROOT / "src")},
+        # RS-06 owns the source under the gas-protocol package directory;
+        # do not make this negative-import check pass through the application
+        # source tree or an installed sibling package.
+        env={"PYTHONPATH": str(REPO_ROOT / "packages" / "gas-protocol")},
         capture_output=True,
         text=True,
         timeout=30,

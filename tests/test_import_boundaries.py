@@ -44,7 +44,15 @@ def test_extracted_gia_core_tree_has_no_boundary_violations():
     assert violations == [], "\n".join(str(v) for v in violations)
 
 
-def test_default_checker_covers_extracted_gia_core_tree():
+def test_extracted_gas_protocol_tree_has_no_boundary_violations():
+    gas_protocol_root = REPO_ROOT / "packages" / "gas-protocol" / "gas_protocol"
+    assert gas_protocol_root.is_dir()
+    assert not gas_protocol_root.is_symlink(), "RS-06 must own real source files"
+    violations = checker.check_boundaries(gas_protocol_root)
+    assert violations == [], "\n".join(str(v) for v in violations)
+
+
+def test_default_checker_covers_extracted_workspace_trees():
     assert checker.check_repository_boundaries() == []
 
 
