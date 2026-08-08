@@ -1,0 +1,85 @@
+{
+  "$comment": "PR 1 characterization baseline (docs/GIA-GAS-2.0-IMPLEMENTATION-PLAN.md). The mutation column is regenerated from gia_core.capabilities.legacy_effects (MUTATING_ACTIONS / READ_ONLY_ACTIONS), the source of truth tests/test_capabilities.py cross-checks it against. wait_for_rescue has mutation=null: it is advertised in the downed phase (Gap A) but has no dispatch branch (Gap B) and is never registered in havoc_domain.kernel's CommandRegistry, so its mutation status is characterized as unknown rather than observed; legacy_effects.py treats its intent as mutating.",
+  "actions": [
+    {
+      "action": "allocate_dice",
+      "mutation": true
+    },
+    {
+      "action": "build_dice_pool",
+      "mutation": true
+    },
+    {
+      "action": "check_inventory",
+      "mutation": false
+    },
+    {
+      "action": "choose_next_location",
+      "mutation": true
+    },
+    {
+      "action": "engage_threat",
+      "mutation": true
+    },
+    {
+      "action": "heal",
+      "mutation": true
+    },
+    {
+      "action": "loot",
+      "mutation": true
+    },
+    {
+      "action": "move_to_location",
+      "mutation": true
+    },
+    {
+      "action": "next_turn",
+      "mutation": true
+    },
+    {
+      "action": "retreat",
+      "mutation": true
+    },
+    {
+      "action": "select_character",
+      "mutation": true
+    },
+    {
+      "action": "share_blood",
+      "mutation": true
+    },
+    {
+      "action": "start_mission",
+      "mutation": true
+    },
+    {
+      "action": "trigger_last_stand",
+      "mutation": true
+    },
+    {
+      "action": "use_flashback",
+      "mutation": true
+    },
+    {
+      "action": "view_character_sheet",
+      "mutation": false
+    },
+    {
+      "action": "view_character_template",
+      "mutation": false
+    },
+    {
+      "action": "view_epilogue",
+      "mutation": false
+    },
+    {
+      "action": "view_scene",
+      "mutation": false
+    },
+    {
+      "action": "wait_for_rescue",
+      "mutation": null
+    }
+  ]
+}
