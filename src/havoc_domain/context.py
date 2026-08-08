@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from importlib import resources
 from pathlib import Path
 
 from gia_core.policy import (
@@ -30,9 +31,33 @@ from havoc_domain.models import (
     ThreatState,
 )
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATA_DIR = PROJECT_ROOT / "data"
-ONTOLOGY_PATH = PROJECT_ROOT / "ontology" / "etr.ttl"
+def _resolve_data_dir() -> Path:
+    """Prefer the packaged copy `force-include` ships inside this package
+    (root pyproject.toml's `[tool.hatch.build.targets.wheel.force-include]`)
+    over the repo-root-relative layout below. A real wheel install has no
+    `data/` sibling three parents up from this file — only the packaged
+    copy exists there; an editable/dev-tree install has the opposite, since
+    force-include never runs for editable installs. Without this, an
+    installed wheel silently booted with zero character/enemy/location
+    templates (`GameContext._load_data` treats a missing file as "load
+    nothing", not an error) — see RS-04's P1 fix,
+    docs/GIA-REPOSITORY-SPLIT-PLAN.md.
+    """
+    packaged = resources.files("havoc_domain") / "data"
+    if packaged.is_dir():
+        return Path(str(packaged))
+    return Path(__file__).parent.parent.parent / "data"
+
+
+def _resolve_ontology_path() -> Path:
+    packaged = resources.files("havoc_domain") / "ontology" / "etr.ttl"
+    if packaged.is_file():
+        return Path(str(packaged))
+    return Path(__file__).parent.parent.parent / "ontology" / "etr.ttl"
+
+
+DATA_DIR = _resolve_data_dir()
+ONTOLOGY_PATH = _resolve_ontology_path()
 
 
 class GameContext:

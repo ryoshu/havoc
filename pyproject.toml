@@ -93,3 +93,19 @@ packages = [
     "src/havoc_server",
     "src/havoc_domain",
 ]
+
+# P1 fix (review of RS-04, commit 997a070): the root wheel packaged only
+# Python directories, silently omitting `data/` and `ontology/` — both live
+# at the repo root, siblings of `src/`, not under any packaged directory.
+# `GameContext._load_data` treats missing template files as "load nothing"
+# rather than erroring, so an installed wheel booted with zero
+# character/enemy/location templates and no test caught it. force-include
+# copies both into the wheel *inside* the `havoc_domain` package at build
+# time (verified empirically: hatchling supports directory-to-directory
+# force-include, no repo-tree move needed); `havoc_domain/context.py`'s
+# `DATA_DIR`/`ONTOLOGY_PATH` now look here first via `importlib.resources`,
+# falling back to the repo-root-relative layout for editable/dev-tree
+# installs, where this packaged copy doesn't exist.
+[tool.hatch.build.targets.wheel.force-include]
+"data" = "havoc_domain/data"
+"ontology" = "havoc_domain/ontology"
