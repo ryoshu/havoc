@@ -1,4 +1,4 @@
-# GIA: Grounded Interaction Architecture
+# GIA 1.x: Grounded Interaction Architecture (Historical)
 
 > **This document describes the pre-2.0 (1.x) implementation and is a
 > historical record, not current guidance.** The GIA/GAS separation

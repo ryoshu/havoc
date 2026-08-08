@@ -29,13 +29,7 @@ command or check that answers it — this is a gate list, not a narrative.
   released cross-repository dependency has a declared owner, `0.2.x`
   compatibility range, and CI gate.
 - [ ] `uv run pytest tests/ -q --ignore=tests/test_e2e_ollama.py
-  --ignore=tests/test_e2e_ollama_stateless.py` is green, modulo already-
-  documented pre-existing flakes (currently two ThreadPoolExecutor-based
-  concurrency tests, both racing the same class of revision-claim check
-  from different callers:
-  `test_application_boundary.py::test_concurrent_execute_shares_one_revision_through_boundary`
-  and
-  `test_runtime_contract.py::test_concurrent_actions_share_one_revision`).
+  --ignore=tests/test_e2e_ollama_stateless.py` is green.
 - [ ] `uv run pytest tests/test_gas_conformance.py -v` is green (or skips
   only for the documented idempotency gap,
   `packages/gas-protocol/docs/GAS-COMPATIBILITY.md` §2) across all five

@@ -1,13 +1,12 @@
 """Characterization tests for the GIA/GAS 2.0 PR 1 command matrix.
 
 These tests originally froze *current* behavior — including the known gaps
-recorded in docs/gia2/command-matrix.json — so later PRs in
-docs/GIA-GAS-2.0-IMPLEMENTATION-PLAN.md would have a baseline to diverge
-from on purpose. PR 4 is that divergence: every command's phase/binding/
-precondition/mutation logic moved out of `affordances.py`'s conditional
-tree and `server.py::_dispatch_action`'s elif tree into one owned
-definition per command under `src/gia/commands/` (ADR-0001), registered in
-`src/gia/commands/kernel.py`. The PR 1 source-grepping structural tests
+recorded in docs/gia2/command-matrix.json — so later PRs would have a
+baseline to diverge from on purpose. PR 4 is that divergence: every command's phase/binding/
+precondition/mutation logic moved out of the former `affordances.py` and
+`server.py::_dispatch_action` conditional trees into one owned definition per
+command under `src/havoc_domain/commands/` (ADR-0001), registered in
+`src/havoc_domain/commands/kernel.py`. The PR 1 source-grepping structural tests
 (matching literal `action="x"`/`action == "x"` strings) are retired below
 in favor of structural tests against the new registry — see
 tests/test_command_kernel.py for the deeper registry/kernel test suite.
@@ -91,7 +90,7 @@ def _force_phase(runtime: GameRuntime, phase: GamePhase) -> None:
     Used only for phases that are either RNG-dependent to reach organically
     (between_scenes, last_stand, mission_complete) or unreachable through
     the current dispatcher entirely (downed — see Gap B in
-    docs/gia2/COMMAND-MATRIX.md). compute_affordances and _dispatch_action
+    docs/gia2/command-matrix.json). compute_affordances and _dispatch_action
     read session.phase directly, so this exercises the same projection and
     dispatch code a real transition would.
     """

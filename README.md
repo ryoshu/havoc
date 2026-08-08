@@ -113,3 +113,8 @@ uv run pytest -q
 The evaluation harness has its own usage guide in
 [`eval/README.md`](eval/README.md). Migration notes for older callers are in
 [`docs/MIGRATION-GUIDE.md`](docs/MIGRATION-GUIDE.md).
+
+Additional documentation covers the [GAS migration](docs/gia2/GAS-MIGRATION.md),
+[capability renderers](docs/gia2/RENDERERS.md), and the
+[release checklist](docs/RELEASE-CHECKLIST.md). The [1.x architecture
+summary](docs/SUMMARY.md) is retained as a historical record only.

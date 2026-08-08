@@ -39,7 +39,7 @@ below were true only in the narrower sense the threat model states.
 | "Decision provenance, not hidden reasoning" | `packages/gia-core/docs/GIA-ARCHITECTURE.md` §6 | Unchanged in substance; now stated as a GIA responsibility rather than a feature of "the architecture" generically. |
 | "GAS Eval: GAS beats traditional tool APIs" | `eval/README.md` and `eval/PR12-CONTROLLED-EVALUATION.md` | This was always, and remains, an evaluation-harness claim about task performance and interface shape, never a GIA or GAS specification claim (ADR-0010, ADR-0011). |
 | "GIA/GAS" as a single name for the whole system | `packages/gia-gas-adapter/docs/GIA-GAS-INTEGRATION.md` | Retained only for the integration or shared implementation history (ADR-0013) — never as a stand-in for either specification's own guarantees. Using it to mean "the architecture" generically is exactly the overclaim ADR-0013 exists to prevent. |
-| `docs/SUMMARY.md`'s 1.x architecture description | `packages/gia-core/docs/GIA-ARCHITECTURE.md` | `docs/SUMMARY.md` predates the PR 13–19 separation and names deleted paths (`src/gia/server.py`'s module-level functions, `src/gia/domain.py`); treat it as a historical record of the 1.x implementation, not current guidance. |
+| [`docs/SUMMARY.md`](SUMMARY.md)'s 1.x architecture description | `packages/gia-core/docs/GIA-ARCHITECTURE.md` | `docs/SUMMARY.md` predates the PR 13–19 separation and names deleted paths (`src/gia/server.py`'s module-level functions, `src/gia/domain.py`); treat it as a historical record of the 1.x implementation, not current guidance. |
 
 ## 3. If you're evaluating whether to adopt GIA, GAS, or both independently
 

@@ -6,9 +6,9 @@ projector/dispatcher).
 and `server.py::GameRuntime._dispatch_action`'s conditional trees respectively.
 Both modules now hold thin delegates to this one (ADR-0001): a command's
 phase/binding/precondition logic exists exactly once, in its own module
-under `src/gia/commands/`.
+under `src/havoc_domain/commands/`.
 
-`wait_for_rescue` is deliberately not registered. Per docs/gia2/COMMAND-MATRIX.md
+`wait_for_rescue` is deliberately not registered. Per docs/gia2/command-matrix.json
 Gap A/B, it was advertised in the (structurally unreachable) `downed` phase
 but had no dispatch branch and no domain mechanic in `HavocEngine` to
 orchestrate — inventing rescue mechanics would violate PR 4's "preserve
