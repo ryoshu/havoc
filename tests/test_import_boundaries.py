@@ -36,6 +36,18 @@ def test_real_src_tree_has_no_boundary_violations():
     assert violations == [], "\n".join(str(v) for v in violations)
 
 
+def test_extracted_gia_core_tree_has_no_boundary_violations():
+    gia_core_root = REPO_ROOT / "packages" / "gia-core" / "gia_core"
+    assert gia_core_root.is_dir()
+    assert not gia_core_root.is_symlink(), "RS-05 must own real source files"
+    violations = checker.check_boundaries(gia_core_root)
+    assert violations == [], "\n".join(str(v) for v in violations)
+
+
+def test_default_checker_covers_extracted_gia_core_tree():
+    assert checker.check_repository_boundaries() == []
+
+
 def test_bucket_for_matches_longest_prefix():
     assert checker.bucket_for("src.gia_core.capabilities.models") == "gia_core"
     assert checker.bucket_for("mcp.server") == "mcp_transport"
@@ -327,7 +339,7 @@ def _identifiers(tree: ast.Module):
 
 
 def test_gia_core_never_names_a_havoc_concept():
-    gia_core_root = REPO_ROOT / "src" / "gia_core"
+    gia_core_root = REPO_ROOT / "packages" / "gia-core" / "gia_core"
     violations = []
     for py_file in sorted(gia_core_root.rglob("*.py")):
         tree = ast.parse(py_file.read_text(), filename=str(py_file))
