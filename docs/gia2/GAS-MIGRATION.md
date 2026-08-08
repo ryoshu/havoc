@@ -1,9 +1,44 @@
-# GAS 2.0 migration guide
+# Using GAS with Havoc
 
-PR7 makes GAS a renderer over the GIA capability set. A read returns separate
-`links` and executable `commands`, together with `subject`, `scope`,
-`state_revision`, and `policy_version` metadata. A mutation names only the
-advertised capability:
+Havoc exposes the [GAS](../../packages/gas-protocol/docs/GAS-PROTOCOL.md)
+resource and action surface over the game's stateful runtime. Clients read a
+current view, choose one advertised command, and submit that command with the
+revision and session it belongs to.
+
+## Create a service
+
+Python callers can compose the application runtime with the GAS service:
+
+```python
+from havoc_server.runtime import GameRuntime, build_gas_service
+
+runtime = GameRuntime()
+gas = build_gas_service(runtime)
+session = gas.create_session()
+session_id = session.data["id"]
+```
+
+The MCP server uses this same application path. See
+[`OPERATIONS.md`](../OPERATIONS.md) for stdio and Streamable HTTP startup.
+
+## Read, search, and act
+
+The service provides four operations:
+
+- `get(resource_uri, view?, at_revision?, cursor?, limit?)` reads a resource
+  and returns data, navigation links, and commands available in that view.
+- `search(resource_type, query?, cursor?, limit?, session_id?)` reads a
+  collection and returns matching data plus any commands bound to the result.
+- `act(capability_id, expected_revision, input, idempotency_key, session_id=..., scope=?)`
+  executes one command that was advertised by a prior read.
+- `why_not(resource_uri, command, input?)` explains why a command is not
+  currently available without returning an executable command.
+
+For a stateful resource, use a URI such as
+`gia://session/<session-id>`. The session ID passed to `search` and `act` is
+the execution-scope handle; it is not, by itself, authorization.
+
+A mutation request has this shape:
 
 ```json
 {
@@ -15,88 +50,31 @@ advertised capability:
 }
 ```
 
-The local runtime exposes the operations as:
+## Revisions and retries
 
-- `get(resource_uri, view?, at_revision?, cursor?, limit?)`
-- `search(resource_type, query?, cursor?, limit?)`
-- `act(capability_id, expected_revision, input, idempotency_key, scope?)`
-- `why_not(resource_uri, command, input?)`
+Every response includes `state_revision`, `scope`, and `policy_version`.
+Before executing a mutation, Havoc checks that the revision is still current,
+that the capability is still advertised for the session, and that the input
+matches its schema. A stale revision or unavailable capability is rejected
+before domain state changes.
 
-Stateful `get` calls use a URI such as `gia://session/gs-…`. The local MCP
-transport also accepts `session_id` on `search` and `act` as the explicit
-execution-scope handle required by the session model. It is not an
-authorization input; the server-derived actor, tenant, scope, current policy,
-and capability ID are still revalidated by the reference monitor.
+Use a new read to recover from `stale_state` or `stale_view`. Reusing the same
+`idempotency_key` for the same request returns the original committed result;
+reusing it with different input is a conflict.
 
-## Building a GAS surface
+Large responses are paginated. When `complete` is `false`, follow
+`next_cursor` only with the same resource, query, scope, and session. A state
+or policy change invalidates the view and requires fresh discovery.
 
-`JsonGameRuntimeAdapter` (JSON strings, action names, and flattened
-`affordances`) and its successor `GasRuntime` (a hand-rolled GAS 2.0
-implementation) were both removed in PR 19 ("Migrate callers and remove
-compatibility paths") once a
-repository-wide usage search confirmed every first-party Director,
-playthrough, demo, agent, and test caller had migrated off them.
+## Provenance
 
-The current, sole path is `havoc_server.runtime.build_gas_service(runtime: GameRuntime)
--> GasService`: it composes a `GiaGasAdapter` over the runtime's application
-ports and wraps it in `gas_protocol.service.GasService`. This is the exact
-composition the live MCP server (`havoc_server.app`) and the Director
-(`playthrough.director`) both build from — there is no separate
-"legacy" or "GAS 2.0" adapter to choose between anymore.
+Committed mutations produce a versioned provenance record containing the
+selected capability, request and revision metadata, redacted input/result,
+and emitted events. Use `get_session_provenance` or `get_provenance` to read
+those records. Explicit caller rationale is stored as untrusted metadata and
+does not represent hidden model reasoning.
 
-```python
-from havoc_server.runtime import GameRuntime, build_gas_service
-
-runtime = GameRuntime()
-gas = build_gas_service(runtime)
-session = gas.create_session()
-```
-
-`GasService` delegates to the same `GameRuntime`, command registry, policy
-provider, and execution service as any other caller. It cannot add an
-action or bypass the capability revalidation path.
-
-## Locality and recovery
-
-Capability responses declare their scope using the canonical form
-`tenant:<tenant>/<kind>:<identifier>`. The renderer uses session scopes for a
-workflow, collection scopes for search results, and resource scopes for a
-target-local view. `workflow`, `collection`, and `resource` scopes are
-contextual labels, not alternate authorization systems: `act` still
-re-projects the command binding against the authoritative session.
-
-Large command sets are bounded by a deterministic page budget. A response
-with `complete=false` carries `next_cursor`; target-heavy pages also expose
-non-executable `binding_templates` that point clients toward search followed
-by a target-local `get`. Cursors bind the resource, query, scope, state
-revision, and policy version. Reusing one after the resource, query, or
-scope it was minted against no longer matches the request returns the
-typed `invalid_input` error — the cursor was never valid for this request.
-Reusing one after only the state revision or policy version has since
-advanced returns the typed `stale_view` error; in that case clients should
-restart discovery. See `packages/gas-protocol/docs/GAS-PROTOCOL.md` §7 for the
-full rule.
-
-`why_not` is a diagnostic read. It reports structured reasons and prerequisites
-for an unavailable command but always returns an empty executable command set;
-it cannot be used to bypass capability-ID dispatch or reveal another tenant's
-entities.
-
-## Decision provenance
-
-Every committed mutation writes one versioned `DecisionProvenance` record in
-the same SQLite transaction as the state revision and domain events. It binds
-the request ID, actor, tenant/scope, selected capability, capability-set hash,
-durable snapshot reference, redacted input/result, before/after revisions,
-policy version, emitted events, outcome, and optional client/model metadata.
-The snapshot records capabilities advertised by the server; alternatives are
-labelled "advertised but not selected" and do not claim access to hidden model
-reasoning. Explicit caller rationale is stored only as `untrusted_rationale`.
-
-Sensitive fields are recursively redacted before SQLite persistence or graph
-projection. Idempotent retries return the original result and do not create a
-second provenance record. Rejected or failed mutations do not create a
-committed provenance record; their typed error is the observable outcome, and
-transaction rollback removes any in-flight state, events, revision, and audit
-row together. `get_session_provenance` and `get_provenance` are the canonical
-read APIs; `get_session_decisions` remains a 1.x compatibility alias.
+For the complete protocol contract, error vocabulary, cursor rules, and
+backend boundary, see [`GAS-PROTOCOL.md`](../../packages/gas-protocol/docs/GAS-PROTOCOL.md).
+For the additional guarantees supplied by GIA, see
+[`GIA-THREAT-MODEL.md`](../../packages/gia-core/docs/GIA-THREAT-MODEL.md).

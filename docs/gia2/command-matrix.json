@@ -1,5 +1,5 @@
 {
-  "$comment": "PR 1 characterization baseline (this file). The mutation column is regenerated from gia_core.capabilities.legacy_effects (MUTATING_ACTIONS / READ_ONLY_ACTIONS), the source of truth tests/test_capabilities.py cross-checks it against. wait_for_rescue has mutation=null: it is advertised in the downed phase (Gap A) but has no dispatch branch (Gap B) and is never registered in havoc_domain.kernel's CommandRegistry, so its mutation status is characterized as unknown rather than observed; legacy_effects.py treats its intent as mutating.",
+  "$comment": "Internal test fixture, not a public contract. The mutation column is regenerated from gia_core.capabilities.legacy_effects and cross-checked by the capability tests. wait_for_rescue is retained as an unregistered, unknown entry so the characterization tests cover that historical edge case.",
   "actions": [
     {
       "action": "allocate_dice",

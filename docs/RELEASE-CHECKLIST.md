@@ -1,5 +1,8 @@
 # Release checklist
 
+> Maintainers only. This is a release gate for the Havoc workspace and its
+> pinned package repositories; it is not required for using the application.
+
 **Owner:** `havoc` application integration
 
 Run this before cutting a release that touches `gia-core`, `gas-protocol`,
@@ -57,7 +60,7 @@ command or check that answers it — this is a gate list, not a narrative.
   `packages/gia-gas-adapter/docs/GIA-GAS-INTEGRATION.md`, ADR-0013, and files narrating past
   states (execution plan, other ADRs) finds no new use of it as a
   stand-in for either specification's own guarantees (ADR-0013,
-  `docs/MIGRATION-GUIDE.md` §2).
+  `docs/gia2/GAS-MIGRATION.md`).
 
 ## Unsupported-claim audit
 

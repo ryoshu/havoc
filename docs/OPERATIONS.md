@@ -1,4 +1,4 @@
-# GIA Operations
+# Havoc operations
 
 ## Clean checkout setup
 
@@ -17,20 +17,17 @@ git submodule update --init --recursive
 
 The four repositories under `packages/` are pinned Git submodules and are also
 the local `uv` workspace members. They must be checked out before installing
-the locked runtime and test dependencies:
+the locked dependencies:
 
 ```bash
 uv sync --locked --extra test
 ```
 
-Check the pinned package commits with:
+To verify the checked-out package revisions:
 
 ```bash
 git submodule status
 ```
-
-When a package release is updated, update its submodule checkout and commit the
-new gitlink in Havoc along with the compatible lockfile change.
 
 The project targets Python 3.11 or newer. MCP Python SDK v2
 (`mcp[cli]>=2.0,<3`) is an optional dependency (the `mcp` extra) so the
@@ -50,13 +47,13 @@ Every stateful request carries its session handle, while the SQLite database
 stores sessions, decisions, completed rolls, and pending roll state. Pending
 rolls are therefore recoverable between the roll and allocation requests.
 
-## SQLite deployment boundary
+## Deployment boundary
 
-GIA uses SQLite with a process-local connection and serialized transactions.
-This is appropriate for a local server or a single worker. A multi-worker
-deployment should provide one database connection per worker and coordinate
-access through SQLite's locking, or migrate the persistence layer to a shared
-transactional database before scaling horizontally.
+Havoc uses SQLite with a process-local connection and serialized transactions.
+This is appropriate for a local server or a single worker. For multiple
+workers, give each worker its own connection and coordinate through SQLite's
+locking, or move session state to a shared transactional database before
+scaling horizontally.
 
 ## MCP transports
 
@@ -91,7 +88,7 @@ uv run mcp dev src/havoc_server/__main__.py
 `mcp dev` starts the server with the Inspector. The installed SDK does not
 provide a separate `mcp inspect` subcommand.
 
-## What affordance enforcement guarantees
+## Capability enforcement
 
 Affordances are server-computed capabilities, not a promise about the model's
 output channel. For every mutation, the server recomputes the current
@@ -105,10 +102,10 @@ A client can still send any string or JSON payload on the wire. “Enforced”
 means those non-current capabilities are rejected at the server boundary, not
 that a language model is physically unable to produce malformed text.
 
-See `packages/gia-core/docs/GIA-THREAT-MODEL.md` for the full boundary of what this
-guarantee does, and does not, cover.
+See `packages/gia-core/docs/GIA-THREAT-MODEL.md` for the full boundary of what
+this guarantee does, and does not, cover.
 
-## State, resources, and compatibility
+## State and resources
 
 Session state and affordances are mutable and belong on MCP tools. Immutable
 domain knowledge is exposed as read-only MCP resources (`gia://rules`,
@@ -116,19 +113,7 @@ domain knowledge is exposed as read-only MCP resources (`gia://rules`,
 `gia://ontology`). Every stateful call must carry the session handle returned
 by `create_session`.
 
-| Client/runtime | Protocol | Transport | Status |
-|---|---|---|---|
-| MCP Python SDK v2 (`MCPServer`) | `2026-07-28` | stdio | Supported and tested |
-| MCP Python SDK v2 (`MCPServer`) | `2026-07-28` | Streamable HTTP `/mcp` | Supported and smoke-tested |
-| MCP Inspector via `mcp dev` | SDK-negotiated | local child process | Supported for development |
-| Legacy JSON Python wrappers | Not an MCP wire protocol | In-process | Compatibility adapter for playthrough/evals |
-| MCP SDK v1 clients | Older protocol/API | Any | Not a supported project dependency |
-
-## Local versus shared deployment
-
-The default SQLite database is suitable for a local process or single worker.
-For a multi-worker production deployment, give each worker its own connection
-and coordinate through SQLite locking, or move session and evaluation results
-to a shared transactional database before scaling horizontally. Immutable
-resources may be cached independently; session revisions and mutation
-transactions must remain on the authoritative state store.
+The supported MCP runtime is SDK v2 over stdio or Streamable HTTP. The local
+Inspector can be started with `mcp dev`; SDK v1 clients are not supported.
+Immutable resources may be cached independently, but session revisions and
+mutation transactions must remain on the authoritative state store.

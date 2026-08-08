@@ -109,8 +109,8 @@ REPOSITORIES: dict[str, RepoSpec] = {
             PathRule("src/agent", "src/agent"),
             PathRule("src/demo", "src/demo"),
             PathRule("src/playthrough", "src/playthrough"),
-            # Historical pre-RS-02/RS-09 tree — kept for provenance even
-            # though nothing imports it anymore (docs/MIGRATION-GUIDE.md).
+            # Historical pre-release tree — kept for provenance even though
+            # nothing imports it anymore.
             PathRule("src/gia", "src/gia"),
             PathRule("eval", "eval"),
             PathRule("data", "data"),
