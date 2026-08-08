@@ -61,9 +61,7 @@ workspace members, so they must be present before dependency resolution.
 uv sync --locked --extra test
 ```
 
-Havoc depends on `gia-core`, `gas-protocol`, and `gia-gas-adapter` for its
-capability application boundary and GAS surface. Install the `mcp` extra when
-you need the MCP server or MCP tests:
+Install the `mcp` extra when you need the MCP server or MCP tests:
 
 ```bash
 uv sync --locked --extra mcp
