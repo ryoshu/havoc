@@ -60,6 +60,14 @@ def test_extracted_gia_gas_adapter_tree_has_no_boundary_violations():
     assert violations == [], "\n".join(str(v) for v in violations)
 
 
+def test_extracted_gas_mcp_tree_has_no_boundary_violations():
+    mcp_root = REPO_ROOT / "packages" / "gas-mcp" / "gas_mcp"
+    assert mcp_root.is_dir()
+    assert not mcp_root.is_symlink(), "RS-08 must own real source files"
+    violations = checker.check_boundaries(mcp_root)
+    assert violations == [], "\n".join(str(v) for v in violations)
+
+
 def test_default_checker_covers_extracted_workspace_trees():
     assert checker.check_repository_boundaries() == []
 
