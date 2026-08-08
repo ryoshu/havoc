@@ -9,8 +9,8 @@ Native tools should be installed on a context-specific MCP server (or another
 isolated tool registry).  Installing a session's capabilities into the shared
 module-level GAS server would make stale tools look globally available.
 
-Relocated from ``src/gia/renderers/native_mcp.py`` to ``src/gas_mcp/native.py``
-in PR 17 (`docs/GIA-GAS-SEPARATION-EXECUTION-PLAN.md`), then to here in RS-03
+Originally relocated from ``src/gia/renderers/native_mcp.py`` during the PR 17
+transport work, then made Havoc-owned here in RS-03
 (`docs/GIA-REPOSITORY-SPLIT-PLAN.md`): nothing outside Havoc ever consumed
 this renderer (the live server wires only the generic ``gas_mcp.install_gas_mcp``
 — see ``havoc_server.app.build_mcp_server``), so ``gas_mcp`` staying
